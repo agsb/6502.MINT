@@ -47,8 +47,8 @@ start:
 
 mint:
         ; there is no stack LD SP,DSTACK
-        CALL initialize
-        CALL printStr
+        jsr  initialize
+        jsr  printStr
         .cstr "MINT V1.0\r\n"
         JR interpret
 
@@ -92,13 +92,13 @@ macro:                          ;=25
         LD E,(HL)
         LD D,msb(macros)
         PUSH DE
-        call ENTER
+        jsr  ENTER
         .cstr "\\G"
         LD BC,(vTIBPtr)
         JR interpret2
 
 interpret:
-        call ENTER
+        jsr  ENTER
         .cstr "\\N`> `"
 
 interpret1:                     ; used by tests
@@ -116,7 +116,7 @@ interpret3:
         LD A,(HL)               ; A = char in TIB
         INC HL                  ; inc pointer into TIB
         DEC BC                  ; dec count of chars in TIB
-        call nesting            ; update nesting value
+        jsr  nesting            ; update nesting value
 
 interpret4:
         LD A,C                  ; is count zero?
@@ -130,7 +130,7 @@ interpret4:
 ; *******************************************************************
 
 waitchar:   
-        CALL getchar            ; loop around waiting for character
+        jsr  getchar            ; loop around waiting for character
         CP $20
         JR NC,waitchar1
         CP $0                   ; is it end of string?
@@ -145,8 +145,8 @@ waitchar1:
         ADD HL,BC
         LD (HL),A               ; store the character in textbuf
         INC BC
-        CALL putchar            ; echo character to screen
-        CALL nesting
+        jsr  putchar            ; echo character to screen
+        jsr  nesting
         JR  waitchar            ; wait for next character
 
 waitchar3:
@@ -158,7 +158,7 @@ waitchar3:
         INC HL                  ; ????
         INC BC
         INC BC
-        CALL crlf               ; echo character to screen
+        jsr  crlf               ; echo character to screen
         LD A,E                  ; if zero nesting append and ETX after \r
         OR A
         JR NZ,waitchar
@@ -169,7 +169,7 @@ waitchar4:
         LD (vTIBPtr),BC
         LD BC,TIB               ; Instructions stored on heap at address HERE
         DEC BC
-        JP NEXT
+        jmp NEXT
 
 ; ********************************************************************************
 ;
@@ -177,7 +177,7 @@ waitchar4:
 ;
 ; Get the next character and form a 1 byte jump address
 ;
-; This target jump address is loaded into HL, and using JP (HL) to quickly 
+; This target jump address is loaded into HL, and using jmp (HL) to quickly 
 ; jump to the selected function.
 ;
 ; Individual handler routines will deal with each category:
@@ -200,7 +200,7 @@ NEXT:                               ; 9
         LD H,msb(opcodes)           ; 7t    Start address of jump table         
         LD L,(HL)                   ; 7t    get low jump address
         LD H,msb(page4)             ; 7t    Load H with the 1st page address
-        JP (HL)                     ; 4t    Jump to routine
+        jmp (HL)                     ; 4t    Jump to routine
 
 ; ARRAY compilation routine
 compNEXT:                       ;=20
@@ -239,7 +239,7 @@ nesting1a:
         RET
 nesting1:
         BIT 7,E             
-        RET NZ             
+        rts NZ             
         CP ':'
         JR Z,nesting2
         CP '['
@@ -255,13 +255,13 @@ nesting3:
         CP ']'
         JR Z,nesting4
         CP ')'
-        RET NZ
+        rts NZ
 nesting4:
         DEC E
-        RET 
+        rts 
         
 prompt:                             ;=9
-        call printStr
+        jsr  printStr
         .cstr "\r\n> "
         RET
 
@@ -282,134 +282,134 @@ opcodes:
 ; ***********************************************************************
 ; Initial values for user mintVars		
 ; ***********************************************************************		
-        DB    lsb(exit_)    ;   NUL 
-        DB    lsb(nop_)     ;   SOH 
-        DB    lsb(nop_)     ;   STX 
-        DB    lsb(etx_)     ;   ETX 
-        DB    lsb(nop_)     ;   EOT 
-        DB    lsb(nop_)     ;   ENQ 
-        DB    lsb(nop_)     ;   ACK 
-        DB    lsb(nop_)     ;   BEL 
-        DB    lsb(nop_)     ;   BS  
-        DB    lsb(nop_)     ;   TAB 
-        DB    lsb(nop_)     ;   LF  
-        DB    lsb(nop_)     ;   VT  
-        DB    lsb(nop_)     ;   FF  
-        DB    lsb(nop_)     ;   CR  
-        DB    lsb(nop_)     ;   SO  
-        DB    lsb(nop_)     ;   SI  
-        DB    lsb(nop_)     ;   DLE 
-        DB    lsb(nop_)     ;   DC1 
-        DB    lsb(nop_)     ;   DC2 
-        DB    lsb(nop_)     ;   DC3 
-        DB    lsb(nop_)     ;   DC4 
-        DB    lsb(nop_)     ;   NAK 
-        DB    lsb(nop_)     ;   SYN 
-        DB    lsb(nop_)     ;   ETB 
-        DB    lsb(nop_)     ;   CAN 
-        DB    lsb(nop_)     ;   EM  
-        DB    lsb(nop_)     ;   SUB 
-        DB    lsb(nop_)     ;   ESC 
-        DB    lsb(nop_)     ;   FS  
-        DB    lsb(nop_)     ;   GS  
-        DB    lsb(nop_)     ;   RS  
-        DB    lsb(nop_)     ;   US  
-        DB    lsb(nop_)     ;   SP
-        DB    lsb(store_)   ;   !            
-        DB    lsb(dup_)     ;   "
-        DB    lsb(hex_)    ;    #
-        DB    lsb(swap_)   ;    $            
-        DB    lsb(over_)   ;    %            
-        DB    lsb(and_)    ;    &
-        DB    lsb(drop_)   ;    '
-        DB    lsb(begin_)  ;    (        
-        DB    lsb(again_)  ;    )
-        DB    lsb(mul_)    ;    *            
-        DB    lsb(add_)    ;    +
-        DB    lsb(hdot_)   ;    ,            
-        DB    lsb(sub_)    ;    -
-        DB    lsb(dot_)    ;    .
-        DB    lsb(div_)    ;    /
-        DB    lsb(num_)    ;    0            
-        DB    lsb(num_)    ;    1        
-        DB    lsb(num_)    ;    2            
-        DB    lsb(num_)    ;    3
-        DB    lsb(num_)    ;    4            
-        DB    lsb(num_)    ;    5            
-        DB    lsb(num_)    ;    6            
-        DB    lsb(num_)    ;    7
-        DB    lsb(num_)    ;    8            
-        DB    lsb(num_)    ;    9        
-        DB    lsb(def_)    ;    :        
-        DB    lsb(ret_)    ;    ;
-        DB    lsb(lt_)     ;    <
-        DB    lsb(eq_)     ;    =            
-        DB    lsb(gt_)     ;    >            
-        DB    lsb(getRef_) ;    ?
-        DB    lsb(fetch_)  ;    @    
-        DB    lsb(call_)   ;    A    
-        DB    lsb(call_)   ;    B
-        DB    lsb(call_)   ;    C
-        DB    lsb(call_)   ;    D    
-        DB    lsb(call_)   ;    E
-        DB    lsb(call_)   ;    F
-        DB    lsb(call_)   ;    G
-        DB    lsb(call_)   ;    H
-        DB    lsb(call_)   ;    I
-        DB    lsb(call_)   ;    J
-        DB    lsb(call_)   ;    K
-        DB    lsb(call_)   ;    L
-        DB    lsb(call_)   ;    M
-        DB    lsb(call_)   ;    N
-        DB    lsb(call_)   ;    O
-        DB    lsb(call_)   ;    P
-        DB    lsb(call_)   ;    Q
-        DB    lsb(call_)   ;    R
-        DB    lsb(call_)   ;    S
-        DB    lsb(call_)   ;    T
-        DB    lsb(call_)   ;    U
-        DB    lsb(call_)   ;    V
-        DB    lsb(call_)   ;    W
-        DB    lsb(call_)   ;    X
-        DB    lsb(call_)   ;    Y
-        DB    lsb(call_)   ;    Z
-        DB    lsb(arrDef_) ;    [
-        DB    lsb(alt_)    ;    \
-        DB    lsb(arrEnd_) ;    ]
-        DB    lsb(xor_)    ;    ^
-        DB    lsb(neg_)    ;    _
-        DB    lsb(str_)    ;    `            
-        DB    lsb(var_)    ;    a
-        DB    lsb(var_)    ;    b
-        DB    lsb(var_)    ;    c
-        DB    lsb(var_)    ;    d
-        DB    lsb(var_)    ;    e
-        DB    lsb(var_)    ;    f
-        DB    lsb(var_)    ;    g
-        DB    lsb(var_)    ;    h
-        DB    lsb(var_)    ;    i            
-        DB    lsb(var_)    ;    j
-        DB    lsb(var_)    ;    k
-        DB    lsb(var_)    ;    l
-        DB    lsb(var_)    ;    m
-        DB    lsb(var_)    ;    n
-        DB    lsb(var_)    ;    o
-        DB    lsb(var_)    ;    p
-        DB    lsb(var_)    ;    q            
-        DB    lsb(var_)    ;    r
-        DB    lsb(var_)    ;    s    
-        DB    lsb(var_)    ;    t
-        DB    lsb(var_)    ;    u
-        DB    lsb(var_)    ;    v
-        DB    lsb(var_)    ;    w
-        DB    lsb(var_)    ;    x
-        DB    lsb(var_)    ;    y
-        DB    lsb(var_)    ;    z
-        DB    lsb(shl_)    ;    {
-        DB    lsb(or_)     ;    |            
-        DB    lsb(shr_)    ;    }            
-        DB    lsb(inv_)    ;    ~            
-        DB    lsb(nop_)    ;    backspace
+       .word (exit_)    ;   NUL 
+       .word (nop_)     ;   SOH 
+       .word (nop_)     ;   STX 
+       .word (etx_)     ;   ETX 
+       .word (nop_)     ;   EOT 
+       .word (nop_)     ;   ENQ 
+       .word (nop_)     ;   ACK 
+       .word (nop_)     ;   BEL 
+       .word (nop_)     ;   BS  
+       .word (nop_)     ;   TAB 
+       .word (nop_)     ;   LF  
+       .word (nop_)     ;   VT  
+       .word (nop_)     ;   FF  
+       .word (nop_)     ;   CR  
+       .word (nop_)     ;   SO  
+       .word (nop_)     ;   SI  
+       .word (nop_)     ;   DLE 
+       .word (nop_)     ;   DC1 
+       .word (nop_)     ;   DC2 
+       .word (nop_)     ;   DC3 
+       .word (nop_)     ;   DC4 
+       .word (nop_)     ;   NAK 
+       .word (nop_)     ;   SYN 
+       .word (nop_)     ;   ETB 
+       .word (nop_)     ;   CAN 
+       .word (nop_)     ;   EM  
+       .word (nop_)     ;   SUB 
+       .word (nop_)     ;   ESC 
+       .word (nop_)     ;   FS  
+       .word (nop_)     ;   GS  
+       .word (nop_)     ;   RS  
+       .word (nop_)     ;   US  
+       .word (nop_)     ;   SP
+       .word (store_)   ;   !            
+       .word (dup_)     ;   "
+       .word (hex_)    ;    #
+       .word (swap_)   ;    $            
+       .word (over_)   ;    %            
+       .word (and_)    ;    &
+       .word (drop_)   ;    '
+       .word (begin_)  ;    (        
+       .word (again_)  ;    )
+       .word (mul_)    ;    *            
+       .word (add_)    ;    +
+       .word (hdot_)   ;    ,            
+       .word (sub_)    ;    -
+       .word (dot_)    ;    .
+       .word (div_)    ;    /
+       .word (num_)    ;    0            
+       .word (num_)    ;    1        
+       .word (num_)    ;    2            
+       .word (num_)    ;    3
+       .word (num_)    ;    4            
+       .word (num_)    ;    5            
+       .word (num_)    ;    6            
+       .word (num_)    ;    7
+       .word (num_)    ;    8            
+       .word (num_)    ;    9        
+       .word (def_)    ;    :        
+       .word (ret_)    ;    ;
+       .word (lt_)     ;    <
+       .word (eq_)     ;    =            
+       .word (gt_)     ;    >            
+       .word (getRef_) ;    ?
+       .word (fetch_)  ;    @    
+       .word (jsr _)   ;    A    
+       .word (jsr _)   ;    B
+       .word (jsr _)   ;    C
+       .word (jsr _)   ;    D    
+       .word (jsr _)   ;    E
+       .word (jsr _)   ;    F
+       .word (jsr _)   ;    G
+       .word (jsr _)   ;    H
+       .word (jsr _)   ;    I
+       .word (jsr _)   ;    J
+       .word (jsr _)   ;    K
+       .word (jsr _)   ;    L
+       .word (jsr _)   ;    M
+       .word (jsr _)   ;    N
+       .word (jsr _)   ;    O
+       .word (jsr _)   ;    P
+       .word (jsr _)   ;    Q
+       .word (jsr _)   ;    R
+       .word (jsr _)   ;    S
+       .word (jsr _)   ;    T
+       .word (jsr _)   ;    U
+       .word (jsr _)   ;    V
+       .word (jsr _)   ;    W
+       .word (jsr _)   ;    X
+       .word (jsr _)   ;    Y
+       .word (jsr _)   ;    Z
+       .word (arrDef_) ;    [
+       .word (alt_)    ;    \
+       .word (arrEnd_) ;    ]
+       .word (xor_)    ;    ^
+       .word (neg_)    ;    _
+       .word (str_)    ;    `            
+       .word (var_)    ;    a
+       .word (var_)    ;    b
+       .word (var_)    ;    c
+       .word (var_)    ;    d
+       .word (var_)    ;    e
+       .word (var_)    ;    f
+       .word (var_)    ;    g
+       .word (var_)    ;    h
+       .word (var_)    ;    i            
+       .word (var_)    ;    j
+       .word (var_)    ;    k
+       .word (var_)    ;    l
+       .word (var_)    ;    m
+       .word (var_)    ;    n
+       .word (var_)    ;    o
+       .word (var_)    ;    p
+       .word (var_)    ;    q            
+       .word (var_)    ;    r
+       .word (var_)    ;    s    
+       .word (var_)    ;    t
+       .word (var_)    ;    u
+       .word (var_)    ;    v
+       .word (var_)    ;    w
+       .word (var_)    ;    x
+       .word (var_)    ;    y
+       .word (var_)    ;    z
+       .word (shl_)    ;    {
+       .word (or_)     ;    |            
+       .word (shr_)    ;    }            
+       .word (inv_)    ;    ~            
+       .word (nop_)    ;    backspace
 
         
 ; ***********************************************************************
@@ -417,134 +417,134 @@ opcodes:
 ; ***********************************************************************		
 ctrlCodes:
 altCodes:
-        DB     lsb(empty_)      ; NUL ^@
-        DB     lsb(empty_)      ; SOH ^A
-        DB     lsb(toggleBase_) ; STX ^B
-        DB     lsb(empty_)      ; ETX ^C
-        DB     lsb(empty_)      ; EOT ^D
-        DB     lsb(edit_)       ; ENQ ^E
-        DB     lsb(empty_)      ; ACK ^F
-        DB     lsb(empty_)      ; BEL ^G
-        DB     lsb(backsp_)     ; BS  ^H
-        DB     lsb(empty_)      ; TAB ^I
-        DB     lsb(reedit_)     ; LF  ^J
-        DB     lsb(empty_)      ; VT  ^K
-        DB     lsb(list_)       ; FF  ^L
-        DB     lsb(empty_)      ; CR  ^M
-        DB     lsb(empty_)      ; SO  ^N
-        DB     lsb(empty_)      ; SI  ^O
-        DB     lsb(printStack_) ; DLE ^P
-        DB     lsb(empty_)      ; DC1 ^Q
-        DB     lsb(empty_)      ; DC2 ^R
-        DB     lsb(empty_)      ; DC3 ^S
-        DB     lsb(empty_)      ; DC4 ^T
-        DB     lsb(empty_)      ; NAK ^U
-        DB     lsb(empty_)      ; SYN ^V
-        DB     lsb(empty_)      ; ETB ^W
-        DB     lsb(empty_)      ; CAN ^X
-        DB     lsb(empty_)      ; EM  ^Y
-        DB     lsb(empty_)      ; SUB ^Z
-        DB     lsb(empty_)      ; ESC ^[
-        DB     lsb(empty_)      ; FS  ^\
-        DB     lsb(empty_)      ; GS  ^]
-        DB     lsb(empty_)      ; RS  ^^
-        DB     lsb(empty_)      ; US  ^_)
-        DB     lsb(aNop_)       ; SP  ^`
-        DB     lsb(cStore_)     ;    !            
-        DB     lsb(aNop_)       ;    "
-        DB     lsb(aNop_)       ;    #
-        DB     lsb(aNop_)       ;    $  ( -- adr ) text input ptr           
-        DB     lsb(aNop_)       ;    %            
-        DB     lsb(aNop_)       ;    &
-        DB     lsb(aNop_)       ;    '
-        DB     lsb(ifte_)       ;    (  ( b -- )              
-        DB     lsb(aNop_)       ;    )
-        DB     lsb(aNop_)       ;    *            
-        DB     lsb(incr_)       ;    +  ( adr -- ) decrements variable at address
-        DB     lsb(aNop_)       ;    ,            
-        DB     lsb(aNop_)       ;    -  
-        DB     lsb(aNop_)       ;    .  
-        DB     lsb(aNop_)       ;    /
-        DB     lsb(aNop_)       ;    0           
-        DB     lsb(aNop_)       ;    1  
-        DB     lsb(aNop_)       ;    2            
-        DB     lsb(aNop_)       ;    3  
-        DB     lsb(aNop_)       ;    4            
-        DB     lsb(aNop_)       ;    5            
-        DB     lsb(aNop_)       ;    6            
-        DB     lsb(aNop_)       ;    7
-        DB     lsb(aNop_)       ;    8            
-        DB     lsb(aNop_)       ;    9        
-        DB     lsb(aNop_)       ;    :  start defining a macro        
-        DB     lsb(aNop_)       ;    ;  
-        DB     lsb(aNop_)       ;    <
-        DB     lsb(aNop_)       ;    =            
-        DB     lsb(aNop_)       ;    >            
-        DB     lsb(aNop_)       ;    ?
-        DB     lsb(cFetch_)     ;    @      
-        DB     lsb(aNop_)       ;    A    
-        DB     lsb(break_)      ;    B
-        DB     lsb(nop_)        ;    C
-        DB     lsb(depth_)      ;    D  ( -- val ) depth of data stack  
-        DB     lsb(emit_)       ;    E   ( val -- ) emits a char to output
-        DB     lsb(aNop_)       ;    F
-        DB     lsb(go_)         ;    G   ( -- ? ) execute mint definition
-        DB     lsb(aNop_)       ;    H  
-        DB     lsb(inPort_)     ;    I  ( port -- val )   
-        DB     lsb(aNop_)       ;    J
-        DB     lsb(key_)        ;    K  ( -- val )  read a char from input
-        DB     lsb(aNop_)       ;    L  
-        DB     lsb(aNop_)       ;    M  
-        DB     lsb(newln_)      ;    N   ; prints a newline to output
-        DB     lsb(outPort_)    ;    O  ( val port -- )
-        DB     lsb(printStk_)   ;    P  ( -- ) non-destructively prints stack
-        DB     lsb(aNop_)       ;    Q  quits from Mint REPL
-        DB     lsb(rot_)        ;    R  ( a b c -- b c a )
-        DB     lsb(aNop_)       ;    S
-        DB     lsb(aNop_)       ;    T
-        DB     lsb(aNop_)       ;    U
-        DB     lsb(aNop_)       ;    V
-        DB     lsb(aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop
-        DB     lsb(exec_)       ;    X
-        DB     lsb(aNop_)       ;    Y
-        DB     lsb(editDef_)    ;    Z
-        DB     lsb(cArrDef_)    ;    [
-        DB     lsb(comment_)    ;    \  comment text, skips reading until end of line
-        DB     lsb(aNop_)       ;    ]
-        DB     lsb(charCode_)   ;    ^
-        DB     lsb(aNop_)       ;    _ 
-        DB     lsb(aNop_)       ;    `            
-        DB     lsb(sysVar_)     ;    a  ; start of data stack variable
-        DB     lsb(sysVar_)     ;    b  ; base16 variable
-        DB     lsb(sysVar_)     ;    c  ; TIBPtr variable
-        DB     lsb(sysVar_)     ;    d  
-        DB     lsb(sysVar_)     ;    e  
-        DB     lsb(sysVar_)     ;    f
-        DB     lsb(sysVar_)     ;    g  
-        DB     lsb(sysVar_)     ;    h  ; heap ptr variable
-        DB     lsb(i_)          ;    i  ; returns index variable of current loop          
-        DB     lsb(j_)          ;    j  ; returns index variable of outer loop
-        DB     lsb(sysVar_)     ;    k  
-        DB     lsb(sysVar_)     ;    l
-        DB     lsb(sysVar_)     ;    m  ( a b -- c ) return the minimum value
-        DB     lsb(sysVar_)     ;    n  
-        DB     lsb(sysVar_)     ;    o
-        DB     lsb(sysVar_)     ;    p  
-        DB     lsb(sysVar_)     ;    q           
-        DB     lsb(sysVar_)     ;    r
-        DB     lsb(sysVar_)     ;    s 
-        DB     lsb(sysVar_)     ;    t
-        DB     lsb(sysVar_)     ;    u
-        DB     lsb(sysVar_)     ;    v   
-        DB     lsb(sysVar_)     ;    w   
-        DB     lsb(sysVar_)     ;    x
-        DB     lsb(sysVar_)     ;    y
-        DB     lsb(sysVar_)     ;    z
-        DB     lsb(group_)      ;    {
-        DB     lsb(aNop_)       ;    |            
-        DB     lsb(endGroup_)   ;    }            
-        DB     lsb(aNop_)       ;    ~           
-        DB     lsb(aNop_)       ;    BS		
+       .word (empty_)      ; NUL ^@
+       .word (empty_)      ; SOH ^A
+       .word (toggleBase_) ; STX ^B
+       .word (empty_)      ; ETX ^C
+       .word (empty_)      ; EOT ^D
+       .word (edit_)       ; ENQ ^E
+       .word (empty_)      ; ACK ^F
+       .word (empty_)      ; BEL ^G
+       .word (backsp_)     ; BS  ^H
+       .word (empty_)      ; TAB ^I
+       .word (reedit_)     ; LF  ^J
+       .word (empty_)      ; VT  ^K
+       .word (list_)       ; FF  ^L
+       .word (empty_)      ; CR  ^M
+       .word (empty_)      ; SO  ^N
+       .word (empty_)      ; SI  ^O
+       .word (printStack_) ; DLE ^P
+       .word (empty_)      ; DC1 ^Q
+       .word (empty_)      ; DC2 ^R
+       .word (empty_)      ; DC3 ^S
+       .word (empty_)      ; DC4 ^T
+       .word (empty_)      ; NAK ^U
+       .word (empty_)      ; SYN ^V
+       .word (empty_)      ; ETB ^W
+       .word (empty_)      ; CAN ^X
+       .word (empty_)      ; EM  ^Y
+       .word (empty_)      ; SUB ^Z
+       .word (empty_)      ; ESC ^[
+       .word (empty_)      ; FS  ^\
+       .word (empty_)      ; GS  ^]
+       .word (empty_)      ; RS  ^^
+       .word (empty_)      ; US  ^_)
+       .word (aNop_)       ; SP  ^`
+       .word (cStore_)     ;    !            
+       .word (aNop_)       ;    "
+       .word (aNop_)       ;    #
+       .word (aNop_)       ;    $  ( -- adr ) text input ptr           
+       .word (aNop_)       ;    %            
+       .word (aNop_)       ;    &
+       .word (aNop_)       ;    '
+       .word (ifte_)       ;    (  ( b -- )              
+       .word (aNop_)       ;    )
+       .word (aNop_)       ;    *            
+       .word (incr_)       ;    +  ( adr -- ) decrements variable at address
+       .word (aNop_)       ;    ,            
+       .word (aNop_)       ;    -  
+       .word (aNop_)       ;    .  
+       .word (aNop_)       ;    /
+       .word (aNop_)       ;    0           
+       .word (aNop_)       ;    1  
+       .word (aNop_)       ;    2            
+       .word (aNop_)       ;    3  
+       .word (aNop_)       ;    4            
+       .word (aNop_)       ;    5            
+       .word (aNop_)       ;    6            
+       .word (aNop_)       ;    7
+       .word (aNop_)       ;    8            
+       .word (aNop_)       ;    9        
+       .word (aNop_)       ;    :  start defining a macro        
+       .word (aNop_)       ;    ;  
+       .word (aNop_)       ;    <
+       .word (aNop_)       ;    =            
+       .word (aNop_)       ;    >            
+       .word (aNop_)       ;    ?
+       .word (cFetch_)     ;    @      
+       .word (aNop_)       ;    A    
+       .word (break_)      ;    B
+       .word (nop_)        ;    C
+       .word (depth_)      ;    D  ( -- val ) depth of data stack  
+       .word (emit_)       ;    E   ( val -- ) emits a char to output
+       .word (aNop_)       ;    F
+       .word (go_)         ;    G   ( -- ? ) execute mint definition
+       .word (aNop_)       ;    H  
+       .word (inPort_)     ;    I  ( port -- val )   
+       .word (aNop_)       ;    J
+       .word (key_)        ;    K  ( -- val )  read a char from input
+       .word (aNop_)       ;    L  
+       .word (aNop_)       ;    M  
+       .word (newln_)      ;    N   ; prints a newline to output
+       .word (outPort_)    ;    O  ( val port -- )
+       .word (printStk_)   ;    P  ( -- ) non-destructively prints stack
+       .word (aNop_)       ;    Q  quits from Mint REPL
+       .word (rot_)        ;    R  ( a b c -- b c a )
+       .word (aNop_)       ;    S
+       .word (aNop_)       ;    T
+       .word (aNop_)       ;    U
+       .word (aNop_)       ;    V
+       .word (aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop
+       .word (exec_)       ;    X
+       .word (aNop_)       ;    Y
+       .word (editDef_)    ;    Z
+       .word (cArrDef_)    ;    [
+       .word (comment_)    ;    \  comment text, skips reading until end of line
+       .word (aNop_)       ;    ]
+       .word (charCode_)   ;    ^
+       .word (aNop_)       ;    _ 
+       .word (aNop_)       ;    `            
+       .word (sysVar_)     ;    a  ; start of data stack variable
+       .word (sysVar_)     ;    b  ; base16 variable
+       .word (sysVar_)     ;    c  ; TIBPtr variable
+       .word (sysVar_)     ;    d  
+       .word (sysVar_)     ;    e  
+       .word (sysVar_)     ;    f
+       .word (sysVar_)     ;    g  
+       .word (sysVar_)     ;    h  ; heap ptr variable
+       .word (i_)          ;    i  ; returns index variable of current loop          
+       .word (j_)          ;    j  ; returns index variable of outer loop
+       .word (sysVar_)     ;    k  
+       .word (sysVar_)     ;    l
+       .word (sysVar_)     ;    m  ( a b -- c ) return the minimum value
+       .word (sysVar_)     ;    n  
+       .word (sysVar_)     ;    o
+       .word (sysVar_)     ;    p  
+       .word (sysVar_)     ;    q           
+       .word (sysVar_)     ;    r
+       .word (sysVar_)     ;    s 
+       .word (sysVar_)     ;    t
+       .word (sysVar_)     ;    u
+       .word (sysVar_)     ;    v   
+       .word (sysVar_)     ;    w   
+       .word (sysVar_)     ;    x
+       .word (sysVar_)     ;    y
+       .word (sysVar_)     ;    z
+       .word (group_)      ;    {
+       .word (aNop_)       ;    |            
+       .word (endGroup_)   ;    }            
+       .word (aNop_)       ;    ~           
+       .word (aNop_)       ;    BS		
 
 
 ; **********************************************************************			 
@@ -554,7 +554,7 @@ altCodes:
 page4:
 
 alt_:        
-        JP alt
+        jmp alt
 
 ; NEGate the value on top of stack (2's complement)
 neg_:
@@ -734,36 +734,36 @@ arrDef1:
         LD IY,compNEXT
         LD (vByteMode),A
         LD HL,(vHeapPtr)    ; HL = heap ptr
-        CALL rpush          ; save start of array \[  \]
-        JP NEXT         ; hardwired to NEXT
+        jsr  rpush          ; save start of array \[  \]
+        jmp NEXT         ; hardwired to NEXT
 
-arrEnd_:    JP arrEnd
-begin_:     JP begin                   
-call_:
+arrEnd_:    jmp arrEnd
+begin_:     jmp begin                   
+jsr _:
         LD HL,BC
-        CALL rpush              ; save Instruction Pointer
+        jsr  rpush              ; save Instruction Pointer
         LD A,(BC)
-        CALL lookupDef1
+        jsr  lookupDef1
         LD C,(HL)
         INC HL
         LD B,(HL)
         DEC BC
-        JP  (IY)                ; Execute code from User def
+        jmp  (IY)                ; Execute code from User def
 
 
-def_:   JP def
+def_:   jmp def
 
 hdot_:                              ; print hexadecimal
         POP     HL
-        CALL    printhex
+        jsr     printhex
         JR   dot2
 dot_:       
         POP HL
-        CALL printdec
+        jsr  printdec
 dot2:
         LD A,' '           
-        CALL writeChar1
-        JP (IY)
+        jsr  writeChar1
+        jmp (IY)
 
 etx_:
 etx:
@@ -772,39 +772,39 @@ etx:
         JR NC,etx1
         LD SP,DSTACK
 etx1:
-        JP interpret
+        jmp interpret
 
         
 exit_:
         INC BC
         LD DE,BC                
-        CALL rpop               ; Restore Instruction pointer
+        jsr  rpop               ; Restore Instruction pointer
         LD BC,HL
         EX DE,HL
-        JP (HL)
+        jmp (HL)
         
-hex_:   JP hex
+hex_:   jmp hex
 
-nop_:       JP NEXT                 ; hardwire white space to always go to NEXT (important for arrays)
+nop_:       jmp NEXT                 ; hardwire white space to always go to NEXT (important for arrays)
 
 num_:   
-        JP  number
+        jmp  number
 
 ret_:
-        CALL rpop               ; Restore Instruction pointer
+        jsr  rpop               ; Restore Instruction pointer
         LD BC,HL                
-        JP (IY)             
+        jmp (IY)             
 
         POP    HL           ; 10t
         POP    DE           ; 10t
         LD     (HL),E       ; 7t
         INC    HL           ; 6t
         LD     (HL),D       ; 7t
-        JP     (IY)         ; 8t
+        jmp     (IY)         ; 8t
                             ; 48t
     
 getRef_:    
-        JP getRef
+        jmp getRef
 
 gt_:    POP      DE
         POP      HL
@@ -817,11 +817,11 @@ cmp_:   AND      A              ; reset the carry flag
         SBC      HL,DE          ; only equality sets HL=0 here
 		JR       Z,less         ; equality returns 0  KB 25/11/21
         LD       HL, 0
-        JP       M,less
+        jmp       M,less
 equal:  INC      L              ; HL = 1    
 less:     
         PUSH     HL
-        JP       (IY) 
+        jmp       (IY) 
         
 var_:
         LD A,(BC)
@@ -832,15 +832,15 @@ var_:
         LD H,msb(mintVars)
         
         PUSH HL
-        JP (IY)
+        jmp (IY)
         
 div_:   
         JR div
 mul_:   
-        JP mul      
+        jmp mul      
 
 again_:     
-        JP again
+        jmp again
 str_:                       
 str:                                ;= 15
         INC BC
@@ -850,12 +850,12 @@ nextchar:
         INC BC
         CP "`"              ; ` is the string terminator
         JR Z,str2
-        CALL putchar
+        jsr  putchar
         JR nextchar
 
 str2:  
         DEC BC
-        JP   (IY) 
+        jmp   (IY) 
 
 ;*******************************************************************
 ; Page 5 primitive routines 
@@ -865,8 +865,8 @@ str2:
 getRef:                         ;= 8
         INC BC
         LD A,(BC)
-        CALL lookupDef
-        JP fetch1
+        jsr  lookupDef
+        jmp fetch1
 
 alt:                                ;= 11
         INC BC
@@ -876,7 +876,7 @@ alt:                                ;= 11
         LD L,A
         LD L,(HL)                   ; 7t    get low jump address
         LD H, msb(page6)            ; Load H with the 5th page address
-        JP (HL)                    ; 4t    Jump to routine
+        jmp (HL)                    ; 4t    Jump to routine
 
 ; ********************************************************************
 ; 16-bit multiply  
@@ -953,7 +953,7 @@ div_end:
         PUSH DE             ; Push Result
         PUSH HL             ; Push remainder             
 
-        JP (IY)
+        jmp (IY)
 
 ; **************************************************************************             
 ; def is used to create a colon definition
@@ -968,7 +968,7 @@ def:                        ; Create a colon definition
         INC BC
         LD  A,(BC)          ; Get the next character
         INC BC
-        CALL lookupDef
+        jsr  lookupDef
         LD DE,(vHeapPtr)    ; start of defintion
         LD (HL),E           ; Save low byte of address in CFA
         INC HL              
@@ -986,7 +986,7 @@ def2:
         DEC BC
 def3:
         LD (vHeapPtr),DE        ; bump heap ptr to after definiton
-        JP (IY)       
+        jmp (IY)       
 
 ; ********************************************************************************
 ; Number Handling Routine - converts numeric ascii string to a 16-bit number in HL
@@ -1034,7 +1034,7 @@ times10:                        ; Multiply digit(s) in HL by 10
 endnum:
         DEC BC
         PUSH HL                 ; 11t   Put the number on the stack
-        JP (IY)                 ; and process the next character
+        jmp (IY)                 ; and process the next character
 
         
 ; *************************************
@@ -1057,18 +1057,18 @@ begin:                          ; Left parentesis begins a loop
         LD (IX+4),C             ; loop address
         LD (IX+5),B                 
 
-        JP (IY)
+        jmp (IY)
 begin1:
         LD E,1
 begin2:
         INC BC
         LD A,(BC)
-        CALL nesting
+        jsr  nesting
         XOR A
         OR E
         JR NZ,begin2
 begin3:
-        JP (IY)
+        jmp (IY)
 
 again:   
         LD E,(IX+0)                 ; peek loop var
@@ -1094,12 +1094,12 @@ again1:
         LD (IX+1),D                 
         LD C,(IX+4)                 ; peek loop address
         LD B,(IX+5)                 
-        JP (IY)
+        jmp (IY)
 again2:   
         LD DE,6                     ; drop loop frame
 again3:
         ADD IX,DE
-        JP (IY)
+        jmp (IY)
 
 ; **************************************************************************
 ; Page 6 Alt primitives
@@ -1109,7 +1109,7 @@ page6:
 
 cArrDef_:                   ; define a byte array
         LD A,TRUE
-        JP arrDef1
+        jmp arrDef1
 
 cFetch_:
         POP     HL          ; 10t
@@ -1117,7 +1117,7 @@ cFetch_:
         LD      E,(HL)      ; 7t
         PUSH    DE          ; 11t
 anop_:
-        JP      (IY)        ; 8t
+        jmp      (IY)        ; 8t
                             ; 49t 
 charCode_:
         INC BC
@@ -1125,7 +1125,7 @@ charCode_:
         LD H,0
         LD L,A
         PUSH HL
-        JP (IY)
+        jmp (IY)
 
 comment_:
         INC BC              ; point to next char
@@ -1135,13 +1135,13 @@ comment_:
         ; CP "\n"             ; terminate at lf 
         ; JR NZ,comment_
         DEC BC
-        JP   (IY) 
+        jmp   (IY) 
 
 cStore_:	  
         POP    HL           ; 10t
         POP    DE           ; 10t
         LD     (HL),E       ; 7t
-        JP     (IY)         ; 8t
+        jmp     (IY)         ; 8t
                             ; 48t
 depth_:
         LD HL,0
@@ -1150,13 +1150,13 @@ depth_:
         LD HL,DSTACK
         OR A
         SBC HL,DE
-        JP shr1
+        jmp shr1
 
 emit_:
         POP HL
         LD A,L
-        CALL putchar
-        JP (IY)
+        jsr  putchar
+        jmp (IY)
 
 ifte_:
         POP DE
@@ -1165,31 +1165,31 @@ ifte_:
         JR NZ,ifte1
         INC DE
         PUSH DE                     ; push TRUE on stack for else clause
-        JP begin1                   ; skip to closing ) works with \) too 
+        jmp begin1                   ; skip to closing ) works with \) too 
 ifte1:
         LD HL,-1                    ; push -1 on return stack to indicate IFTEMode
-        CALL rpush
-        JP (IY)
+        jsr  rpush
+        jmp (IY)
 
 exec_:
-        CALL exec1
-        JP (IY)
+        jsr  exec1
+        jmp (IY)
 exec1:
         POP HL
         EX (SP),HL
-        JP (HL)
+        jmp (HL)
 
 go_:
         LD HL,BC
-        CALL rpush              ; save Instruction Pointer
+        jsr  rpush              ; save Instruction Pointer
         POP BC
         DEC BC
-        JP  (IY)                ; Execute code from User def
+        jmp  (IY)                ; Execute code from User def
 
 endGroup_:
-        call rpop
+        jsr  rpop
         LD (vDEFS),HL
-        JP (IY)
+        jmp (IY)
 
 group_:
         POP DE
@@ -1200,11 +1200,11 @@ group_:
         SRL D
         RR E
         LD HL,(vDEFS)
-        call rpush
+        jsr  rpush
         LD HL,DEFS
         ADD HL,DE
         LD (vDEFS),HL
-        JP  (IY)                ; Execute code from User def
+        jmp  (IY)                ; Execute code from User def
 
 sysVar_:
         LD A,(BC)
@@ -1213,11 +1213,11 @@ sysVar_:
         LD L,A
         LD H,msb(mintVars)
         PUSH HL
-        JP  (IY)                ; Execute code from User def
+        jmp  (IY)                ; Execute code from User def
 
 i_:
         PUSH IX
-        JP (IY)
+        jmp (IY)
 
 ; \+    a b -- [b]+a            ; increment variable at b by a
 incr_:
@@ -1230,7 +1230,7 @@ incr_:
         LD A,D
         ADC A,(HL)
         LD (HL),A
-        JP (IY)
+        jmp (IY)
 
 inPort_:
         POP HL
@@ -1240,7 +1240,7 @@ inPort_:
         LD H,0
         LD C,A
         PUSH HL
-        JP (IY)        
+        jmp (IY)        
 
 j_:
         PUSH IX
@@ -1248,18 +1248,18 @@ j_:
         LD DE,6
         ADD HL,DE
         PUSH HL
-        JP (IY)
+        jmp (IY)
 
 key_:
-        CALL getchar
+        jsr  getchar
         LD L,A
         LD H,0
         PUSH HL
-        JP (IY)
+        jmp (IY)
 
 newln_:
-        call crlf
-        JP (IY)        
+        jsr  crlf
+        jmp (IY)        
 
 outPort_:
         POP HL
@@ -1268,7 +1268,7 @@ outPort_:
         POP HL
         OUT (C),L
         LD C,E
-        JP (IY)        
+        jmp (IY)        
 
 rot_:                               ; a b c -- b c a
         POP DE                      ; a b                   de = c
@@ -1276,18 +1276,18 @@ rot_:                               ; a b c -- b c a
         EX (SP),HL                  ; b                     hl = a
         PUSH DE                     ; b c             
         PUSH HL                     ; b c a                         
-        JP (IY)
+        jmp (IY)
 
 break_:
         POP HL
         LD A,L                      ; zero?
         OR H
         JR NZ,break1
-        JP (IY)
+        jmp (IY)
 break1:
         LD DE,6                     ; drop loop frame
         ADD IX,DE
-        JP begin1                   ; skip to end of loop        
+        jmp begin1                   ; skip to end of loop        
 
 printStk_:
         JR printStk
@@ -1318,15 +1318,15 @@ editDef:                    ; lookup up def based on number
         LD DE,TIB
         JR Z,editDef3
         LD A,":"
-        CALL writeChar
+        jsr  writeChar
         EX AF,AF'
-        CALL writeChar
+        jsr  writeChar
         JR editDef2
 editDef1:
         INC HL
 editDef2:        
         LD A,(HL)
-        CALL writeChar
+        jsr  writeChar
         CP ";"
         JR NZ,editDef1
 editDef3:        
@@ -1335,19 +1335,19 @@ editDef3:
         OR A
         SBC HL,DE
         LD (vTIBPtr),HL
-        JP (IY)
+        jmp (IY)
 
 printStk:                   ;= 40
-        call ENTER
+        jsr  ENTER
         .cstr "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'"             
-        JP (IY)
+        jmp (IY)
 
 ;*******************************************************************
 ; Page 5 primitive routines continued
 ;*******************************************************************
 
 arrEnd:                     ;= 27
-        CALL rpop               ; DE = start of array
+        jsr  rpop               ; DE = start of array
         PUSH HL
         EX DE,HL
         LD HL,(vHeapPtr)        ; HL = heap ptr
@@ -1361,7 +1361,7 @@ arrEnd:                     ;= 27
 arrEnd2:
         PUSH HL 
         LD IY,NEXT
-        JP (IY)         ; hardwired to NEXT
+        jmp (IY)         ; hardwired to NEXT
 
 hex:                            ;= 26
 	    LD HL,0		    		; 10t Clear HL to accept the number
@@ -1373,9 +1373,9 @@ hex1:
         SUB 7                   ; sub 7  to make $A - $F
 hex2:
         SUB $30                 ; 7t    Form decimal digit
-        JP C,endnum
+        jmp C,endnum
         CP $0F+1
-        JP NC,endnum
+        jmp NC,endnum
         ADD HL,HL               ; 11t    2X ; Multiply digit(s) in HL by 16
         ADD HL,HL               ; 11t    4X
         ADD HL,HL               ; 11t    8X
@@ -1389,16 +1389,16 @@ hex2:
 ;*******************************************************************
 
 crlf:                               ;=7
-        call printStr
+        jsr  printStr
         .cstr "\r\n"
         RET
 
 enter:                          ; 9
         LD HL,BC
-        CALL rpush              ; save Instruction Pointer
+        jsr  rpush              ; save Instruction Pointer
         POP BC
         DEC BC
-        JP  (IY)                ; Execute code from User def
+        jmp  (IY)                ; Execute code from User def
 
 lookupDef:                          ;=20
         SUB "A"  
@@ -1419,7 +1419,7 @@ printStr:                           ;=14
         JR printStr2
 
 printStr1:
-        CALL putchar
+        jsr  putchar
         INC HL
 
 printStr2:
@@ -1439,13 +1439,13 @@ printdec:
 ;destroys: af, de, hl
 DispHL:                         ;= 36
         ld	de,-10000
-        call	Num1
+        jsr 	Num1
         ld	de,-1000
-        call	Num1
+        jsr 	Num1
         ld	de,-100
-        call	Num1
+        jsr 	Num1
         ld	e,-10
-        call	Num1
+        jsr 	Num1
         ld	e,-1
 Num1:	    
         ld	a,'0'-1
@@ -1454,7 +1454,7 @@ Num2:
         add	hl,de
         jr	c,Num2
         sbc	hl,de
-        JP putchar
+        jmp putchar
 
 ; Print an 8-bit HEX number  - shortened KB 25/11/21
 ; A: Number to print
@@ -1464,7 +1464,7 @@ Print_Hex8:		                ;= 20
 		RRA 
 		RRA 
 		RRA 
-	    CALL conv
+	    jsr  conv
 	    LD A,C
 conv:		
         AND	0x0F
@@ -1478,9 +1478,9 @@ printhex:                       ;= 11
                                 ; Display HL as a 16-bit number in hex.
         PUSH BC                 ; preserve the IP
         LD A,H
-        CALL Print_Hex8
+        jsr  Print_Hex8
         LD A,L
-        CALL Print_Hex8
+        jsr  Print_Hex8
         POP BC
         RET
 
@@ -1503,6 +1503,6 @@ writeChar:
         INC DE
         
 writeChar1:
-        JP putchar
+        jmp putchar
 
 
