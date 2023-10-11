@@ -17,14 +17,14 @@
 ;        DSIZE       = $80
 ;        RSIZE       = $80
 
-        TIBSIZE     = $100
-        TRUE        = 1
-        FALSE       = 0
+    TIBSIZE     = $100
+    TRUE        = 1
+    FALSE       = 0
 
-        NUMGRPS     = 5
-        GRPSIZE     = $40
+    NUMGRPS     = 5
+    GRPSIZE     = $40
 
-        CELL    = 2
+    CELL    = 2
 
 ;----------------------------------------------------------------------
 ; page 0, reserved cells
@@ -75,7 +75,6 @@ mint:
         jsr  printStr
         .asciiz  "MINT V1.0\r\n"
         jmp interpret
-
 
 initialize:
         lda #$00
@@ -240,6 +239,8 @@ compNext1:
 ; limited to 127 levels
 ; **************************************************************************             
 
+zzzz
+
 nesting_:                        ;= 44
         CP '`'
         bne nesting1
@@ -249,8 +250,6 @@ nesting_:                        ;= 44
         rts
 
 nesting1a: 
-        SET 7,E
-        rts
 
 nesting1:
         BIT 7,E             
@@ -283,8 +282,10 @@ nests_:
         rts
 
 @nestogg:
-        lda ch + 1
-        bit ch + 1
+        lda #$80
+        eoa ch + 1
+        sta ch + 1
+        rts
 
 
 nesting:                        ;= 44
