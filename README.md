@@ -11,6 +11,7 @@ A still raw [Mint](https://github.com/monsonite/MINT) for 6502.
   - user functions mapped as sequences of strings null termined (no : or ;)
   - no garbage colector for user functions, when redefined, the old contents is lost at memory
   - interpreter uses spaces as separator, or none.
+  - FALSE is 0x0000 and TRUE is not 0x0000
 
 ## Run Time
 
