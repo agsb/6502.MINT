@@ -1,14 +1,17 @@
-; *************************************************************************
+; *********************************************************************
 ;
-;       MINT Minimal Interpreter for the Z80 
+;       MINT Minimal Interpreter 
 ;
-;       Ken Boak, John Hardy and Craig Jones. 
-;
-;       GNU GENERAL PUBLIC LICENSE                   Version 3, 29 June 2007
+;       GNU GENERAL PUBLIC LICENSE              Version 3, 29 June 2007
 ;
 ;       see the LICENSE file in this repo for more information 
 ;
-; *****************************************************************************
+;		original for the Z80, by Ken Boak, John Hardy and Craig Jones. 
+;
+;		adapted for the 6502, by Alvaro G. S. Barcellos, 10/2023
+;						  (with some code adapted from FIG_Forth)
+;
+; *********************************************************************
 
 
         DSIZE       = $80
@@ -710,6 +713,20 @@ eq_:
 
 ; signed less thani
 lt_:
+    SEC
+    LDA 2,X
+    SBC 0,X        ; subtract
+    LDA 3,X
+    SBC 1,X
+zzzzz
+    STY 3,X        ; zero high byte
+    BVC L1258
+    EOR #$80       ; correct overflow
+    BPL L1260
+    INY            ; invert boolean
+    STY 2,X        ; leave boolean
+    JMP POP
+ 
     lda spz + 3, x
     cmp spz + 1, x
     bcs false2
