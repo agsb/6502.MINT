@@ -14,8 +14,9 @@
 ; *********************************************************************
 
 
-        DSIZE       = $80
-        RSIZE       = $80
+;        DSIZE       = $80
+;        RSIZE       = $80
+
         TIBSIZE     = $100
         TRUE        = 1
         FALSE       = 0
@@ -23,37 +24,29 @@
         NUMGRPS     = 5
         GRPSIZE     = $40
 
+        CELL    = 2
+
 ;----------------------------------------------------------------------
-; page 0 reserved 
-    rp = $80    ; index hold return stack pointer
-    dp = $81    ; index hold parameter stack pointer
+; page 0, reserved cells
+
+    ; just 128 cells deep and round-robin
+    yp = $80    ; hold return stack pointer
+    xp = $81    ; hold parameter stack pointer
 
     wk = $82    ; work register 
     us = $84    ; user register
     lk = $86    ; link register
+    ch = $8a    ; char buffer
 
-    sp = $88
-    bc = $8a
-    de = $8c
-    hl = $8e
+    opcs = optcodes
+    alts = altcodes
+    ctrs = ctlcodes
 
-    ds = $600   ; absolute address for data stack
-    rs = $700   ; absolute address for parameter stack
-
-; **************************************************************************
-; Page 0  Initialisation
-; **************************************************************************		
-
-		.ORG ROMSTART + $180		
-
-start:
-
-mint:
-        ; there is no stack LD SP,DSTACK
-        jsr  initialize
-        jsr  printStr
-        .cstr "MINT V1.0\r\n"
-        JR interpret
+;----------------------------------------------------------------------
+;   data stack indexed by x
+;   return stack indexed by y
+    spz = $600   ; absolute address for data stack
+    rpz = $700   ; absolute address for parameter stack
 
 ; ***********************************************************************
 ; Initial values for user mintVars		
@@ -68,9 +61,26 @@ iSysVars:
         .word 0                    ; g 
         .word HEAP                 ; h vHeapPtr
 
+; *********************************************************************
+; Page 0  Initialisation
+; *********************************************************************		
+
+.segment "CODE"
+
+start:
+
+mint:
+        ; there is no stack at system stack! LD SP,DSTACK
+        jsr  initialize
+        jsr  printStr
+        .asciiz  "MINT V1.0\r\n"
+        jmp interpret
+
+
 initialize:
-        LD IX,RSTACK
-        LD IY,NEXT			    ; IY provides a faster jump to NEXT
+        lda #$00
+        tax
+        tay
 
         LD HL,iSysVars
         LD DE,sysVars
@@ -89,20 +99,20 @@ init1:
 
 macro:                          ;=25
         LD (vTIBPtr),BC
-        LD HL,ctrlCodes
+        LD HL,ctlcodes
         ADD A,L
         LD L,A
         LD E,(HL)
         LD D,msb(macros)
         PUSH DE
         jsr  ENTER
-        .cstr "\\G"
+        .asciiz  "\\G"
         LD BC,(vTIBPtr)
         JR interpret2
 
 interpret:
         jsr  ENTER
-        .cstr "\\N`> `"
+        .asciiz  "\\N`> `"
 
 interpret1:                     ; used by tests
         LD BC,0                 ; load BC with offset into TIB         
@@ -200,7 +210,7 @@ NEXT:                               ; 9
         INC BC                      ; 6t    Increment the IP
         LD A, (BC)                  ; 7t    Get the next character and dispatch
         LD L,A                      ; 4t    Index into table
-        LD H,msb(opcodes)           ; 7t    Start address of jump table         
+        LD H,msb(optcodes)           ; 7t    Start address of jump table         
         LD L,(HL)                   ; 7t    get low jump address
         LD H,msb(page4)             ; 7t    Load H with the 1st page address
         jmp (HL)                     ; 4t    Jump to routine
@@ -229,6 +239,53 @@ compNext1:
 ; E has its bit 7 toggled by `
 ; limited to 127 levels
 ; **************************************************************************             
+
+nesting_:                        ;= 44
+        CP '`'
+        bne nesting1
+        BIT 7,E
+        beq nesting1a
+        RES 7,E
+        rts
+
+nesting1a: 
+        SET 7,E
+        rts
+
+nesting1:
+        BIT 7,E             
+        rts NZ             
+nests_:
+        cmp '`'
+        beq @nestogg
+        cmp ':'
+        beq @nestinc
+        cmp '['
+        beq @nestinc
+        cmp '('
+        beq @nestinc
+        cmp ';'
+        beq @nestdec
+        cmp ']'
+        beq @nestdec
+        cmp ')'
+        beq @nestdec
+
+@nonest:
+        rts 
+
+@nestinc:
+        inc ch + 1
+        rts
+
+@nestdec:
+        dec ch + 1
+        rts
+
+@nestogg:
+        lda ch + 1
+        bit ch + 1
+
 
 nesting:                        ;= 44
         CP '`'
@@ -265,7 +322,7 @@ nesting4:
         
 prompt:                             ;=9
         jsr  printStr
-        .cstr "\r\n> "
+        .asciiz  "\r\n> "
         RET
 
 ; **************************************************************************
@@ -281,7 +338,7 @@ macros:
 ; Page 2  Jump Tables
 ; **************************************************************************
         .align $100
-opcodes:
+optcodes:
 ; ***********************************************************************
 ; Initial values for user mintVars		
 ; ***********************************************************************		
@@ -418,8 +475,8 @@ opcodes:
 ; ***********************************************************************
 ; Alternate function codes		
 ; ***********************************************************************		
-ctrlCodes:
-altCodes:
+ctlcodes:
+altcodes:
        .word (empty_)      ; NUL ^@
        .word (empty_)      ; SOH ^A
        .word (toggleBase_) ; STX ^B
@@ -551,6 +608,13 @@ altCodes:
 
 
 ; **********************************************************************			 
+;
+; the routines are ordered to occupy pages of 256 bytes 
+; all rotines must end with: jmp link_ or jmp drop_ or a jmp / branch
+;
+; **********************************************************************			 
+
+; **********************************************************************			 
 ; Page 4 primitive routines 
 ; **********************************************************************
         .align $100
@@ -558,6 +622,40 @@ page4:
 
 alt_:        
         jmp alt
+
+; emit a byte of terminal
+emit_:
+        jsr pull_
+        lda wk + 0
+        jsr putchar
+        jmp link_
+
+; receive a byte of terminal
+key_:
+        jsr getchar
+        sta wk + 0
+        jsr push_
+        jmp link_
+
+; pull wk from stack
+pull_:
+    lta spz + 0, x
+    sda wk + 0
+    lta spz + 1, x
+    sda wk + 1
+    inx
+    inx
+    rts
+
+; push wk into stack
+push_:
+    dex
+    dex
+    lda wk + 0
+    sta spz + 0, x
+    lda wk + 1
+    sta spz + 1, x
+    rts
 
 ; NEGate the value on top of stack (2's complement)
 neg_:
@@ -580,12 +678,14 @@ inv_:
     jmp link_
 
 ; Drop the top member of the stack
+; a b c -- a b 
 drop_:
 	inx
 	inx
 	jmp link_
 
 ; Duplicate the top member of the stack
+; a b c -- a b c c 
 dup_:
 	dex
 	dex
@@ -596,6 +696,7 @@ dup_:
     jmp link_
 
 ; Duplicate 2nd element of the stack
+; a b c -- a b c b 
 over_:
     dex
     dex
@@ -605,17 +706,52 @@ over_:
     sta spz + 1, x
     jmp link_
 
+; Rotate 3 elements at stack
+; a b c -- b c a
+rot_:
+    ; c -> w
+    lda spz + 0, x
+    sta wk + 0
+    lda spz + 0, x
+    sta wk + 1
+    ; b -> u
+    lda spz + 2, x
+    sta us + 0
+    lda spz + 3, x
+    sta us + 1
+    ; a -> c
+    lda spz + 4, x
+    sta spz + 0, x
+    lda spz + 5, x
+    sta spz + 1, x
+    ; u -> a
+    lda us + 0
+    sta spz + 4, x
+    lda us + 1
+    sta spz + 5, x
+    ; w -> b
+    lda wk + 0
+    sta spz + 2, x
+    lda wk + 1
+    sta spz + 3, x
+    jmp link_
+
+; Swap 2nd and 1st elements of the stack
+; a b c -- a c b
 swap_:
+    ; b -> w
 	lda spz + 2, x
     sta wrk + 0
-	lda spz + 0, x
-	sta spz + 2, x
-    lda wrk + 0
-	sta spz + 0, x
 	lda spz + 3, x
     sta wrk + 1
+    ; a -> b
+	lda spz + 0, x
+	sta spz + 2, x
 	lda spz + 1, x
 	sta spz + 3, x
+    ; w -> a
+    lda wrk + 0
+	sta spz + 0, x
     lda wrk + 1
 	sta spz + 1, x
     jmp link_
@@ -663,6 +799,7 @@ xor_:
     jmp drop_
 
 ; Add the top 2 members of the stack
+; a b c -- a (b+c) 
 add_:                          
     clc
     lda spz + 2, x
@@ -674,6 +811,7 @@ add_:
     jmp drop_
    
 ; Subtract the top 2 members of the stack
+; a b c -- a (b-c)
 sub_:                          
     sec
     lda spz + 2, x
@@ -683,6 +821,16 @@ sub_:
     sub spz + 1, x
     sta spz + 3, x
 	jmp drop_
+
+; Divide the top 2 members of the stack
+; a b c -- a (b / c)r (b /c)d
+div_:   
+     jmp divt_
+
+; Multiply the top 2 members of the stack
+; a b c -- a (b * c)h (b * c)l
+mul_:   
+     jmp mult_      
 
 ; false
 false2_:
@@ -699,50 +847,54 @@ true2_:
 	sta spz + 3, x
 	jmp drop_
 
-; Equal than
-eq_:
-    lda spz + 0, x
-    cmp spz + 2, x
-    bne false2
-    lda spz + 1, x
-    cmp spz + 3, x
-    bne false2
-    beq true2
-
-; zzzzzz
-
-; signed less thani
-lt_:
-    SEC
-    LDA 2,X
-    SBC 0,X        ; subtract
-    LDA 3,X
-    SBC 1,X
-zzzzz
-    STY 3,X        ; zero high byte
-    BVC L1258
-    EOR #$80       ; correct overflow
-    BPL L1260
-    INY            ; invert boolean
-    STY 2,X        ; leave boolean
-    JMP POP
- 
+; subtract for compare
+cmp_:
+    sec
+    lda spz + 2, x
+    sbc spz + 0, x
     lda spz + 3, x
-    cmp spz + 1, x
-    bcs false2
-    lda spz + 1, x
-    cmp spz + 3, x
-    bcs false2
+    sbc spz + 1, x
+    rts
+
+; signed equal than
+eq_:
+    jsr cmp_
+    bne false2
     beq true2
+
+; signed less than
+lt_:
+    jsr cmp_
+    bmi true2_
+    bpl false2_
 
 ; signed greather than
 gt_:
+    jsr cmp_
+    bmi false2_
+    beq false2_
+    bpl true2_
+
    
-fetch_:                     ; Fetch the value from the address placed on the top of the stack      
+; Fetch the value from the address placed on the top of the stack      
+fetch_:                     
 	
-store_:                     ; Store the value at the address placed on the top of the stack
+; Store the value into the address placed on the top of the stack
+store_:
 
+hex_:   
+    jmp hex2_
 
+nop_:   
+    jmp next_                ; hardwire white space to always go to NEXT (important for arrays)
+
+num_:   
+    jmp  num2_
+
+def_:   
+    jmp def2_
+
+ZZZZZZ:
 
 arrDef_:    
 arrDef:                     ;= 18
@@ -756,7 +908,7 @@ arrDef1:
 
 arrEnd_:    jmp arrEnd
 begin_:     jmp begin                   
-jsr _:
+call _:
         LD HL,BC
         jsr  rpush              ; save Instruction Pointer
         LD A,(BC)
@@ -768,7 +920,6 @@ jsr _:
         jmp  (IY)                ; Execute code from User def
 
 
-def_:   jmp def
 
 hdot_:                              ; print hexadecimal
         POP     HL
@@ -800,13 +951,6 @@ exit_:
         EX DE,HL
         jmp (HL)
         
-hex_:   jmp hex
-
-nop_:       jmp NEXT                 ; hardwire white space to always go to NEXT (important for arrays)
-
-num_:   
-        jmp  number
-
 ret_:
         jsr  rpop               ; Restore Instruction pointer
         LD BC,HL                
@@ -823,23 +967,6 @@ ret_:
 getRef_:    
         jmp getRef
 
-gt_:    POP      DE
-        POP      HL
-        JR       cmp_
-        
-lt_:    POP      HL
-        POP      DE
-
-cmp_:   AND      A              ; reset the carry flag
-        SBC      HL,DE          ; only equality sets HL=0 here
-		JR       Z,less         ; equality returns 0  KB 25/11/21
-        LD       HL, 0
-        jmp       M,less
-equal:  INC      L              ; HL = 1    
-less:     
-        PUSH     HL
-        jmp       (IY) 
-        
 var_:
         LD A,(BC)
         
@@ -851,11 +978,6 @@ var_:
         PUSH HL
         jmp (IY)
         
-div_:   
-        JR div
-mul_:   
-        jmp mul      
-
 again_:     
         jmp again
 str_:                       
@@ -888,7 +1010,7 @@ getRef:                         ;= 8
 alt:                                ;= 11
         INC BC
         LD A,(BC)
-        LD HL,altCodes
+        LD HL,altcodes
         ADD A,L
         LD L,A
         LD L,(HL)                   ; 7t    get low jump address
@@ -1017,48 +1139,69 @@ def3:
 ; Push HL onto the stack and proceed to the dispatch routine.
 ; ********************************************************************************
          
-number:                         ;= 23
-		LD HL,$0000				; 10t Clear HL to accept the number
-		LD A,(BC)				; 7t  Get the character which is a numeral
-        
-number1:                        ; corrected KB 24/11/21
+num2_:
+    lda #$00
+    sta wk + 0
+    sta wk + 1
+@loop:
+    jsr @mul10_
+    lda ch + 0
+    jsr @nums
+    bcs @ends
+    lda wk + 0
+    adc ch + 0
+    bcc @loop
+@ends:
+    jmp push_
 
-        SUB $30                 ; 7t    Form decimal digit
-        ADD A,L                 ; 4t    Add into bottom of HL
-        LD  L,A                 ; 4t
-        LD A,00                 ; 4t    Clear A
-        ADC	A,H	                ; Add with carry H-reg
-	    LD	H,A	                ; Put result in H-reg
-      
-        INC BC                  ; 6t    Increment IP
-        LD A, (BC)              ; 7t    and get the next character
-        CP $30                  ; 7t    Less than $30
-        JR C, endnum            ; 7/12t Not a number / end of number
-        CP $3A                  ; 7t    Greater or equal to $3A
-        JR NC, endnum           ; 7/12t Not a number / end of number
-       
-times10:                        ; Multiply digit(s) in HL by 10
-        ADD HL,HL               ; 11t    2X
-        LD  E,L                 ;  4t    LD DE,HL
-        LD  D,H                 ;  4t
-        ADD HL,HL               ; 11t    4X
-        ADD HL,HL               ; 11t    8X
-        ADD HL,DE               ; 11t    2X  + 8X  = 10X
-                                ; 52t cycles
+; always base 10
+@nums_:
+    lda ch + 0
+    cmp '0' + 0
+    bcc nak_
+    cmp '9' + 1
+    bcs nak_
+    sbc #'0'
+    sta ch + 0
+ack_:    
+    clc
+    rts
+nak_:
+    sec
+    rts
 
-        JR  number1
+; multiply by ten
+mul10_:
+    clc
+    rol wk + 0
+    rol wk + 1
+    lda wk + 0
+    sta us + 0
+    lda wk + 1
+    sta us + 1
+    clc 
+    rol wk + 0
+    rol wk + 1
+    clc
+    rol wk + 0
+    rol wk + 1
+    clc
+    lda wk + 0
+    adc us + 0
+    sta wk + 0
+    lda wk + 1
+    adc us + 1
+    sta wk + 1
+    clc
+    rts
                 
-endnum:
-        DEC BC
-        PUSH HL                 ; 11t   Put the number on the stack
-        jmp (IY)                 ; and process the next character
-
-        
 ; *************************************
 ; Loop Handling Code
 ; *************************************
         	                    ;= 23                     
-begin:                          ; Left parentesis begins a loop
+
+; Left parentesis begins a loop
+begin:                          
         POP HL
         LD A,L                  ; zero?
         OR H
@@ -1168,12 +1311,6 @@ depth_:
         OR A
         SBC HL,DE
         jmp shr1
-
-emit_:
-        POP HL
-        LD A,L
-        jsr  putchar
-        jmp (IY)
 
 ifte_:
         POP DE
@@ -1287,14 +1424,6 @@ outPort_:
         LD C,E
         jmp (IY)        
 
-rot_:                               ; a b c -- b c a
-        POP DE                      ; a b                   de = c
-        POP HL                      ; a                     hl = b
-        EX (SP),HL                  ; b                     hl = a
-        PUSH DE                     ; b c             
-        PUSH HL                     ; b c a                         
-        jmp (IY)
-
 break_:
         POP HL
         LD A,L                      ; zero?
@@ -1356,7 +1485,7 @@ editDef3:
 
 printStk:                   ;= 40
         jsr  ENTER
-        .cstr "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'"             
+        .asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'"             
         jmp (IY)
 
 ;*******************************************************************
@@ -1407,7 +1536,7 @@ hex2:
 
 crlf:                               ;=7
         jsr  printStr
-        .cstr "\r\n"
+        .asciiz  "\r\n"
         RET
 
 enter:                          ; 9
