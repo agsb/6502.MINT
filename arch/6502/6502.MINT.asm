@@ -9,8 +9,9 @@
 ;		original for the Z80, by Ken Boak, John Hardy and Craig Jones. 
 ;
 ;		adapted for the 6502, by Alvaro G. S. Barcellos, 10/2023
-;						  (with some code adapted from FIG_Forth)
+;						  (with some code from 6502.org and FIG_Forth)
 ;
+;   start date 10/10/2023
 ; *********************************************************************
 
 
@@ -30,13 +31,19 @@
 ; page 0, reserved cells
 
     ; just 128 cells deep and round-robin
-    yp = $80    ; hold return stack pointer
-    xp = $81    ; hold parameter stack pointer
+    ; copycat 
+    yp = $f0    ; y index, return stack pointer
+    xp = $f1    ; x index, parameter stack pointer
+    ac = $f2    ; accumulator
+    sp = $f3    ; stack
 
-    wk = $82    ; work register 
-    us = $84    ; user register
-    lk = $86    ; link register
-    ch = $8a    ; char buffer
+    ch = $f4    ; char 
+    ns = $f5    ; nests
+
+    tos = $f6    ; tos  register 
+    nos = $f8    ; nos  register
+    wk  = $fa    ; work register
+    lk  = $fc    ; link register
 
     opcs = optcodes
     alts = altcodes
@@ -231,32 +238,23 @@ compNext1:
 
 ; **************************************************************************             
 ; calculate nesting value
-; A is char to be tested, 
-; E is the nesting value (initially 0)
-; E is increased by ( and [ 
-; E is decreased by ) and ]
-; E has its bit 7 toggled by `
+; a is char to be tested, 
+; ns is the nesting value (initially 0)
+; value is increased by ( and [ and :
+; value is decreased by ) and ] and ;
+; value has its bit 7 toggled by `
 ; limited to 127 levels
 ; **************************************************************************             
-
-zzzz
-
-nesting_:                        ;= 44
+nesting_:                        
         CP '`'
-        bne nesting1
-        BIT 7,E
-        beq nesting1a
-        RES 7,E
+        bne @nests
+        lda #$80
+        eoa ns
+        sta ns
         rts
-
-nesting1a: 
-
-nesting1:
-        BIT 7,E             
-        rts NZ             
-nests_:
-        cmp '`'
-        beq @nestogg
+@nests_:
+        bit ns
+        bmi @nonest 
         cmp ':'
         beq @nestinc
         cmp '['
@@ -269,59 +267,16 @@ nests_:
         beq @nestdec
         cmp ')'
         beq @nestdec
-
 @nonest:
         rts 
-
 @nestinc:
-        inc ch + 1
+        inc ns
         rts
-
 @nestdec:
-        dec ch + 1
+        dec ns
         rts
 
-@nestogg:
-        lda #$80
-        eoa ch + 1
-        sta ch + 1
-        rts
-
-
-nesting:                        ;= 44
-        CP '`'
-        JR NZ,nesting1
-        BIT 7,E
-        JR Z,nesting1a
-        RES 7,E
-        RET
-nesting1a: 
-        SET 7,E
-        RET
-nesting1:
-        BIT 7,E             
-        rts NZ             
-        CP ':'
-        JR Z,nesting2
-        CP '['
-        JR Z,nesting2
-        CP '('
-        JR NZ,nesting3
-nesting2:
-        INC E
-        RET
-nesting3:
-        CP ';'
-        JR Z,nesting4
-        CP ']'
-        JR Z,nesting4
-        CP ')'
-        rts NZ
-nesting4:
-        DEC E
-        rts 
-        
-prompt:                             ;=9
+prompt:                             
         jsr  printStr
         .asciiz  "\r\n> "
         RET
@@ -338,7 +293,8 @@ macros:
 ; **************************************************************************
 ; Page 2  Jump Tables
 ; **************************************************************************
-        .align $100
+.align $100
+
 optcodes:
 ; ***********************************************************************
 ; Initial values for user mintVars		
@@ -374,7 +330,7 @@ optcodes:
        .word (nop_)     ;   FS  
        .word (nop_)     ;   GS  
        .word (nop_)     ;   RS  
-       .word (nop_)     ;   US  
+       .word (nop_)     ;   nos  
        .word (nop_)     ;   SP
        .word (store_)   ;   !            
        .word (dup_)     ;   "
@@ -509,7 +465,7 @@ altcodes:
        .word (empty_)      ; FS  ^\
        .word (empty_)      ; GS  ^]
        .word (empty_)      ; RS  ^^
-       .word (empty_)      ; US  ^_)
+       .word (empty_)      ; nos  ^_)
        .word (aNop_)       ; SP  ^`
        .word (cStore_)     ;    !            
        .word (aNop_)       ;    "
@@ -622,39 +578,39 @@ altcodes:
 page4:
 
 alt_:        
-        jmp alt
+   jmp alt
 
 ; emit a byte of terminal
 emit_:
-        jsr pull_
-        lda wk + 0
-        jsr putchar
-        jmp link_
+   jsr pull_
+   lda tos + 0
+   jsr putchar
+   jmp link_
 
 ; receive a byte of terminal
 key_:
-        jsr getchar
-        sta wk + 0
-        jsr push_
-        jmp link_
+   jsr getchar
+   sta tos + 0
+   jsr push_
+   jmp link_
 
-; pull wk from stack
+; pull tos from stack
 pull_:
     lta spz + 0, x
-    sda wk + 0
+    sda tos + 0
     lta spz + 1, x
-    sda wk + 1
+    sda tos + 1
     inx
     inx
     rts
 
-; push wk into stack
+; push tos into stack
 push_:
     dex
     dex
-    lda wk + 0
+    lda tos + 0
     sta spz + 0, x
-    lda wk + 1
+    lda tos + 1
     sta spz + 1, x
     rts
 
@@ -677,13 +633,6 @@ inv_:
     eor spz + 1, x
     sta spz + 1, x
     jmp link_
-
-; Drop the top member of the stack
-; a b c -- a b 
-drop_:
-	inx
-	inx
-	jmp link_
 
 ; Duplicate the top member of the stack
 ; a b c -- a b c c 
@@ -712,28 +661,28 @@ over_:
 rot_:
     ; c -> w
     lda spz + 0, x
-    sta wk + 0
+    sta tos + 0
     lda spz + 0, x
-    sta wk + 1
+    sta tos + 1
     ; b -> u
     lda spz + 2, x
-    sta us + 0
+    sta nos + 0
     lda spz + 3, x
-    sta us + 1
+    sta nos + 1
     ; a -> c
     lda spz + 4, x
     sta spz + 0, x
     lda spz + 5, x
     sta spz + 1, x
     ; u -> a
-    lda us + 0
+    lda nos + 0
     sta spz + 4, x
-    lda us + 1
+    lda nos + 1
     sta spz + 5, x
     ; w -> b
-    lda wk + 0
+    lda tos + 0
     sta spz + 2, x
-    lda wk + 1
+    lda tos + 1
     sta spz + 3, x
     jmp link_
 
@@ -768,6 +717,13 @@ shr_:
     lsr spz + 0, x
     ror spz + 1, x
     jmp link_
+
+; Drop the top member of the stack
+; a b c -- a b 
+drop_:
+	inx
+	inx
+	jmp link_
 
 ;  Bitwise AND the top 2 elements of the stack
 and_:        
@@ -826,7 +782,7 @@ sub_:
 ; Divide the top 2 members of the stack
 ; a b c -- a (b / c)r (b /c)d
 div_:   
-     jmp divt_
+     jmp divd_
 
 ; Multiply the top 2 members of the stack
 ; a b c -- a (b * c)h (b * c)l
@@ -840,11 +796,10 @@ false2_:
 	sta spz + 3, x
 	jmp drop_
 
-; false
+; true
 true2_:
-    lda #$01
+    lda #$FF
 	sta spz + 2, x
-    lda #$00
 	sta spz + 3, x
 	jmp drop_
 
@@ -870,18 +825,55 @@ lt_:
     bpl false2_
 
 ; signed greather than
+; must be in that order, bpl is non negative flag
 gt_:
     jsr cmp_
     bmi false2_
     beq false2_
     bpl true2_
-
    
 ; Fetch the value from the address placed on the top of the stack      
+; a b c - a b (c)
 fetch_:                     
-	
+	lda spz + 0, y
+    sta tos + 0
+	lda spz + 1, y
+    sta tos + 1
+    sty yp
+    ldy #$00
+    lda (tos + 0), y
+    sta nos + 0
+    lda (tos + 1), y
+    ldy yp
+    sta spz + 1, y
+    lda nos + 0
+    sta spz + 0, y
+    jmp link_
+
 ; Store the value into the address placed on the top of the stack
+; a b c -- a
 store_:
+    lda spz + 0, y
+    sta tos + 0
+    lda spz + 1, y
+    sta tos + 1
+    lda spz + 2, y
+    sta nos + 0
+    lda spz + 3, y
+    sta nos + 1
+    sty yp
+    ldy #$00
+    lda nos + 0
+    sta (tos + 0), y
+    lda nos + 1
+    sta (tos + 1), y
+    ldy yp
+    iny
+    iny
+    iny
+    iny
+    jmp link_
+
 
 hex_:   
     jmp hex2_
@@ -922,17 +914,18 @@ call _:
 
 
 
-hdot_:                              ; print hexadecimal
-        POP     HL
-        jsr     printhex
+; print hexadecimal
+hdot_:                              
+        jsr pull_
+        jsr printhex_
         JR   dot2
 dot_:       
-        POP HL
+        jsr pull_
         jsr  printdec
 dot2:
-        LD A,' '           
+        lda #' '          
         jsr  writeChar1
-        jmp (IY)
+        jmp link_
 
 etx_:
 etx:
@@ -1142,14 +1135,14 @@ def3:
          
 num2_:
     lda #$00
-    sta wk + 0
-    sta wk + 1
+    sta tos + 0
+    sta tos + 1
 @loop:
     jsr @mul10_
     lda ch + 0
     jsr @nums
     bcs @ends
-    lda wk + 0
+    lda tos + 0
     adc ch + 0
     bcc @loop
 @ends:
@@ -1174,25 +1167,25 @@ nak_:
 ; multiply by ten
 mul10_:
     clc
-    rol wk + 0
-    rol wk + 1
-    lda wk + 0
-    sta us + 0
-    lda wk + 1
-    sta us + 1
+    rol tos + 0
+    rol tos + 1
+    lda tos + 0
+    sta nos + 0
+    lda tos + 1
+    sta nos + 1
     clc 
-    rol wk + 0
-    rol wk + 1
+    rol tos + 0
+    rol tos + 1
     clc
-    rol wk + 0
-    rol wk + 1
+    rol tos + 0
+    rol tos + 1
     clc
-    lda wk + 0
-    adc us + 0
-    sta wk + 0
-    lda wk + 1
-    adc us + 1
-    sta wk + 1
+    lda tos + 0
+    adc nos + 0
+    sta tos + 0
+    lda tos + 1
+    adc nos + 1
+    sta tos + 1
     clc
     rts
                 
