@@ -167,11 +167,11 @@ waitchar:
         cmp #$20
         bcs @ischar
         cmp #$0                   ; is it end of string?
-        JR Z,waitchar4
+        beq @waitchar4
         cmp #'\r'                 ; carriage return?
-        JR Z,waitchar3
+        beq @iscrlf
         cmp #'\n'                 ; line feed ?
-        JR Z,waitchar3
+        beq @iscrlf
         LD D,0
         JR macro    
 @ischar:
@@ -182,29 +182,31 @@ waitchar:
         clc
         bcc waitchar            ; wait for next character
 
-waitchar3:
+@iscrlf:
+        ; pending nest ?
+        lda ns                  
+        cmp #$00
+        beq waitchar
+
+        ; CR
         lda #'\r'
         jsr @inbuff
+        ; LF
         lda #'\n'
+        jsr @inbuff
+        ; ETX
+        lda #$03
         jsr @inbuff
         ; echo
         jsr  crlf               
 
-        lds ns                  
-        cmp #$00
-        beq waitchar
-
-        ; if zero nesting append and ETX after \r
-        lda #$03
-        jsr inbuff
-
-waitchar4:    
+@waitchar4:    
         LD (vTIBPtr),BC
         LD BC,TIB               ; Instructions stored on heap at address HERE
         DEC BC
         jmp NEXT
 
-inbuff:
+@inbuff:
         sty yp
         ldy inb
         iny
