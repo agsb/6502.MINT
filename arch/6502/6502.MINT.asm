@@ -42,8 +42,8 @@
 
     tos = $f6    ; tos  register 
     nos = $f8    ; nos  register
-    wk  = $fa    ; work register
-    lk  = $fc    ; link register
+    wrk = $fa    ; work register
+    lnk = $fc    ; link register
 
     opcs = optcodes
     alts = altcodes
@@ -287,7 +287,7 @@ prompt:
 ; **************************************************************************
 macros:
 
-.include "MINT-macros.asm"
+.include "6502.MINT.macros.asm"
 
 
 ; **************************************************************************
@@ -919,9 +919,13 @@ hdot_:
         jsr pull_
         jsr printhex_
         JR   dot2
+
+; print decimal
 dot_:       
         jsr pull_
-        jsr  printdec
+        jsr printdec
+
+; print space
 dot2:
         lda #' '          
         jsr  writeChar1
@@ -948,7 +952,7 @@ exit_:
 ret_:
         jsr  rpop               ; Restore Instruction pointer
         LD BC,HL                
-        jmp (IY)             
+        jmp link_             
 
         POP    HL           ; 10t
         POP    DE           ; 10t
@@ -970,7 +974,7 @@ var_:
         LD H,msb(mintVars)
         
         PUSH HL
-        jmp (IY)
+        jmp link_
         
 again_:     
         jmp again
@@ -983,7 +987,7 @@ nextchar:
         INC BC
         CP "`"              ; ` is the string terminator
         JR Z,str2
-        jsr  putchar
+        jsr putchar
         JR nextchar
 
 str2:  
@@ -1086,7 +1090,7 @@ div_end:
         PUSH DE             ; Push Result
         PUSH HL             ; Push remainder             
 
-        jmp (IY)
+        jmp link_
 
 ; **************************************************************************             
 ; def is used to create a colon definition
@@ -1119,7 +1123,7 @@ def2:
         DEC BC
 def3:
         LD (vHeapPtr),DE        ; bump heap ptr to after definiton
-        jmp (IY)       
+        jmp link_       
 
 ; ********************************************************************************
 ; Number Handling Routine - converts numeric ascii string to a 16-bit number in HL
@@ -1133,30 +1137,49 @@ def3:
 ; Push HL onto the stack and proceed to the dispatch routine.
 ; ********************************************************************************
          
+                
+; convert a decimal value to binary
 num2_:
     lda #$00
     sta tos + 0
     sta tos + 1
 @loop:
-    jsr @mul10_
-    lda ch + 0
-    jsr @nums
+    ; get a char from buffer 
+    lda ch
+    cmp '0' 
+    jsr numd_
     bcs @ends
+    sta ch
+    jsr @mul10_
     lda tos + 0
-    adc ch + 0
+    adc ch 
+    sta tos + 0
     bcc @loop
 @ends:
     jmp push_
 
-; always base 10
-@nums_:
-    lda ch + 0
+zzzzz
+; base 10
+numd_:
+    lda ch 
     cmp '0' + 0
     bcc nak_
     cmp '9' + 1
-    bcs nak_
+    bcc cv10_
+@cv10:
+    sec
     sbc #'0'
-    sta ch + 0
+    clc
+    bcc ack_
+@cv16:
+    and #%11011111
+    cmp 'A'
+    bcc nak_
+    cmp 'F' + 1
+    bcs nak_
+    sec
+    sbc #'A' - 10
+    bcc ack_
 ack_:    
     clc
     rts
@@ -1189,6 +1212,77 @@ mul10_:
     clc
     rts
                 
+; convert a hexadecimal value to binary
+hex2_:
+    lda #$00
+    sta tos + 0
+    sta tos + 1
+@loop:
+    ; get a char from buffer 
+    lda ch
+    jsr numh_
+    bcc mults
+    jsr numh_
+    bcc mul16_
+    bcs ends
+
+@a2f:
+    
+    
+ack_:    
+    clc
+    rts
+nak_:
+    sec
+    rts
+
+; multiply by sixteen
+mul16_:
+    clc 
+    rol tos + 0 
+    sta tos + 0
+    rol tos + 1 
+    sta tos + 1
+    clc 
+    rol tos + 0 
+    sta tos + 0
+    rol tos + 1 
+    sta tos + 1
+    clc 
+    rol tos + 0 
+    sta tos + 0
+    rol tos + 1 
+    sta tos + 1
+    clc 
+    rol tos + 0 
+    sta tos + 0
+    rol tos + 1 
+    sta tos + 1
+    rts
+
+
+hex:                            ;= 26
+	    LD HL,0		    		; 10t Clear HL to accept the number
+hex1:
+        INC BC
+        LD A,(BC)				; 7t  Get the character which is a numeral
+        BIT 6,A                 ; 7t    is it uppercase alpha?
+        JR Z, hex2              ; no a decimal
+        SUB 7                   ; sub 7  to make $A - $F
+hex2:
+        SUB $30                 ; 7t    Form decimal digit
+        jmp C,endnum
+        CP $0F+1
+        jmp NC,endnum
+        ADD HL,HL               ; 11t    2X ; Multiply digit(s) in HL by 16
+        ADD HL,HL               ; 11t    4X
+        ADD HL,HL               ; 11t    8X
+        ADD HL,HL               ; 11t   16X     
+        ADD A,L                 ; 4t    Add into bottom of HL
+        LD  L,A                 ; 4t
+        JR  hex1
+; *************************************
+
 ; *************************************
 ; Loop Handling Code
 ; *************************************
@@ -1211,7 +1305,7 @@ begin:
         LD (IX+4),C             ; loop address
         LD (IX+5),B                 
 
-        jmp (IY)
+        jmp link_
 begin1:
         LD E,1
 begin2:
@@ -1222,7 +1316,7 @@ begin2:
         OR E
         JR NZ,begin2
 begin3:
-        jmp (IY)
+        jmp link_
 
 again:   
         LD E,(IX+0)                 ; peek loop var
@@ -1248,12 +1342,12 @@ again1:
         LD (IX+1),D                 
         LD C,(IX+4)                 ; peek loop address
         LD B,(IX+5)                 
-        jmp (IY)
+        jmp link_
 again2:   
         LD DE,6                     ; drop loop frame
 again3:
         ADD IX,DE
-        jmp (IY)
+        jmp link_
 
 ; **************************************************************************
 ; Page 6 Alt primitives
@@ -1279,7 +1373,7 @@ charCode_:
         LD H,0
         LD L,A
         PUSH HL
-        jmp (IY)
+        jmp link_
 
 comment_:
         INC BC              ; point to next char
@@ -1317,11 +1411,11 @@ ifte_:
 ifte1:
         LD HL,-1                    ; push -1 on return stack to indicate IFTEMode
         jsr  rpush
-        jmp (IY)
+        jmp link_
 
 exec_:
         jsr  exec1
-        jmp (IY)
+        jmp link_
 exec1:
         POP HL
         EX (SP),HL
@@ -1337,7 +1431,7 @@ go_:
 endGroup_:
         jsr  rpop
         LD (vDEFS),HL
-        jmp (IY)
+        jmp link_
 
 group_:
         POP DE
@@ -1365,7 +1459,7 @@ sysVar_:
 
 i_:
         PUSH IX
-        jmp (IY)
+        jmp link_
 
 ; \+    a b -- [b]+a            ; increment variable at b by a
 incr_:
@@ -1378,7 +1472,7 @@ incr_:
         LD A,D
         ADC A,(HL)
         LD (HL),A
-        jmp (IY)
+        jmp link_
 
 inPort_:
         POP HL
@@ -1388,7 +1482,7 @@ inPort_:
         LD H,0
         LD C,A
         PUSH HL
-        jmp (IY)        
+        jmp link_        
 
 j_:
         PUSH IX
@@ -1396,18 +1490,18 @@ j_:
         LD DE,6
         ADD HL,DE
         PUSH HL
-        jmp (IY)
+        jmp link_
 
 key_:
         jsr  getchar
         LD L,A
         LD H,0
         PUSH HL
-        jmp (IY)
+        jmp link_
 
 newln_:
         jsr  crlf
-        jmp (IY)        
+        jmp link_        
 
 outPort_:
         POP HL
@@ -1416,14 +1510,14 @@ outPort_:
         POP HL
         OUT (C),L
         LD C,E
-        jmp (IY)        
+        jmp link_        
 
 break_:
         POP HL
         LD A,L                      ; zero?
         OR H
         JR NZ,break1
-        jmp (IY)
+        jmp link_
 break1:
         LD DE,6                     ; drop loop frame
         ADD IX,DE
@@ -1475,12 +1569,12 @@ editDef3:
         OR A
         SBC HL,DE
         LD (vTIBPtr),HL
-        jmp (IY)
+        jmp link_
 
 printStk:                   ;= 40
         jsr  ENTER
         .asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'"             
-        jmp (IY)
+        jmp link_
 
 ;*******************************************************************
 ; Page 5 primitive routines continued
@@ -1501,7 +1595,7 @@ arrEnd:                     ;= 27
 arrEnd2:
         PUSH HL 
         LD IY,NEXT
-        jmp (IY)         ; hardwired to NEXT
+        jmp link_         ; hardwired to NEXT
 
 hex:                            ;= 26
 	    LD HL,0		    		; 10t Clear HL to accept the number
