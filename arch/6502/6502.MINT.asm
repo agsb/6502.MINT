@@ -32,8 +32,9 @@
 
     ; just 128 cells deep and round-robin
     ; copycat 
-    yp = $f0    ; y index, return stack pointer
-    xp = $f1    ; x index, parameter stack pointer
+    yp = $f0    ; y index, return stack pointer, (wraps-around)
+    xp = $f1    ; x index, parameter stack pointer, (wraps-around)
+
     ac = $f2    ; accumulator
     sp = $f3    ; stack
 
@@ -45,6 +46,8 @@
     wrk = $fa    ; work register
     lnk = $fc    ; link register
 
+    inb = $fe    ; cursor in tib, (wraps-around)
+
     opcs = optcodes
     alts = altcodes
     ctrs = ctlcodes
@@ -54,6 +57,17 @@
 ;   return stack indexed by y
     spz = $600   ; absolute address for data stack
     rpz = $700   ; absolute address for parameter stack
+
+    tib = $200   ; terminal input buffer
+
+;----------------------------------------------------------------------
+;   constants
+;
+    c10k:   .word $2710
+    c1k0:   .word $03E8
+    c100:   .word $0064
+    c010:   .word $000A
+
 
 ; ***********************************************************************
 ; Initial values for user mintVars		
@@ -149,46 +163,56 @@ interpret4:
 ; *******************************************************************
 
 waitchar:   
-        jsr  getchar            ; loop around waiting for character
-        CP $20
-        JR NC,waitchar1
-        CP $0                   ; is it end of string?
+        jsr getchar            ; loop around waiting for character
+        cmp #$20
+        bcs @ischar
+        cmp #$0                   ; is it end of string?
         JR Z,waitchar4
-        CP '\r'                 ; carriage return?
+        cmp #'\r'                 ; carriage return?
+        JR Z,waitchar3
+        cmp #'\n'                 ; line feed ?
         JR Z,waitchar3
         LD D,0
         JR macro    
-
-waitchar1:
-        LD HL,TIB
-        ADD HL,BC
-        LD (HL),A               ; store the character in textbuf
-        INC BC
-        jsr  putchar            ; echo character to screen
-        jsr  nesting
-        JR  waitchar            ; wait for next character
+@ischar:
+        jsr @inbuff
+        ; echo
+        jsr putchar
+        jsr nesting
+        clc
+        bcc waitchar            ; wait for next character
 
 waitchar3:
-        LD HL,TIB
-        ADD HL,BC
-        LD (HL),"\r"            ; store the crlf in textbuf
-        INC HL
-        LD (HL),"\n"            
-        INC HL                  ; ????
-        INC BC
-        INC BC
-        jsr  crlf               ; echo character to screen
-        LD A,E                  ; if zero nesting append and ETX after \r
-        OR A
-        JR NZ,waitchar
-        LD (HL),$03             ; store end of text ETX in text buffer 
-        INC BC
+        lda #'\r'
+        jsr @inbuff
+        lda #'\n'
+        jsr @inbuff
+        ; echo
+        jsr  crlf               
+
+        lds ns                  
+        cmp #$00
+        beq waitchar
+
+        ; if zero nesting append and ETX after \r
+        lda #$03
+        jsr inbuff
 
 waitchar4:    
         LD (vTIBPtr),BC
         LD BC,TIB               ; Instructions stored on heap at address HERE
         DEC BC
         jmp NEXT
+
+inbuff:
+        sty yp
+        ldy inb
+        iny
+        sta tib, y
+        sty inb
+        ldy yp
+        rts
+
 
 ; ********************************************************************************
 ;
@@ -923,7 +947,7 @@ hdot_:
 ; print decimal
 dot_:       
         jsr pull_
-        jsr printdec
+        jsr printdec_
 
 ; print space
 dot2:
@@ -1052,8 +1076,6 @@ Mul_Loop_1:
 
 ; 1382 cycles
 ; 35 bytes (reduced from 48)
-		
-
 div:                        ;=24
         POP  DE             ; get first value
         POP  HL             ; get 2nd value
@@ -1139,16 +1161,21 @@ def3:
          
                 
 ; convert a decimal value to binary
-num2_:
+numd_:
     lda #$00
     sta tos + 0
     sta tos + 1
 @loop:
     ; get a char from buffer 
     lda ch
-    cmp '0' 
-    jsr numd_
-    bcs @ends
+    cmp '0' + 0
+    bcc ends_
+    cmp '9' + 1
+    bcs ends_
+@cv10:
+    sec
+    sbc #'0'
+@uval:
     sta ch
     jsr @mul10_
     lda tos + 0
@@ -1158,34 +1185,43 @@ num2_:
 @ends:
     jmp push_
 
-zzzzz
-; base 10
-numd_:
-    lda ch 
-    cmp '0' + 0
-    bcc nak_
-    cmp '9' + 1
-    bcc cv10_
+; convert a hexadecimal value to binary
+numh_:
+    lda #$00
+    sta tos + 0
+    sta tos + 1
+@loop:
+    ; get a char from buffer 
+    lda ch
+@isd:
+    cmp #'0'
+    bcc ends
+    cmp #'9' + 1
+    bcs @ish
 @cv10:
     sec
     sbc #'0'
     clc
-    bcc ack_
-@cv16:
+    bcc @uval
+@ish:
     and #%11011111
-    cmp 'A'
-    bcc nak_
     cmp 'F' + 1
-    bcs nak_
+    bcs @ends
+    cmp 'A'
+    bcc @ends
+@cv16:
     sec
     sbc #'A' - 10
-    bcc ack_
-ack_:    
-    clc
-    rts
-nak_:
-    sec
-    rts
+    bcc @uval
+@uval:
+    sta ch
+    jsr @mul16_
+    lda tos + 0
+    adc ch 
+    sta tos + 0
+    bcc @loop
+@ends:
+    jmp push_
 
 ; multiply by ten
 mul10_:
@@ -1211,31 +1247,7 @@ mul10_:
     sta tos + 1
     clc
     rts
-                
-; convert a hexadecimal value to binary
-hex2_:
-    lda #$00
-    sta tos + 0
-    sta tos + 1
-@loop:
-    ; get a char from buffer 
-    lda ch
-    jsr numh_
-    bcc mults
-    jsr numh_
-    bcc mul16_
-    bcs ends
-
-@a2f:
     
-    
-ack_:    
-    clc
-    rts
-nak_:
-    sec
-    rts
-
 ; multiply by sixteen
 mul16_:
     clc 
@@ -1261,26 +1273,6 @@ mul16_:
     rts
 
 
-hex:                            ;= 26
-	    LD HL,0		    		; 10t Clear HL to accept the number
-hex1:
-        INC BC
-        LD A,(BC)				; 7t  Get the character which is a numeral
-        BIT 6,A                 ; 7t    is it uppercase alpha?
-        JR Z, hex2              ; no a decimal
-        SUB 7                   ; sub 7  to make $A - $F
-hex2:
-        SUB $30                 ; 7t    Form decimal digit
-        jmp C,endnum
-        CP $0F+1
-        jmp NC,endnum
-        ADD HL,HL               ; 11t    2X ; Multiply digit(s) in HL by 16
-        ADD HL,HL               ; 11t    4X
-        ADD HL,HL               ; 11t    8X
-        ADD HL,HL               ; 11t   16X     
-        ADD A,L                 ; 4t    Add into bottom of HL
-        LD  L,A                 ; 4t
-        JR  hex1
 ; *************************************
 
 ; *************************************
@@ -1309,8 +1301,7 @@ begin:
 begin1:
         LD E,1
 begin2:
-        INC BC
-        LD A,(BC)
+        INC BC LD A,(BC)
         jsr  nesting
         XOR A
         OR E
@@ -1596,27 +1587,6 @@ arrEnd2:
         PUSH HL 
         LD IY,NEXT
         jmp link_         ; hardwired to NEXT
-
-hex:                            ;= 26
-	    LD HL,0		    		; 10t Clear HL to accept the number
-hex1:
-        INC BC
-        LD A,(BC)				; 7t  Get the character which is a numeral
-        BIT 6,A                 ; 7t    is it uppercase alpha?
-        JR Z, hex2              ; no a decimal
-        SUB 7                   ; sub 7  to make $A - $F
-hex2:
-        SUB $30                 ; 7t    Form decimal digit
-        jmp C,endnum
-        CP $0F+1
-        jmp NC,endnum
-        ADD HL,HL               ; 11t    2X ; Multiply digit(s) in HL by 16
-        ADD HL,HL               ; 11t    4X
-        ADD HL,HL               ; 11t    8X
-        ADD HL,HL               ; 11t   16X     
-        ADD A,L                 ; 4t    Add into bottom of HL
-        LD  L,A                 ; 4t
-        JR  hex1
 
 ;*******************************************************************
 ; Subroutines
