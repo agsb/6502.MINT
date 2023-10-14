@@ -15,8 +15,8 @@
 ; *********************************************************************
 
 
-;        DSIZE       = $80
-;        RSIZE       = $80
+    DSIZE       = $80
+    RSIZE       = $80
 
     TIBSIZE     = $100
     TRUE        = 1
@@ -28,9 +28,13 @@
     CELL    = 2
 
 ;----------------------------------------------------------------------
-; versions:
+; notes 6502 version:
 ;
-
+;   code is for RAM use.
+;   
+;   caller must save a, x, y and 
+;   reserve 32 (?) words at hardware stack
+;
 ;----------------------------------------------------------------------
 ;   data stack indexed by x
 ;   return stack indexed by y
@@ -38,9 +42,9 @@
 ;   all just 128 cells deep and round-robin
 ;   a cell is 16-bit
 
-    spz = $600   ; absolute address for data stack
-    rpz = $700   ; absolute address for parameter stack
     tib = $200   ; terminal input buffer
+    spz = $300   ; absolute address for data stack
+    rpz = $400   ; absolute address for parameter stack
 
 ; page 0, reserved cells
     zpage = $f0
@@ -52,8 +56,8 @@
 
 ; posts
     ib = zpage + $3  ; cursor tib
-    ch = zpage + $4  ; char 
-    ns = zpage + $5  ; nests
+    ns = zpage + $4  ; nests
+    ch = zpage + $5  ; char 
 
 ; pseudos
     tos = zpage + $6  ; tos  register 
@@ -87,17 +91,14 @@ iSysVars:
 ; Page 0  Initialisation
 ; *********************************************************************		
 
-.segment "CODE"
-
-; caller must save a, x, y and 
-; reserve 32 (?) words at hardware stack
+.segment "ONCE"
 
 start:
 
 mint:
     jsr  initialize
     jsr  printStr
-    .asciiz  "MINT V1.0\r\n"
+    .asciiz  "MINT 6502 V1.0\r\n"
     jmp interpret
 
 initialize:
@@ -111,17 +112,35 @@ initialize:
         LD DE,sysVars
         LD BC,8 * 2
         LDIR
+    
+; copy defaults
+    lda #<empty_
+    sta wrk + 0
+    lda #>empty_
+    sta wrk + 1
+    lda #<uvars
+    sta tos + 0
+    lda #>uvars
+    sta tos + 1
+    lda #<ufuns
+    sta nos + 0
+    lda #>ufuns
+    sta nos + 1
+    ldx #$00
+@loop:
+    lda wrk + 0
+    sta (nos), x
+    lda #$00
+    sta (tos), x
+    inx
+    sta (tos), x
+    lda wrk + 1
+    sta (nos), x
+    inx
+    cpy #52 ; 26 words
+    bne @loop
+    rst
         
-        LD HL,DEFS
-        LD B,GRPSIZE/2 * NUMGRPS
-init1:
-        LD (HL),lsb(empty_)
-        INC HL
-        LD (HL),msb(empty_)
-        INC HL
-        DJNZ init1
-        rts
-
 macro:                          ;=25
         LD (vTIBPtr),BC
         LD HL,ctlcodes
@@ -136,27 +155,32 @@ macro:                          ;=25
         JR interpret2
 
 interpret:
-        jsr  enter
-        .asciiz  "\\N`> `"
+    jsr  enter
+    .asciiz  "\\N`> `"
 
 interpret1:                     ; used by tests
-        LD BC,0                 ; load BC with offset into TIB         
-        LD (vTIBPtr),BC
+    LD BC,0                 ; load BC with offset into TIB         
+    LD (vTIBPtr),BC
 
 interpret2:                     ; calc nesting (a macro might have changed it)
-        LD E,0                  ; initilize nesting value
-        PUSH BC                 ; save offset into TIB, 
-                                ; BC is also the count of chars in TIB
-        LD HL,TIB               ; HL is start of TIB
-        JR interpret4
+    dex
+    dex
+    lda ib
+    sta spz + 0, x
+    lda #0
+    sta spz + 1, x
+    sta ns
+    tay
+    clc
+    bcc @cast
+@loop:
+    lda (tib), y
+    iny
+    jsr  nesting            ; update nesting value
+@cast:
+    cpy #0
+    bne @loop
 
-interpret3:
-        LD A,(HL)               ; A = char in TIB
-        INC HL                  ; inc pointer into TIB
-        DEC BC                  ; dec count of chars in TIB
-        jsr  nesting            ; update nesting value
-
-interpret4:
         LD A,C                  ; is count zero?
         OR B
         JR NZ, interpret3          ; if not loop
@@ -248,13 +272,13 @@ waitchar:
         lda #$03
         jsr @inbuff
         ; echo
-        jsr  crlf               
+        jsr crlf               
 
 @waitchar4:    
         LD (vTIBPtr),BC
         LD BC,TIB               ; Instructions stored on heap at address HERE
         DEC BC
-        jmp NEXT
+        jmp link_
 
 @inbuff:
         sty yp
@@ -732,8 +756,6 @@ num_:
 def_:   
     jmp def2_
 
-ZZZZZZ:
-
 arrDef_:    
 arrDef:                     ;= 18
         LD A,FALSE
@@ -800,13 +822,12 @@ ret_:
         LD BC,HL                
         jmp link_             
 
-        POP    HL           ; 10t
-        POP    DE           ; 10t
-        LD     (HL),E       ; 7t
-        INC    HL           ; 6t
-        LD     (HL),D       ; 7t
-        jmp     (IY)         ; 8t
-                            ; 48t
+        POP    HL      
+        POP    DE 
+        LD     (HL),E
+        INC    HL 
+        LD     (HL),D   
+        jmp     (IY)   
     
 getRef_:    
         jmp getRef
@@ -1349,6 +1370,7 @@ lookupDef2:
         ADD HL,DE
         rts
 
+;----------------------------------------------------------------------
 ; prints a asciiz, refered by hardware stack
 printStr:
     pla 
@@ -1362,6 +1384,7 @@ printStr:
     pha
     rts
     
+;----------------------------------------------------------------------
 ; prints a asciiz, refered by wrk
 puts_:
     stx xp
@@ -1386,6 +1409,8 @@ puts_:
     ldx xp
     rts
 
+;----------------------------------------------------------------------
+optcodes:
 ; prints number in wrk to decimal ASCII
 printdec:
     lda #<10000
@@ -1437,6 +1462,8 @@ printdec:
     ldx xp
     rts
 
+;----------------------------------------------------------------------
+optcodes:
 ; prints number in wrk to hexadecimal ASCII
 printhex16:           
     lda wrk + 1
@@ -1445,6 +1472,8 @@ printhex16:
     jsr printhex8
     rts
 
+;----------------------------------------------------------------------
+optcodes:
 ; print a 8-bit HEX
 printhex8:		   
     sta ac
@@ -1554,10 +1583,12 @@ div:                        ;=24
 ; **************************************************************************
 .align $100
 
-optcodes:
 ; ***********************************************************************
 ; Initial values for user mintVars		
 ; ***********************************************************************		
+
+;----------------------------------------------------------------------
+optcodes:
        .word (#<exit_)    ;   NUL 
        .word (#<nop_)     ;   SOH 
        .word (#<nop_)     ;   STX 
@@ -1623,32 +1654,32 @@ optcodes:
        .word (#<gt_)     ;    >            
        .word (#<getRef_) ;    ?
        .word (#<fetch_)  ;    @    
-       .word (#<jsr_)   ;    A    
-       .word (#<jsr_)   ;    B
-       .word (#<jsr_)   ;    C
-       .word (#<jsr_)   ;    D    
-       .word (#<jsr_)   ;    E
-       .word (#<jsr_)   ;    F
-       .word (#<jsr_)   ;    G
-       .word (#<jsr_)   ;    H
-       .word (#<jsr_)   ;    I
-       .word (#<jsr_)   ;    J
-       .word (#<jsr_)   ;    K
-       .word (#<jsr_)   ;    L
-       .word (#<jsr_)   ;    M
-       .word (#<jsr_)   ;    N
-       .word (#<jsr_)   ;    O
-       .word (#<jsr_)   ;    P
-       .word (#<jsr_)   ;    Q
-       .word (#<jsr_)   ;    R
-       .word (#<jsr_)   ;    S
-       .word (#<jsr_)   ;    T
-       .word (#<jsr_)   ;    U
-       .word (#<jsr_)   ;    V
-       .word (#<jsr_)   ;    W
-       .word (#<jsr_)   ;    X
-       .word (#<jsr_)   ;    Y
-       .word (#<jsr_)   ;    Z
+       .word (#<jsr_)    ;    A    
+       .word (#<jsr_)    ;    B
+       .word (#<jsr_)    ;    C
+       .word (#<jsr_)    ;    D    
+       .word (#<jsr_)    ;    E
+       .word (#<jsr_)    ;    F
+       .word (#<jsr_)    ;    G
+       .word (#<jsr_)    ;    H
+       .word (#<jsr_)    ;    I
+       .word (#<jsr_)    ;    J
+       .word (#<jsr_)    ;    K
+       .word (#<jsr_)    ;    L
+       .word (#<jsr_)    ;    M
+       .word (#<jsr_)    ;    N
+       .word (#<jsr_)    ;    O
+       .word (#<jsr_)    ;    P
+       .word (#<jsr_)    ;    Q
+       .word (#<jsr_)    ;    R
+       .word (#<jsr_)    ;    S
+       .word (#<jsr_)    ;    T
+       .word (#<jsr_)    ;    U
+       .word (#<jsr_)    ;    V
+       .word (#<jsr_)    ;    W
+       .word (#<jsr_)    ;    X
+       .word (#<jsr_)    ;    Y
+       .word (#<jsr_)    ;    Z
        .word (#<arrDef_) ;    [
        .word (#<alt_)    ;    \
        .word (#<arrEnd_) ;    ]
@@ -1687,6 +1718,7 @@ optcodes:
        .word (#<inv_)    ;    ~            
        .word (#<nop_)    ;    backspace
 
+;----------------------------------------------------------------------
 ; alternate function codes		
 ctlcodes:
 altcodes:
@@ -1819,20 +1851,23 @@ altcodes:
        .word (#<aNop_)       ;    ~           
        .word (#<aNop_)       ;    BS		
 
-user_variables:
-uvars:
-.repeat 26
-    .word $0
-.endrep
-
-user_functions:
-ufuns:
-.repeat 26
-    .word $0
-.endrep
-
+;----------------------------------------------------------------------
 mint_variables:
 mvars:
+.repeat 26
+    .word $0
+.endrep
+
+;----------------------------------------------------------------------
+user_variables:
+vars:
+.repeat 26
+    .word $0
+.endrep
+
+;----------------------------------------------------------------------
+user_functions:
+defs:
 .repeat 26
     .word $0
 .endrep
@@ -1845,4 +1880,6 @@ macros:
 
 .include "6502.MINT.macros.asm"
 
+heap:
+    .asciiz ";"
 
