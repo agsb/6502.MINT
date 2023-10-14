@@ -25,8 +25,6 @@
     NUMGRPS     = 5
     GRPSIZE     = $40
 
-    CELL    = 2
-
 ;----------------------------------------------------------------------
 ; notes 6502 version:
 ;
@@ -35,16 +33,11 @@
 ;   caller must save a, x, y and 
 ;   reserve 32 (?) words at hardware stack
 ;
-;----------------------------------------------------------------------
 ;   data stack indexed by x
 ;   return stack indexed by y
 ;   terminal input buffer
 ;   all just 128 cells deep and round-robin
 ;   a cell is 16-bit
-
-    tib = $200   ; terminal input buffer
-    spz = $300   ; absolute address for data stack
-    rpz = $400   ; absolute address for parameter stack
 
 ; page 0, reserved cells
     zpage = $f0
@@ -66,10 +59,18 @@
     lnk = zpage + $c  ; link register
     ptr = zpage + $e  ; pointer register
 
-; tables at end of code
-    opcs = optcodes
-    alts = altcodes
-    ctrs = ctlcodes
+; if all in RAM, better put tables at end of code ?
+
+    tib = $200  ; terminal input buffer, upwards
+    spz = $3FF  ; absolute address for data stack, backwards
+    rpz = $4FF  ; absolute address for parameter stack, backwards
+   
+    vars = $500  ;   26 words
+    vsys = $536  ;   26 words
+    defs = $56C  ;   26 words
+    tmps = $5D8  ;   14 words
+
+    free = $600  ; free ram start
 
 ;----------------------------------------------------------------------
 ;   constants
@@ -88,7 +89,7 @@ iSysVars:
         .word HEAP                 ; h vHeapPtr
 
 ; *********************************************************************
-; Page 0  Initialisation
+; Initialisation
 ; *********************************************************************		
 
 .segment "ONCE"
@@ -113,29 +114,32 @@ initialize:
         LD BC,8 * 2
         LDIR
     
-; copy defaults
-    lda #<empty_
-    sta wrk + 0
-    lda #>empty_
-    sta wrk + 1
-    lda #<uvars
+; defaults
+    lda #<vars
     sta tos + 0
-    lda #>uvars
+    lda #>vars
     sta tos + 1
-    lda #<ufuns
+    lda #<vsys
     sta nos + 0
-    lda #>ufuns
+    lda #>vsys
     sta nos + 1
+    lda #<defs
+    sta wrk + 0
+    lda #>defs
+    sta wrk + 1
     ldx #$00
 @loop:
-    lda wrk + 0
-    sta (nos), x
     lda #$00
     sta (tos), x
-    inx
-    sta (tos), x
-    lda wrk + 1
     sta (nos), x
+    lda #<empty_
+    sta (wrk), x
+    inx
+    lda #$00
+    sta (tos), x
+    sta (nos), x
+    lda #>empty_
+    sta (wrk), x
     inx
     cpy #52 ; 26 words
     bne @loop
@@ -181,54 +185,69 @@ interpret2:                     ; calc nesting (a macro might have changed it)
     cpy #0
     bne @loop
 
-        LD A,C                  ; is count zero?
-        OR B
-        JR NZ, interpret3          ; if not loop
-        POP BC                  ; restore offset into TIB
+    ; ???    POP BC                  ; restore offset into TIB
         
-; push the reference for an user variable into stack
+; push an user variable into stack
 push_var:
     lda ch
     sbc #'a'
+    lda #<vars
+    sta nos + 0
+    lda #>vars
+    sta nos + 1
+    jsr push_ref
+    jmp link_
+
+; push a mint variable into stack
+push_var:
+    lda ch
+    sbc #'a'
+    lda #<vsys
+    sta nos + 0
+    lda #>vsys
+    sta nos + 1
+    jsr push_ref
+    jmp link_
+
+; push a reference
+push_ref:
     asl 
     sta ac
     clc
-    lda #$<uvars
+    lda nos + 0
     adc ac
-    sta wrk + 0
-    lda #$>uvars
-    sta wrk + 1
+    sta tos + 0
+    lda nos + 1
+    sta tos + 1
     bcc @nocc
-    inc wrk + 1
+    inc tos + 1
 @nocc:
-    jsr push_
-    jsr link_
-
-; push the indirect reference for an user function into stack
-push_fun:
+    jmp push_
+    
+; push a mint variable into stack
+push_def:
     lda ch
     sbc #'A'
-    asl 
-    sta ac
-    clc
-    lda #$<ufuns
-    adc ac
+    lda #<defs
     sta nos + 0
-    lda #$>ufuns
+    lda #>defs
     sta nos + 1
-    bcc @nocc
-    inc nos + 1
-@nocc:
+    jsr push_ref
+    
     stx xp
-    ldx #$0
-    lda (nos), x
+    ldx #$00
+    lda (tos), x
     sta wrk + 0
     inx
-    lda (nos), x
+    lda (tos), x
     sta wrk + 1
     ldx xp
-    jsr push_
-    jsr link_
+
+    lda wrk + 0
+    sta tos + 0
+    lda wrk + 1
+    sta tos + 1
+    jmp push_
 
 ; *******************************************************************         
 ; Wait for a character from the serial input (keyboard) 
@@ -693,7 +712,7 @@ cfetch_:
     jsr pull_
     sty yp
     ldy #$00
-    lda (tos + 0), y
+    lda (tos), y
     sta tos + 0
     sty tos + 1
     ldy yp
@@ -710,9 +729,10 @@ fetch_:
     sta tos + 1
     sty yp
     ldy #$00
-    lda (tos + 0), y
+    lda (tos), y
     sta nos + 0
-    lda (tos + 1), y
+    iny
+    lda (tos), y
     ldy yp
     sta spz + 1, y
     lda nos + 0
@@ -1400,17 +1420,10 @@ puts_:
     lda (wrk), x
     bne @loop
 @ends:
-    ; pass 0x0
-    clc
-    inc wrk + 0
-    bcc @incr
-    inc wrk + 1
-@incr:
-    ldx xp
+    ; pass 0x0, rts return to address + 1
     rts
 
 ;----------------------------------------------------------------------
-optcodes:
 ; prints number in wrk to decimal ASCII
 printdec:
     lda #<10000
@@ -1851,35 +1864,15 @@ altcodes:
        .word (#<aNop_)       ;    ~           
        .word (#<aNop_)       ;    BS		
 
-;----------------------------------------------------------------------
-mint_variables:
-mvars:
-.repeat 26
-    .word $0
-.endrep
-
-;----------------------------------------------------------------------
-user_variables:
-vars:
-.repeat 26
-    .word $0
-.endrep
-
-;----------------------------------------------------------------------
-user_functions:
-defs:
-.repeat 26
-    .word $0
-.endrep
-
-; **************************************************************************
+; *********************************************************************
 ; Macros must be written in Mint and end with ; 
 ; this code must not span pages
-; **************************************************************************
+; *********************************************************************
 macros:
 
 .include "6502.MINT.macros.asm"
 
+; heap must be here !
+
 heap:
-    .asciiz ";"
 
