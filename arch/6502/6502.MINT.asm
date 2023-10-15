@@ -103,16 +103,11 @@ mint:
     jmp interpret
 
 initialize:
-    lda #$00
-    tax
-    tay
-    sta ib
-    sta ns
 
-        LD HL,iSysVars
-        LD DE,sysVars
-        LD BC,8 * 2
-        LDIR
+    ;z    LD HL,iSysVars
+    ;z    LD DE,sysVars
+    ;z    LD BC,8 * 2
+    ;z    LDIR
     
 ; defaults
     lda #<vars
@@ -127,22 +122,29 @@ initialize:
     sta wrk + 0
     lda #>defs
     sta wrk + 1
-    ldx #$00
+    ldy #$00
 @loop:
     lda #$00
-    sta (tos), x
-    sta (nos), x
+    sta (tos), y
+    sta (nos), y
     lda #<empty_
-    sta (wrk), x
-    inx
+    sta (wrk), y
+    iny
     lda #$00
-    sta (tos), x
-    sta (nos), x
+    sta (tos), y
+    sta (nos), y
     lda #>empty_
-    sta (wrk), x
-    inx
+    sta (wrk), y
+    iny
     cpy #52 ; 26 words
     bne @loop
+    
+; wise
+    lda #$00
+    tax
+    tay
+    sta ib
+    sta ns
     rst
         
 macro:                          ;=25
@@ -153,8 +155,8 @@ macro:                          ;=25
         LD E,(HL)
         LD D,msb(macros)
         PUSH DE
-        jsr  enter
-        .asciiz  "\\G"
+    jsr  enter
+    .asciiz  "\\G"
         LD BC,(vTIBPtr)
         JR interpret2
 
@@ -199,7 +201,7 @@ push_var:
     jmp link_
 
 ; push a mint variable into stack
-push_var:
+push_sys:
     lda ch
     sbc #'a'
     lda #<vsys
@@ -212,10 +214,8 @@ push_var:
 ; push a reference
 push_ref:
     asl 
-    sta ac
     clc
-    lda nos + 0
-    adc ac
+    adc nos + 0
     sta tos + 0
     lda nos + 1
     sta tos + 1
@@ -234,14 +234,14 @@ push_def:
     sta nos + 1
     jsr push_ref
     
-    stx xp
-    ldx #$00
-    lda (tos), x
+    sty yp
+    ldy #$00
+    lda (tos), y
     sta wrk + 0
-    inx
-    lda (tos), x
+    iny
+    lda (tos), y
     sta wrk + 1
-    ldx xp
+    ldy yp
 
     lda wrk + 0
     sta tos + 0
@@ -256,42 +256,42 @@ push_def:
 ; *******************************************************************
 
 waitchar:   
-        jsr getchar            ; loop around waiting for character
-        cmp #$20
-        bcs @ischar
-        cmp #$0                   ; is it end of string?
-        beq @waitchar4
-        cmp #'\r'                 ; carriage return?
-        beq @iscrlf
-        cmp #'\n'                 ; line feed ?
-        beq @iscrlf
-        LD D,0
-        JR macro    
+    jsr getchar            ; loop around waiting for character
+    cmp #$20
+    bcs @ischar
+    cmp #$0                   ; is it end of string?
+    beq @waitchar4
+    cmp #'\r'                 ; carriage return?
+    beq @iscrlf
+    cmp #'\n'                 ; line feed ?
+    beq @iscrlf
+    LD D,0
+    JR macro    
 @ischar:
-        jsr @inbuff
-        ; echo
-        jsr putchar
-        jsr nesting
-        clc
-        bcc waitchar            ; wait for next character
+    jsr @inbuff
+    ; echo
+    jsr putchar
+    jsr nesting
+    clc
+    bcc waitchar            ; wait for next character
 
 @iscrlf:
-        ; pending nest ?
-        lda ns                  
-        cmp #$00
-        beq waitchar
+    ; pending nest ?
+    lda ns                  
+    cmp #$00
+    beq waitchar
 
-        ; CR
-        lda #'\r'
-        jsr @inbuff
-        ; LF
-        lda #'\n'
-        jsr @inbuff
-        ; ETX
-        lda #$03
-        jsr @inbuff
-        ; echo
-        jsr crlf               
+    ; CR
+    lda #'\r'
+    jsr @inbuff
+    ; LF
+    lda #'\n'
+    jsr @inbuff
+    ; ETX
+    lda #$03
+    jsr @inbuff
+    ; echo
+    jsr crlf               
 
 @waitchar4:    
         LD (vTIBPtr),BC
@@ -300,13 +300,13 @@ waitchar:
         jmp link_
 
 @inbuff:
-        sty yp
-        ldy inb
-        iny
-        sta tib, y
-        sty inb
-        ldy yp
-        rts
+    sty yp
+    ldy inb
+    iny
+    sta tib, y
+    sty inb
+    ldy yp
+    rts
 
 
 ; ********************************************************************************
@@ -432,31 +432,31 @@ prompt:
 page4:
 
 alt_:        
-   jmp alt
+    jmp alt
 
 ; emit a byte of terminal
 emit_:
-   jsr pull_
-   lda tos + 0
-   jsr putchar
-   jmp link_
+    jsr pull_
+    lda tos + 0
+    jsr putchar
+    jmp link_
 
 ; receive a byte of terminal
 key_:
-   jsr getchar
-   sta tos + 0
-   jsr push_
-   jmp link_
-
-; pull tos from return stack
+    jsr getchar
+    sta tos + 0
+    jsr push_
+    jmp link_
+    
+; pull tos into return stack
 rpush_:                              
-   dex
-   dex
-   lda tos + 0
-   sta rpz + 0, x
-   lda tos + 1
-   lda rpz + 1, x
-   rts
+    dex
+    dex
+    lda tos + 0
+    sta rpz + 0, x
+    lda tos + 1
+    lda rpz + 1, x
+    rts
 
 ; push tos from return stack
 rpull_:                               
@@ -646,10 +646,10 @@ add_:
 sub_:                          
     sec
     lda spz + 2, x
-    sub spz + 0, x
+    sbc spz + 0, x
     sta spz + 2, x
     lda spz + 3, x
-    sub spz + 1, x
+    sbc spz + 1, x
     sta spz + 3, x
 	jmp drop_
 
@@ -753,16 +753,16 @@ store_:
     sty yp
     ldy #$00
     lda nos + 0
-    sta (tos + 0), y
+    sta (tos), y
+    iny
     lda nos + 1
-    sta (tos + 1), y
+    sta (tos), y
     ldy yp
     iny
     iny
     iny
     iny
     jmp link_
-
 
 hex_:   
     jmp hex2_
@@ -803,21 +803,21 @@ call _:
 
 ; print hexadecimal
 hdot_:                              
-        jsr pull_
-        jsr printhex_
-        jmp dotsp
+    jsr pull_
+    jsr printhex_
+    jmp dotsp
 
 ; print decimal
 dot_:       
-        jsr pull_
-        jsr printdec_
-        jmp dotsp
+    jsr pull_
+    jsr printdec_
+    jmp dotsp
 
 ; print space
 dotsp:
-        lda #' '          
-        jsr  writeChar1
-        jmp link_
+    lda #' '          
+    jsr  writeChar1
+    jmp link_
 
 etx_:
 etx:
@@ -852,17 +852,6 @@ ret_:
 getRef_:    
         jmp getRef
 
-var_:
-        LD A,(BC)
-        
-        SUB "a" - ((VARS - mintVars)/2)  
-        ADD A,A
-        LD L,A
-        LD H,msb(mintVars)
-        
-        PUSH HL
-        jmp link_
-        
 again_:     
         jmp again
 str_:                       
@@ -1365,10 +1354,10 @@ arrEnd2:
 ;*******************************************************************
 
 crlf:                               ;=7
-        jsr  printStr
-        .asciiz  "\r\n"
-        rts
-
+    jsr  printStr
+    .asciiz  "\r\n"
+    rts
+    
 enter:                          ; 9
         LD HL,BC
         jsr  rpush              ; save Instruction Pointer
@@ -1486,7 +1475,6 @@ printhex16:
     rts
 
 ;----------------------------------------------------------------------
-optcodes:
 ; print a 8-bit HEX
 printhex8:		   
     sta ac
