@@ -100,6 +100,7 @@ iSysVars:
 ; Initialisation
 ; *********************************************************************		
 
+; ROM code
 .segment "ONCE"
 
 ; start:
@@ -117,7 +118,7 @@ initialize:
     ;z    LD BC,8 * 2
     ;z    LDIR
     
-; defaults
+; defaults in parallel
     lda #<vars
     sta tos + 0
     lda #>vars
@@ -160,19 +161,20 @@ initialize:
     lda #>next_
     sta nxt + 1
 
+; done
     rst
      
 macro:
     ;    LD (vTIBPtr),BC
-    sty yp
+    ;    sty yp
     asl 
     tay
-    lda (ctlcodes). y
+    lda (ctlcodes), y
     sta tos + 0
     iny
-    lda (ctlcodes). y
+    lda (ctlcodes), y
     sta tos + 1
-    ldy yp
+    ;   ldy yp
     jsr rpush_
     jsr enter_
     .asciiz "\\G"
@@ -184,8 +186,8 @@ interpret:
     .asciiz  "\\N`> `"
 
 interpret1:                     ; used by tests
-    LD BC,0                 ; load BC with offset into TIB         
-    LD (vTIBPtr),BC
+        LD BC,0                 ; load BC with offset into TIB         
+        LD (vTIBPtr),BC
 
 interpret2:                     ; calc nesting (a macro might have changed it)
     dex
@@ -209,7 +211,7 @@ interpret2:                     ; calc nesting (a macro might have changed it)
     ; ???    POP BC                  ; restore offset into TIB
         
 ; push an user variable into stack
-push_var:
+var_:
     lda ch
     sbc #'a'
     lda #<vars
@@ -220,7 +222,7 @@ push_var:
     jmp (nxt)
 
 ; push a mint variable into stack
-push_sys:
+alt_:
     lda ch
     sbc #'a'
     lda #<vsys
@@ -244,7 +246,7 @@ push_ref:
     jmp spush_
     
 ; push a mint variable into stack
-push_def:
+def_:
     lda ch
     sbc #'A'
     lda #<defs
@@ -253,14 +255,12 @@ push_def:
     sta nos + 1
     jsr push_ref
     
-    sty yp
     ldy #$00
     lda (tos), y
     sta wrk + 0
     iny
     lda (tos), y
     sta wrk + 1
-    ldy yp
 
     lda wrk + 0
     sta tos + 0
@@ -280,7 +280,7 @@ waitchar:
     cmp #$20
     bcs @ischar
     cmp #$0                   ; is it end of string?
-    beq @waitchar4
+    beq @endstr
     cmp #'\r'                 ; carriage return?
     beq @iscrlf
     cmp #'\n'                 ; line feed ?
@@ -313,21 +313,18 @@ waitchar:
     ; echo
     jsr crlf               
 
-@waitchar4:    
+@endstr:    
         LD (vTIBPtr),BC
         LD BC,TIB               ; Instructions stored on heap at address HERE
         DEC BC
         jmp (nxt)
 
 @inbuff:
-    sty yp
     ldy inb
     iny
     sta tib, y
     sty inb
-    ldy yp
     rts
-
 
 ; ********************************************************************************
 ;
@@ -357,27 +354,19 @@ next_:
     bne @look
     inc ip + 1
 @look:
-    sty yp
     ldy #$0
     lda (ip), y
-    sta ch
-    ldy yp
 @warp:
     ; using full jump table 
-    stx xp
-    ldx ch
-    lda optcodes, x
-    sta op
-    ldx xp
-    zzzzzz
-
-        INC BC                      ; 6t    Increment the IP
-        LD A, (BC)                  ; 7t    Get the next character and dispatch
-        LD L,A                      ; 4t    Index into table
-        LD H,msb(optcodes)           ; 7t    Start address of jump table         
-        LD L,(HL)                   ; 7t    get low jump address
-        LD H,msb(page4)             ; 7t    Load H with the 1st page address
-        jmp (HL)                     ; 4t    Jump to routine
+    asl 
+    sta ac
+    lda #<optcodes
+    clc
+    adc ac
+    sta lnk + 0
+    lda #>optcodes
+    sta lnk + 1
+    jmp (lnk)
 
 ; ARRAY compilation routine
 compNEXT:                       ;=20
@@ -471,22 +460,26 @@ key_:
     
 ; pull tos into return stack
 rpush_:                              
+    ldy yp
     dey
     dey
     lda tos + 0
     sta rpz + 0, y
     lda tos + 1
     lda rpz + 1, y
+    sty yp
     rts
 
 ; push tos from return stack
 rpull_:                               
+    ldy yp
     lda rpz + 0, y
     sta tos + 0
     lda rpz + 1, y
     sta tos + 1
     iny
     iny
+    sty yp
     rts
     
 ; push tos into stack
@@ -728,61 +721,91 @@ gt_:
     beq false2_
     bpl true2_
    
+
 ; Fetch a byte from the address placed on the top of the stack      
 ; a b c - a b (c)
-cfetch_:                     
+cFetch_:                     
     jsr spull_
-    sty yp
     ldy #$00
     lda (tos), y
     sta tos + 0
     sty tos + 1
-    ldy yp
     jsr spush_
+    ; next
     jmp (nxt)
 
-; Store the value into the address placed on the top of the stack
-; a b c - a b (c)
-fetch_:                     
-	lda spz + 0, y
-    sta nos + 0
-	lda spz + 1, y
-    sta nos + 1
-    sty yp
-    ldy #$00
-    lda (nos), y
-    sta tos + 0
-    iny
-    lda (nos), y
-    ldy yp
-    sta spz + 1, y
-    lda tos + 0
-    sta spz + 0, y
-    jmp (nxt)
-
-; Store the value into the address placed on the top of the stack
+; Store a byte into the address placed on the top of the stack      
 ; a b c -- a
-store_:
-    lda spz + 0, y
-    sta tos + 0
-    lda spz + 1, y
-    sta tos + 1
-    lda spz + 2, y
+cStore_:
+    jsr spull_
+    lda tos + 0
     sta nos + 0
-    lda spz + 3, y
+    lda tos + 1
     sta nos + 1
-    sty yp
+    jsr spull_
     ldy #$00
-    lda nos + 0
-    sta (tos), y
-    iny
-    lda nos + 1
-    sta (tos), y
-    ldy yp
-    iny
-    iny
-    iny
-    iny
+    lda tos + 0
+    sta (nos), y
+    ; next
+    jmp (nxt)
+
+; Fetch the value from the address placed on the top of the stack
+; a b c - a b (c)
+cFetch_:
+    lda #$01
+    sta tos + 1
+    tay
+    jmp fetch_
+
+Fetch_:
+    ldy #$02
+    jmp fetch_
+
+fetch_:                     
+	; load the reference
+    lda spz + 0, x
+    sta nos + 0
+	lda spz + 1, x
+    sta nos + 1
+    ; then the value
+@loop:
+    dey
+    lda (nos), y
+    sta tos + y
+    bne @loop
+    ; save the value
+    lda tos + 0
+    sta spz + 0, x
+    lda tos + 1
+    sta spz + 1, x 
+    ; next
+    jmp (nxt)
+
+; store the value into the address placed on the top of the stack
+; a b c -- a
+
+cStore_:
+    ldy #$01
+    jmp store_
+
+Store_:
+    ldy #$00
+    jmp store_
+
+store_:
+    jsr spull_
+    lda tos + 0
+    sta nos + 0
+    lda tos + 1
+    sta nos + 1
+    jsr spull_
+    ; copy the value
+@loop:
+    dey
+    lda tos + y
+    sta (nos), y
+    bne @loop
+    ; next
     jmp (nxt)
 
 ; hook for debug
@@ -797,7 +820,7 @@ nop_:
     jmp next_             
 
 num_:   
-    jmp  num2_
+    jmp num2_
 
 def_:   
     jmp def2_
@@ -873,7 +896,7 @@ ret_:
         LD     (HL),E
         INC    HL 
         LD     (HL),D   
-        jmp     (IY)   
+        jmp (nxt)   
     
 getRef_:    
         jmp getRef
@@ -893,7 +916,7 @@ nextchar:
 
 str2:  
         DEC BC
-        jmp   (IY) 
+        jmp (nxt) 
 
 ;*******************************************************************
 ; Page 5 primitive routines 
@@ -901,14 +924,12 @@ str2:
         ;falls through 
 
 getRef:                         ;= 8
-        INC BC
-        LD A,(BC)
+        INC BC LD A,(BC)
         jsr  lookupDef
         jmp fetch1
 
 alt:                                ;= 11
-        INC BC
-        LD A,(BC)
+        INC BC LD A,(BC)
         LD HL,altcodes
         ADD A,L
         LD L,A
@@ -926,8 +947,7 @@ alt:                                ;= 11
 ; ***************************************************************************
                             ;= 31
 def:                        ; Create a colon definition
-        INC BC
-        LD  A,(BC)          ; Get the next character
+        INC BC LD  A,(BC)          ; Get the next character
         INC BC
         jsr  lookupDef
         LD DE,(vHeapPtr)    ; start of defintion
@@ -1144,8 +1164,8 @@ cArrDef_:                   ; define a byte array
         jmp arrDef1
 
 anop_:
-        jmp      (IY)        ; 8t
-                            ; 49t 
+        jmp (nxt)        ; 8t
+
 charCode_:
         INC BC LD A,(BC)
         LD H,0
@@ -1161,14 +1181,10 @@ comment_:
         ; CP "\n"             ; terminate at lf 
         ; JR NZ,comment_
         DEC BC
-        jmp   (IY) 
+        jmp (nxt) 
 
 cStore_:	  
-        POP    HL           ; 10t
-        POP    DE           ; 10t
-        LD     (HL),E       ; 7t
-        jmp     (IY)         ; 8t
-                            ; 48t
+
 depth_:
         LD HL,0
         ADD HL,SP
