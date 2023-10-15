@@ -1,20 +1,19 @@
 ; *********************************************************************
 ;
-;       MINT Minimal Interpreter 
+;  MINT Minimal Interpreter 
 ;
-;       GNU GENERAL PUBLIC LICENSE              Version 3, 29 June 2007
+;  GNU GENERAL PUBLIC LICENSE              Version 3, 29 June 2007
 ;
-;       see the LICENSE file in this repo for more information 
+;  see the LICENSE file in this repo for more information 
 ;
-;		original for the Z80, by Ken Boak, John Hardy and Craig Jones. 
+;  original for the Z80, by Ken Boak, John Hardy and Craig Jones. 
 ;
-;		adapted for the 6502, by Alvaro G. S. Barcellos, 10/2023
-;       ( some code from 6502.org forum and FIG_Forth)
-;       ( some code from https://www.nesdev.org/wiki/Programming_guide) 
+;  adapted for the 6502, by Alvaro G. S. Barcellos, 10/2023
+;  (some code from 6502.org forum and FIG_Forth)
+;  (some code from https://www.nesdev.org/wiki/Programming_guide) 
 
-;   star(tm) date 10/10/2023
+;  star(tm) date 10/10/2023
 ; *********************************************************************
-
 
     DSIZE       = $80
     RSIZE       = $80
@@ -62,16 +61,17 @@
 
 ; if all in RAM, better put tables at end of code ?
 
-    tib = $200  ; terminal input buffer, upwards
-    spz = $3FF  ; absolute address for data stack, backwards
-    rpz = $4FF  ; absolute address for parameter stack, backwards
+    start = $200
+    tib = start  ; terminal input buffer, upwards
+    spz = start + $1FF  ; absolute data stack, backwards
+    rpz = start + $2FF  ; absolute parameter stack, backwards
    
-    vars = $500  ;   26 words
-    vsys = $536  ;   26 words
-    defs = $56C  ;   26 words
-    tmps = $5D8  ;   14 words
+    vars = start + $300  ;   26 words
+    vsys = start + $336  ;   26 words
+    defs = start + $36C  ;   26 words
+    tmps = start + $3D8  ;   14 words
 
-    free = $600  ; free ram start
+    free = start + $400  ; free ram start
 
 ;----------------------------------------------------------------------
 ;   constants
