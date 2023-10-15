@@ -9,9 +9,10 @@
 ;		original for the Z80, by Ken Boak, John Hardy and Craig Jones. 
 ;
 ;		adapted for the 6502, by Alvaro G. S. Barcellos, 10/2023
-;						  (with some code from 6502.org and FIG_Forth)
-;
-;   start date 10/10/2023
+;       ( some code from 6502.org forum and FIG_Forth)
+;       ( some code from https://www.nesdev.org/wiki/Programming_guide) 
+
+;   star(tm) date 10/10/2023
 ; *********************************************************************
 
 
