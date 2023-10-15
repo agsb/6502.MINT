@@ -164,9 +164,9 @@ initialize:
 ; done
     rst
      
+; full address table
 macro:
     ;    LD (vTIBPtr),BC
-    ;    sty yp
     asl 
     tay
     lda (ctlcodes), y
@@ -174,7 +174,6 @@ macro:
     iny
     lda (ctlcodes), y
     sta tos + 1
-    ;   ldy yp
     jsr rpush_
     jsr enter_
     .asciiz "\\G"
@@ -212,30 +211,47 @@ interpret2:                     ; calc nesting (a macro might have changed it)
         
 ; push an user variable into stack
 var_:
-    lda ch
-    sbc #'a'
     lda #<vars
     sta nos + 0
     lda #>vars
     sta nos + 1
-    jsr push_ref
-    jmp (nxt)
+    jmp a2z_
 
 ; push a mint variable into stack
 alt_:
-    lda ch
-    sbc #'a'
     lda #<vsys
     sta nos + 0
     lda #>vsys
     sta nos + 1
-    jsr push_ref
-    jmp (nxt)
+    jmp a2z_
 
-; push a reference
-push_ref:
-    asl 
+; push a mint variable into stack
+def_:
+    lda #<defs
+    sta nos + 0
+    lda #>defs
+    sta nos + 1
+    jmp A2Z_
+
+a2z_:
+    lda ch
+    sec
+    sbc #'a'
+    jsr off_ref
+    jmp spush_
+
+A2Z_:
+    lda ch
+    sec
+    sbc #'A'
+    jsr off_ref
+    jmp (tos)
+
+????
+; offset a reference
+jmp_ref:
     clc
+    asl
     adc nos + 0
     sta tos + 0
     lda nos + 1
@@ -243,30 +259,20 @@ push_ref:
     bcc @nocc
     inc tos + 1
 @nocc:
-    jmp spush_
+    rts
     
-; push a mint variable into stack
-def_:
-    lda ch
-    sbc #'A'
-    lda #<defs
-    sta nos + 0
-    lda #>defs
-    sta nos + 1
-    jsr push_ref
     
+iStore:
+    dex
+    dex
     ldy #$00
     lda (tos), y
-    sta wrk + 0
+    sta spz + 0, x
     iny
     lda (tos), y
-    sta wrk + 1
+    sta spz + 1, x
+    jmp (nxt)
 
-    lda wrk + 0
-    sta tos + 0
-    lda wrk + 1
-    sta tos + 1
-    jmp spush_
 
 ; *******************************************************************         
 ; Wait for a character from the serial input (keyboard) 
