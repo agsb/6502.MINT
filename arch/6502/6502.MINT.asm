@@ -1191,6 +1191,7 @@ mul16_:
 ; Left parentesis ( begins a loop 
 begin_: 
 begin: 
+
     jsr spull_
     lda tos + 0
     or  tos + 1
@@ -1233,6 +1234,7 @@ begin1:
     jmp next_ 
  
 ;----------------------------------------------------------------------
+; Right parentesis ) again a loop 
 again_: 
 again: 
     ldy yp
@@ -1242,15 +1244,25 @@ again:
     lda rpz + 1, y
     sta wrk + 1
 
-        LD A,D                      ; check if IFTEMode 
-        AND E 
-        INC A 
-        JR NZ,again1 
+    ; check if IFTEMode $FFFF
 
-        INC DE 
-        PUSH DE                     ; push FALSE condition 
-        LD DE,2 
-        JR again3                   ; drop IFTEMode 
+    lda wkr + 0
+    and wrk + 1
+    sta ac
+    inc ac
+    bne again1
+    
+    ; push FALSE
+    lda ac
+    sta tos + 0
+    sta tos + 1
+    jsr spush_
+
+    ; drop IFTEMmode
+    lda yp
+    clc
+    adc #2
+    beq @ends
  
 again1: 
     ; peek loop limit 
@@ -1259,6 +1271,7 @@ again1:
     lda rpz + 3
     sta nos + 3
 
+    ; test end
     sec
     lda nos + 0
     sbc wrk + 0
@@ -1266,19 +1279,26 @@ again1:
     lda nos + 1
     sbc wrk + 1
     bne @noeq
+
     ; ends
+    lda yp
+    clc
+    adc #6
     beq @ends
+
 @noeq:
     inc wrk + 0
     bne @novr
     inc wrk + 1
+
 @novr:    
     ; poke loop var 
     lda wrk + 0
     sta rpz + 0
     lda wrk + 1
     sta rpz + 1
-        
+
+    ; at begin    
     lda rpz + 4, y
     sta ips + 0
     lda rpz + 5, y
@@ -1286,9 +1306,7 @@ again1:
     jmp next_ 
 
 @ends: 
-    lda yp
-    clc
-    adc #6
+    ; drop loop vars
     sta yp
     jmp next_ 
  
@@ -1332,18 +1350,19 @@ depth_:
     jmp next_ 
  
 ifte_: 
-        POP DE 
-        LD A,E 
-        OR D 
-        JR NZ,ifte1 
-        INC DE 
-        PUSH DE                     ; push TRUE on stack for else clause 
-        jmp begin1                   ; skip to closing ) works with \) too 
- 
-ifte1: 
-        LD HL,-1                    ; push -1 on return stack to indicate IFTEMode 
-        jsr rpush 
-        jmp next_ 
+    jsr spull_
+    lda tos + 0
+    ora tos + 1
+    bne @noeq
+    inc tos + 0
+    jsr spush_
+    jmp begin1                   ; skip to closing ) works with \) too 
+@noeq: 
+    lda #$FF
+    sta tos + 0
+    sta tos + 1
+    jsr rpush 
+    jmp next_ 
  
 exec_: 
         jsr exec1 
