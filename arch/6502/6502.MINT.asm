@@ -33,13 +33,14 @@
 ;   caller must save a, x, y and 
 ;   reserve 32 (?) words at hardware stack
 ;
-;   stack are from absolute address.
+;   stacks are from absolute address.
 ;   data stack indexed by x
 ;   return stack indexed by y
 ;   terminal input buffer
 ;   all just 128 cells deep and round-robin
 ;   a cell is 16-bit
 ;   16-bit jump table 
+;   extense use of post-indexed indirect addressing
 ;
 ;   alt-a used for vS0, start of data stack
 ;   alt-f used for vR0, start of return stack ****
@@ -52,7 +53,7 @@
 ; copycat 
     yp = zpage + $0  ; y index, return stack pointer, 
     xp = zpage + $1  ; x index, parameter stack pointer, 
-    ac = zpage + $2  ; accumulator
+    ap = zpage + $2  ; accumulator
 
 ; posts
     ib = zpage + $3  ; cursor tib
@@ -63,8 +64,9 @@
     tos = zpage + $6  ; tos  register 
     nos = zpage + $8  ; nos  register
     wrk = zpage + $a  ; work register
-    nxt = zpage + $c  ; next pointer
-    lnk = zpage + $e  ; link pointer
+
+    nxt = zpage + $c  ; next pointer  
+    ips = zpage + $e  ; instruction pointer, used for parser 
 
 ; if all in RAM, better put tables at end of code ?
 
@@ -165,8 +167,8 @@ initialize:
     rst
      
 ; full address table
+; ????
 macro:
-    ;    LD (vTIBPtr),BC
     asl 
     tay
     lda (ctlcodes), y
@@ -209,7 +211,7 @@ interpret2:                     ; calc nesting (a macro might have changed it)
 
     ; ???    POP BC                  ; restore offset into TIB
         
-; push an user variable into stack
+; push a reference to user variable into stack
 var_:
     lda #<vars
     sta nos + 0
@@ -217,7 +219,7 @@ var_:
     sta nos + 1
     jmp a2z_
 
-; push a mint variable into stack
+; push a reference to mint variable into stack
 alt_:
     lda #<vsys
     sta nos + 0
@@ -225,7 +227,7 @@ alt_:
     sta nos + 1
     jmp a2z_
 
-; push a mint variable into stack
+; push a reference into stack
 def_:
     lda #<defs
     sta nos + 0
@@ -237,21 +239,20 @@ a2z_:
     lda ch
     sec
     sbc #'a'
-    jsr off_ref
-    jmp spush_
+    jsr offset
+    jmp iStore_
 
 A2Z_:
     lda ch
     sec
     sbc #'A'
-    jsr off_ref
+    jsr offset
     jmp (tos)
 
-????
 ; offset a reference
-jmp_ref:
-    clc
+offset:
     asl
+    clc
     adc nos + 0
     sta tos + 0
     lda nos + 1
@@ -260,7 +261,6 @@ jmp_ref:
     inc tos + 1
 @nocc:
     rts
-    
     
 iStore:
     dex
@@ -271,12 +271,11 @@ iStore:
     iny
     lda (tos), y
     sta spz + 1, x
-    jmp (nxt)
-
+    jmp next_
 
 ; *******************************************************************         
 ; Wait for a character from the serial input (keyboard) 
-; and store it in the text buffer. Keep accepting characters,
+; and store it in the text buffer. Keep apcepting characters,
 ; increasing the instruction pointer BC - until a newline received.
 ; *******************************************************************
 
@@ -285,51 +284,47 @@ waitchar:
     jsr getchar            
     cmp #$20
     bcs @ischar
-    cmp #$0                   ; is it end of string?
+    cmp #$0                   ; is it end of string ?
     beq @endstr
-    cmp #'\r'                 ; carriage return?
+    cmp #'\r'                 ; carriage return ?
     beq @iscrlf
     cmp #'\n'                 ; line feed ?
     beq @iscrlf
-    LD D,0
+@ismacro:
     jmp macro    
-
 @ischar:
     jsr @inbuff
     ; echo
     jsr putchar
+    ; nest ?
     jsr nesting
     jmp waitchar            ; wait for next character
-
 @iscrlf:
-    ; pending nest ?
-    lda ns                  
-    cmp #$00
-    beq waitchar
-
     ; CR
     lda #'\r'
     jsr @inbuff
     ; LF
     lda #'\n'
     jsr @inbuff
+    ; echo
+    jsr crlf_
+    ; pending nest ?
+    lda ns                  
+    cmp #$00
+    beq waitchar
+@isend:
     ; ETX
     lda #$03
     jsr @inbuff
-    ; echo
-    jsr crlf               
-
 @endstr:    
-        LD (vTIBPtr),BC
-        LD BC,TIB               ; Instructions stored on heap at address HERE
-        DEC BC
-        jmp (nxt)
-
+    lda #$00
+    sta inb
+    jmp next_
+; maximum 255 chars
 @inbuff:
     ldy inb
-    iny
     sta tib, y
-    sty inb
+    inc inb
     rts
 
 ; ********************************************************************************
@@ -356,23 +351,20 @@ waitchar:
 
 NEXT: 
 next_:
-    inc ip + 0
-    bne @look
-    inc ip + 1
-@look:
-    ldy #$0
-    lda (ip), y
-@warp:
+    ldy inb
+    lda tib, y
+    inc inb
+
     ; using full jump table 
     asl 
-    sta ac
+    sta ap
     lda #<optcodes
     clc
-    adc ac
-    sta lnk + 0
+    adc ap
+    sta wrk + 0
     lda #>optcodes
-    sta lnk + 1
-    jmp (lnk)
+    sta wrk + 1
+    jmp (wrk)
 
 ; ARRAY compilation routine
 compNEXT:                       ;=20
@@ -437,7 +429,7 @@ prompt:
 ; **********************************************************************			 
 ;
 ; the routines are ordered to occupy pages of 256 bytes 
-; all rotines must end with: jmp (nxt) or jmp drop_ or a jmp / branch
+; all rotines must end with: jmp next_ or jmp drop_ or a jmp / branch
 ;
 ; **********************************************************************			 
 
@@ -455,14 +447,14 @@ emit_:
     jsr spull_
     lda tos + 0
     jsr putchar
-    jmp (nxt)
+    jmp next_
 
 ; receive a byte of terminal
 key_:
     jsr getchar
     sta tos + 0
     jsr spush_
-    jmp (nxt)
+    jmp next_
     
 ; pull tos into return stack
 rpush_:                              
@@ -517,7 +509,7 @@ neg_:
     lda #0
     sbc spz + 0, x
     sta spz + 0, x
-    jmp (nxt)
+    jmp next_
    
 ; Bitwise INVert the top member of the stack (1's complement)
 inv_:    
@@ -526,7 +518,7 @@ inv_:
     sta spz + 0, x
     eor spz + 1, x
     sta spz + 1, x
-    jmp (nxt)
+    jmp next_
 
 ; Duplicate the top member of the stack
 ; a b c -- a b c c 
@@ -537,7 +529,7 @@ dup_:
 	sta spz + 0, x
 	lda spz + 3, x
 	sta spz + 1, x
-    jmp (nxt)
+    jmp next_
 
 ; Duplicate 2nd element of the stack
 ; a b c -- a b c b 
@@ -548,7 +540,7 @@ over_:
     sta spz + 0, x
     lda spz + 5, x
     sta spz + 1, x
-    jmp (nxt)
+    jmp next_
 
 ; Rotate 3 elements at stack
 ; a b c -- b c a
@@ -578,7 +570,7 @@ rot_:
     sta spz + 2, x
     lda tos + 1
     sta spz + 3, x
-    jmp (nxt)
+    jmp next_
 
 ; Swap 2nd and 1st elements of the stack
 ; a b c -- a c b
@@ -598,26 +590,26 @@ swap_:
 	sta spz + 0, x
     lda wrk + 1
 	sta spz + 1, x
-    jmp (nxt)
+    jmp next_
 
 ;  Left shift { is multply by 2		
 shl_:
     asl spz + 0, x
     rol spz + 1, x
-    jmp (nxt)
+    jmp next_
 
 ;  Right shift } is a divide by 2		
 shr_:
     lsr spz + 0, x
     ror spz + 1, x
-    jmp (nxt)
+    jmp next_
 
 ; Drop the top member of the stack
 ; a b c -- a b 
 drop_:
 	inx
 	inx
-	jmp (nxt)
+	jmp next_
 
 ;  Bitwise AND the top 2 elements of the stack
 and_:        
@@ -683,6 +675,50 @@ div_:
 mul_:   
      jmp mult_      
 
+; take two at top 
+take2_:
+    lda spz + 0, x
+    sta tos + 0
+    lda spz + 1, x
+    sta tos + 1
+    lda spz + 2, x
+    sta nos + 2
+    lda spz + 3, x
+    sta nos + 3
+    inx
+    inx
+    inx
+    inx
+    rts
+
+; \+    a b c -- a ; [c]+b  ; increment variable at b by a
+incr_:
+    jsr take2_
+    clc
+    ldy #$00
+    lda (tos), y
+    adc nos + 0
+    sta (tos), y
+    iny
+    lda (tos), y
+    adc nos + 1
+    sta (tos), y
+    jmp next_
+
+; \-    a b c -- a ; [c]-b  ; decrement variable at b by a
+decr_:
+    jsr take2_
+    sec
+    ldy #$00
+    lda (tos), y
+    sbc nos + 0
+    sta (tos), y
+    iny
+    lda (tos), y
+    sbc nos + 1
+    sta (tos), y
+    jmp next_
+
 ; false
 false2_:
     lda #$00
@@ -726,48 +762,22 @@ gt_:
     bmi false2_
     beq false2_
     bpl true2_
-   
-
-; Fetch a byte from the address placed on the top of the stack      
-; a b c - a b (c)
-cFetch_:                     
-    jsr spull_
-    ldy #$00
-    lda (tos), y
-    sta tos + 0
-    sty tos + 1
-    jsr spush_
-    ; next
-    jmp (nxt)
-
-; Store a byte into the address placed on the top of the stack      
-; a b c -- a
-cStore_:
-    jsr spull_
-    lda tos + 0
-    sta nos + 0
-    lda tos + 1
-    sta nos + 1
-    jsr spull_
-    ldy #$00
-    lda tos + 0
-    sta (nos), y
-    ; next
-    jmp (nxt)
 
 ; Fetch the value from the address placed on the top of the stack
 ; a b c - a b (c)
-cFetch_:
+; fetch a byte
+cfetch_:
     lda #$01
     sta tos + 1
     tay
-    jmp fetch_
+    jmp isfetch_
 
-Fetch_:
+; fetch a word
+fetch_:
     ldy #$02
-    jmp fetch_
+    jmp isfetch_
 
-fetch_:                     
+isfetch_:                     
 	; load the reference
     lda spz + 0, x
     sta nos + 0
@@ -785,20 +795,20 @@ fetch_:
     lda tos + 1
     sta spz + 1, x 
     ; next
-    jmp (nxt)
+    jmp next_
 
 ; store the value into the address placed on the top of the stack
 ; a b c -- a
-
-cStore_:
+; store a byte
+cstore_:
     ldy #$01
-    jmp store_
-
-Store_:
-    ldy #$00
-    jmp store_
-
+    jmp isstore_
+; store a word
 store_:
+    ldy #$00
+    jmp isstore_
+
+isstore_:
     jsr spull_
     lda tos + 0
     sta nos + 0
@@ -812,7 +822,7 @@ store_:
     sta (nos), y
     bne @loop
     ; next
-    jmp (nxt)
+    jmp next_
 
 ; hook for debug
 exec_:
@@ -852,7 +862,7 @@ call _:
         INC HL
         LD B,(HL)
         DEC BC
-        jmp (nxt)                ; Execute code from User def
+        jmp next_                ; Execute code from User def
 
 
 
@@ -872,7 +882,7 @@ dot_:
 dotsp:
     lda #' '          
     jsr  writeChar1
-    jmp (nxt)
+    jmp next_
 
 etx_:
 etx:
@@ -895,14 +905,14 @@ exit_:
 ret_:
         jsr  rpull               ; Restore Instruction pointer
         LD BC,HL                
-        jmp (nxt)             
+        jmp next_             
 
         POP    HL      
         POP    DE 
         LD     (HL),E
         INC    HL 
         LD     (HL),D   
-        jmp (nxt)   
+        jmp next_   
     
 getRef_:    
         jmp getRef
@@ -922,7 +932,7 @@ nextchar:
 
 str2:  
         DEC BC
-        jmp (nxt) 
+        jmp next_ 
 
 ;*******************************************************************
 ; Page 5 primitive routines 
@@ -973,7 +983,7 @@ def2:
         DEC BC
 def3:
         LD (vHeapPtr),DE        ; bump heap ptr to after definiton
-        jmp (nxt)       
+        jmp next_       
 
 ; *********************************************************************
 ; number handling routine - converts numeric ascii string to a 16-bit 
@@ -1116,7 +1126,7 @@ begin:
         LD (IX+4),C             ; loop address
         LD (IX+5),B                 
 
-        jmp (nxt)
+        jmp next_
 begin1:
         LD E,1
 begin2:
@@ -1126,7 +1136,7 @@ begin2:
         OR E
         JR NZ,begin2
 begin3:
-        jmp (nxt)
+        jmp next_
 
 again:   
         LD E,(IX+0)                 ; peek loop var
@@ -1152,12 +1162,12 @@ again1:
         LD (IX+1),D                 
         LD C,(IX+4)                 ; peek loop address
         LD B,(IX+5)                 
-        jmp (nxt)
+        jmp next_
 again2:   
         LD DE,6                     ; drop loop frame
 again3:
         ADD IX,DE
-        jmp (nxt)
+        jmp next_
 
 ; **************************************************************************
 ; Page 6 Alt primitives
@@ -1170,26 +1180,44 @@ cArrDef_:                   ; define a byte array
         jmp arrDef1
 
 anop_:
-        jmp (nxt)        ; 8t
+        jmp next_        ; 8t
 
 charCode_:
         INC BC LD A,(BC)
         LD H,0
         LD L,A
         PUSH HL
-        jmp (nxt)
+        jmp next_
+
+incips_:
+    inc ips + 0
+    bne @noeq
+    inc ips + 1
+@noeq:
+    rts 
+
+decips_:
+    lda ips
+    bne @noeq
+    dec ips + 1
+@noeq:
+    dec ips + 0
+    rts 
+
+ldach_:
+    ldy #$00 
+    lda (ips), y
+    rts
 
 comment_:
-        ; point to next char
-        INC BC LD A,(BC)
-        CP "\r"             ; terminate at cr 
-        JR NZ,comment_
-        ; CP "\n"             ; terminate at lf 
-        ; JR NZ,comment_
-        DEC BC
-        jmp (nxt) 
-
-cStore_:	  
+    jsr incips
+    jsr ldach_
+    cmp "\r"  
+    bne comment_
+    cmp "\n"              
+    bne comment_
+    jsr decips
+    jmp next_ 
 
 depth_:
         LD HL,0
@@ -1211,11 +1239,11 @@ ifte_:
 ifte1:
         LD HL,-1                    ; push -1 on return stack to indicate IFTEMode
         jsr  rpush
-        jmp (nxt)
+        jmp next_
 
 exec_:
         jsr  exec1
-        jmp (nxt)
+        jmp next_
 exec1:
         POP HL
         EX (SP),HL
@@ -1226,12 +1254,12 @@ go_:
         jsr  rpush              ; save Instruction Pointer
         POP BC
         DEC BC
-        jmp (nxt)                ; Execute code from User def
+        jmp next_                ; Execute code from User def
 
 endGroup_:
         jsr  rpull
         LD (vDEFS),HL
-        jmp (nxt)
+        jmp next_
 
 group_:
         POP DE
@@ -1246,7 +1274,7 @@ group_:
         LD HL,DEFS
         ADD HL,DE
         LD (vDEFS),HL
-        jmp (nxt)                ; Execute code from User def
+        jmp next_                ; Execute code from User def
 
 sysVar_:
         LD A,(BC)
@@ -1255,24 +1283,12 @@ sysVar_:
         LD L,A
         LD H,msb(mintVars)
         PUSH HL
-        jmp (nxt)                ; Execute code from User def
+        jmp next_                ; Execute code from User def
 
 i_:
         PUSH IX
-        jmp (nxt)
+        jmp next_
 
-; \+    a b -- [b]+a            ; increment variable at b by a
-incr_:
-        POP HL
-        POP DE
-        LD A,E
-        ADD A,(HL)
-        LD (HL),A
-        INC HL
-        LD A,D
-        ADC A,(HL)
-        LD (HL),A
-        jmp (nxt)
 
 inPort_:
         POP HL
@@ -1282,7 +1298,7 @@ inPort_:
         LD H,0
         LD C,A
         PUSH HL
-        jmp (nxt)        
+        jmp next_        
 
 j_:
         PUSH IX
@@ -1290,18 +1306,18 @@ j_:
         LD DE,6
         ADD HL,DE
         PUSH HL
-        jmp (nxt)
+        jmp next_
 
 key_:
         jsr  getchar
         LD L,A
         LD H,0
         PUSH HL
-        jmp (nxt)
+        jmp next_
 
 newln_:
         jsr  crlf
-        jmp (nxt)        
+        jmp next_        
 
 outPort_:
         POP HL
@@ -1310,14 +1326,14 @@ outPort_:
         POP HL
         OUT (C),L
         LD C,E
-        jmp (nxt)        
+        jmp next_        
 
 break_:
         POP HL
         LD A,L                      ; zero?
         OR H
         JR NZ,break1
-        jmp (nxt)
+        jmp next_
 break1:
         LD DE,6                     ; drop loop frame
         ADD IX,DE
@@ -1369,12 +1385,12 @@ editDef3:
         OR A
         SBC HL,DE
         LD (vTIBPtr),HL
-        jmp (nxt)
+        jmp next_
 
 printStk:                   ;= 40
         jsr  enter
         .asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'"             
-        jmp (nxt)
+        jmp next_
 
 ;*******************************************************************
 ; Page 5 primitive routines continued
@@ -1395,7 +1411,7 @@ arrEnd:                     ;= 27
 arrEnd2:
         PUSH HL 
         LD IY,NEXT
-        jmp (nxt)         ; hardwired to NEXT
+        jmp next_         ; hardwired to NEXT
 
 ;*******************************************************************
 ; Subroutines
@@ -1411,7 +1427,7 @@ enter:                          ; 9
         jsr  rpush              ; save Instruction Pointer
         POP BC
         DEC BC
-        jmp (nxt)                ; Execute code from User def
+        jmp next_                ; Execute code from User def
 
 lookupDef:                          ;=20
         SUB "A"  
@@ -1525,14 +1541,14 @@ printhex16:
 ;----------------------------------------------------------------------
 ; print a 8-bit HEX
 printhex8:		   
-    sta ac
+    sta ap
     clc
     ror
     ror
     ror
     ror
 	jsr @conv
-    lda ac
+    lda ap
 @conv:		
     clc
     and #$0F
@@ -1625,7 +1641,7 @@ div:                        ;=24
         PUSH DE             ; Push Result
         PUSH HL             ; Push remainder             
 
-        jmp (nxt)
+        jmp next_
 
 ; **************************************************************************
 ; Jump Tables, not optmized
@@ -1640,7 +1656,7 @@ optcodes:
        .word (etx_)     ;   ETX 
        .word (nop_)     ;   EOT 
        .word (nop_)     ;   ENQ 
-       .word (nop_)     ;   ACK 
+       .word (nop_)     ;   apK 
        .word (nop_)     ;   BEL 
        .word (nop_)     ;   BS  
        .word (nop_)     ;   TAB 
