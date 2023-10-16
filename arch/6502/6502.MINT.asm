@@ -347,28 +347,6 @@ next_:
     sta wrk + 1 
     jmp (wrk) 
  
-; ARRAY compilation routine 
-compNEXT: 
-    lda vHeapPtr + 0 
-    sta wrk + 0 
-    lda vHeapPtr + 1 
-    sta wrk + 1 
-    jsr spull_ 
-    ldy #$00 
-    lda tos + 0 
-    sta (wrk), y 
-    lda vByteMode 
-    cmp FALSE 
-    beq @iseq 
-    iny 
-    lda tos + 1 
-    sta (wrk), y 
-@iseq: 
-    lda wrk + 0 
-    sta vHeapPtr + 0 
-    lda wrk + 1 
-    sta vHeapPtr + 1 
-    jmp next_ 
  
 ; ************************************************************************** 
 ; calculate nesting value 
@@ -888,19 +866,23 @@ num_:
 def_: 
     jmp def2_ 
  
-carrDef_:                   ; define a byte array 
+;---------------------------------------------------------------------- 
+; define a byte array 
+carrDef_:                   
     lda TRUE 
     jmp arrDef1 
  
+; define a word array 
 arrDef_: 
-arrDef:                     ;= 18 
+arrDef:                     
     lda FALSE 
+    jmp arrDef1
  
 arrDef1: 
     ; wire next 
     lda #<compNEXT 
     sta nxt + 0 
-    lda #<compNEXT 
+    lda #>compNEXT 
     sta nxt + 1 
  
     sta vByteMode 
@@ -910,34 +892,75 @@ arrDef1:
     sta tos + 0 
     lda vHeapPtr + 1 
     sta tos + 1 
-    jsr  rpush_ 
+    jsr rpush_ 
+    jmp next_
  
-    jmp NEXT         ; hardwired to NEXT 
- 
+;---------------------------------------------------------------------- 
+; ARRAY compilation routine 
+compNEXT: 
+    lda vHeapPtr + 0 
+    sta wrk + 0 
+    lda vHeapPtr + 1 
+    sta wrk + 1
+
+    jsr spull_ 
+    ldy #$00 
+    lda tos + 0 
+    sta (wrk), y 
+    
+    lda vByteMode 
+    cmp TRUE 
+    beq @iseq 
+    iny 
+    lda tos + 1 
+    sta (wrk), y 
+
+@iseq: 
+    lda wrk + 0 
+    sta vHeapPtr + 0 
+    lda wrk + 1 
+    sta vHeapPtr + 1 
+    jmp next_ 
+
+;---------------------------------------------------------------------- 
 arrEnd_: 
  
-arrEnd:                     ;= 27 
-    jsr rpull_               ; DE = start of array 
+arrEnd:  
+    ; start of array 
+    jsr rpull_               
     jsr spush_ 
- 
-        EX DE,HL 
-        LD HL,(vHeapPtr)        ; HL = heap ptr 
-        OR A 
-        SBC HL,DE               ; bytes on heap 
-        LD A,(vByteMode) 
-        OR A 
-        JR NZ,arrEnd2 
-        SRL H           ; BC = m words 
-        RR L 
+
+    lda vheapPtr + 0
+    sta nos + 0
+    lda vheapPtr + 1
+    sta nos + 1
+
+    ; subtract
+    sec
+    lda nos + 0
+    sbc tos + 0
+    sta tos + 0
+    lda nos + 1
+    sbc tos + 1
+    sta tos + 1
+
+    lda vByteMode
+    cmp TRUE 
+    beq arrEnd2 
+    
+    ; words
+    lsr tos + 1
+    ror tos + 0
 
 arrEnd2: 
-        PUSH HL 
+    jsr spush_ 
     lda #<next_ 
     sta nxt + 0 
     lda #>next_ 
     sta nxt + 1 
-    jmp next_         ; hardwired to NEXT 
- 
+    jmp next_ 
+
+;---------------------------------------------------------------------- 
 begin_: 
     jmp begin 
  
