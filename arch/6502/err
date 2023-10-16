@@ -1,0 +1,580 @@
+main.s:350: Error: ':' expected
+main.s:350: Error: Unexpected trailing garbage characters
+main.s:351: Error: ':' expected
+main.s:351: Error: Unexpected trailing garbage characters
+main.s:352: Error: Symbol 'LD' is already defined
+main.s:352: Error: ':' expected
+main.s:352: Error: Unexpected trailing garbage characters
+main.s:354: Error: ':' expected
+main.s:354: Error: Unexpected trailing garbage characters
+main.s:355: Error: ':' expected
+main.s:355: Error: Unexpected trailing garbage characters
+main.s:356: Error: Symbol 'LD' is already defined
+main.s:356: Error: ':' expected
+main.s:356: Error: Unexpected trailing garbage characters
+main.s:376: Error: ':' expected
+main.s:376: Error: Unexpected trailing garbage characters
+main.s:379: Error: ':' expected
+main.s:379: Error: Unexpected trailing garbage characters
+main.s:433: Error: Syntax error
+main.s:433: Error: Unexpected trailing garbage characters
+main.s:500: Error: ':' expected
+main.s:500: Error: Unexpected trailing garbage characters
+main.s:501: Error: ':' expected
+main.s:501: Error: Unexpected trailing garbage characters
+main.s:502: Error: Symbol 'lta' is already defined
+main.s:502: Error: ':' expected
+main.s:502: Error: Unexpected trailing garbage characters
+main.s:503: Error: Symbol 'sda' is already defined
+main.s:503: Error: ':' expected
+main.s:503: Error: Unexpected trailing garbage characters
+main.s:795: Error: Syntax error
+main.s:795: Error: Unexpected trailing garbage characters
+main.s:825: Error: Syntax error
+main.s:825: Error: Unexpected trailing garbage characters
+main.s:840: Error: Symbol 'alt_' is already defined
+main.s:913: Error: Symbol 'LD' is already defined
+main.s:913: Error: ':' expected
+main.s:913: Error: Unexpected trailing garbage characters
+main.s:915: Error: Symbol 'LD' is already defined
+main.s:915: Error: ':' expected
+main.s:915: Error: Unexpected trailing garbage characters
+main.s:916: Error: Symbol 'LD' is already defined
+main.s:916: Error: ':' expected
+main.s:916: Error: Unexpected trailing garbage characters
+main.s:917: Error: Symbol 'LD' is already defined
+main.s:917: Error: ':' expected
+main.s:917: Error: Unexpected trailing garbage characters
+main.s:960: Error: Symbol 'LD' is already defined
+main.s:960: Error: ':' expected
+main.s:960: Error: Unexpected trailing garbage characters
+main.s:961: Error: ':' expected
+main.s:961: Error: Unexpected trailing garbage characters
+main.s:962: Error: Symbol 'JR' is already defined
+main.s:962: Error: ':' expected
+main.s:962: Error: Unexpected trailing garbage characters
+main.s:963: Error: Symbol 'LD' is already defined
+main.s:963: Error: ':' expected
+main.s:963: Error: Unexpected trailing garbage characters
+main.s:970: Error: Symbol 'LD' is already defined
+main.s:970: Error: ':' expected
+main.s:970: Error: Unexpected trailing garbage characters
+main.s:972: Error: Symbol 'LD' is already defined
+main.s:972: Error: ':' expected
+main.s:972: Error: Unexpected trailing garbage characters
+main.s:973: Error: ':' expected
+main.s:973: Error: Unexpected trailing garbage characters
+main.s:999: Error: Unexpected trailing garbage characters
+main.s:1004: Error: Unexpected trailing garbage characters
+main.s:1005: Error: Symbol 'LD' is already defined
+main.s:1005: Error: ':' expected
+main.s:1005: Error: Unexpected trailing garbage characters
+main.s:1006: Error: Symbol 'ADD' is already defined
+main.s:1006: Error: ':' expected
+main.s:1006: Error: Unexpected trailing garbage characters
+main.s:1007: Error: Symbol 'LD' is already defined
+main.s:1007: Error: ':' expected
+main.s:1007: Error: Unexpected trailing garbage characters
+main.s:1008: Error: Symbol 'LD' is already defined
+main.s:1008: Error: ':' expected
+main.s:1008: Error: Unexpected trailing garbage characters
+main.s:1009: Error: Symbol 'LD' is already defined
+main.s:1009: Error: ':' expected
+main.s:1009: Error: Unexpected trailing garbage characters
+main.s:1022: Error: Unexpected trailing garbage characters
+main.s:1025: Error: Symbol 'LD' is already defined
+main.s:1025: Error: ':' expected
+main.s:1025: Error: Unexpected trailing garbage characters
+main.s:1026: Error: Symbol 'LD' is already defined
+main.s:1026: Error: ':' expected
+main.s:1026: Error: Unexpected trailing garbage characters
+main.s:1028: Error: Symbol 'LD' is already defined
+main.s:1028: Error: ':' expected
+main.s:1028: Error: Unexpected trailing garbage characters
+main.s:1031: Error: Symbol 'LD' is already defined
+main.s:1031: Error: ':' expected
+main.s:1031: Error: Unexpected trailing garbage characters
+main.s:1033: Error: Symbol 'LD' is already defined
+main.s:1033: Error: ':' expected
+main.s:1033: Error: Unexpected trailing garbage characters
+main.s:1035: Error: Symbol 'CP' is already defined
+main.s:1035: Error: ':' expected
+main.s:1035: Error: Unexpected trailing garbage characters
+main.s:1036: Error: Symbol 'JR' is already defined
+main.s:1036: Error: ':' expected
+main.s:1036: Error: Unexpected trailing garbage characters
+main.s:1037: Error: Symbol 'JR' is already defined
+main.s:1037: Error: ':' expected
+main.s:1037: Error: Unexpected trailing garbage characters
+main.s:1043: Error: Symbol 'LD' is already defined
+main.s:1043: Error: ':' expected
+main.s:1043: Error: Unexpected trailing garbage characters
+main.s:1158: Error: Symbol 'POP' is already defined
+main.s:1158: Error: ':' expected
+main.s:1158: Error: Unexpected trailing garbage characters
+main.s:1159: Error: Symbol 'LD' is already defined
+main.s:1159: Error: ':' expected
+main.s:1159: Error: Unexpected trailing garbage characters
+main.s:1160: Error: Symbol 'OR' is already defined
+main.s:1160: Error: ':' expected
+main.s:1160: Error: Unexpected trailing garbage characters
+main.s:1161: Error: Symbol 'JR' is already defined
+main.s:1161: Error: ':' expected
+main.s:1161: Error: Unexpected trailing garbage characters
+main.s:1164: Error: Symbol 'LD' is already defined
+main.s:1164: Error: ':' expected
+main.s:1164: Error: Unexpected trailing garbage characters
+main.s:1165: Error: Symbol 'ADD' is already defined
+main.s:1165: Error: ':' expected
+main.s:1165: Error: Unexpected trailing garbage characters
+main.s:1166: Error: Symbol 'LD' is already defined
+main.s:1166: Error: ':' expected
+main.s:1166: Error: Unexpected trailing garbage characters
+main.s:1167: Error: Symbol 'LD' is already defined
+main.s:1167: Error: ':' expected
+main.s:1167: Error: Unexpected trailing garbage characters
+main.s:1168: Error: Symbol 'LD' is already defined
+main.s:1168: Error: ':' expected
+main.s:1168: Error: Unexpected trailing garbage characters
+main.s:1169: Error: Symbol 'LD' is already defined
+main.s:1169: Error: ':' expected
+main.s:1169: Error: Unexpected trailing garbage characters
+main.s:1170: Error: Symbol 'LD' is already defined
+main.s:1170: Error: ':' expected
+main.s:1170: Error: Unexpected trailing garbage characters
+main.s:1171: Error: Symbol 'LD' is already defined
+main.s:1171: Error: ':' expected
+main.s:1171: Error: Unexpected trailing garbage characters
+main.s:1175: Error: Symbol 'LD' is already defined
+main.s:1175: Error: ':' expected
+main.s:1175: Error: Unexpected trailing garbage characters
+main.s:1177: Error: Unexpected trailing garbage characters
+main.s:1179: Error: ':' expected
+main.s:1179: Error: Unexpected trailing garbage characters
+main.s:1180: Error: Symbol 'OR' is already defined
+main.s:1180: Error: ':' expected
+main.s:1180: Error: Unexpected trailing garbage characters
+main.s:1181: Error: Symbol 'JR' is already defined
+main.s:1181: Error: ':' expected
+main.s:1181: Error: Unexpected trailing garbage characters
+main.s:1186: Error: Symbol 'LD' is already defined
+main.s:1186: Error: ':' expected
+main.s:1186: Error: Unexpected trailing garbage characters
+main.s:1187: Error: Symbol 'LD' is already defined
+main.s:1187: Error: ':' expected
+main.s:1187: Error: Unexpected trailing garbage characters
+main.s:1189: Error: Symbol 'LD' is already defined
+main.s:1189: Error: ':' expected
+main.s:1189: Error: Unexpected trailing garbage characters
+main.s:1191: Error: Illegal addressing mode
+main.s:1192: Error: Symbol 'JR' is already defined
+main.s:1192: Error: ':' expected
+main.s:1192: Error: Unexpected trailing garbage characters
+main.s:1194: Error: ':' expected
+main.s:1194: Error: Unexpected trailing garbage characters
+main.s:1195: Error: Symbol 'LD' is already defined
+main.s:1195: Error: ':' expected
+main.s:1195: Error: Unexpected trailing garbage characters
+main.s:1196: Error: Symbol 'JR' is already defined
+main.s:1196: Error: ':' expected
+main.s:1196: Error: Unexpected trailing garbage characters
+main.s:1199: Error: Symbol 'LD' is already defined
+main.s:1199: Error: ':' expected
+main.s:1199: Error: Unexpected trailing garbage characters
+main.s:1200: Error: Symbol 'LD' is already defined
+main.s:1200: Error: ':' expected
+main.s:1200: Error: Unexpected trailing garbage characters
+main.s:1201: Error: Symbol 'OR' is already defined
+main.s:1201: Error: ':' expected
+main.s:1201: Error: Unexpected trailing garbage characters
+main.s:1202: Error: Syntax error
+main.s:1202: Error: Illegal addressing mode
+main.s:1202: Error: Unexpected trailing garbage characters
+main.s:1203: Error: Symbol 'JR' is already defined
+main.s:1203: Error: ':' expected
+main.s:1203: Error: Unexpected trailing garbage characters
+main.s:1205: Error: Symbol 'LD' is already defined
+main.s:1205: Error: ':' expected
+main.s:1205: Error: Unexpected trailing garbage characters
+main.s:1206: Error: Symbol 'LD' is already defined
+main.s:1206: Error: ':' expected
+main.s:1206: Error: Unexpected trailing garbage characters
+main.s:1207: Error: Symbol 'LD' is already defined
+main.s:1207: Error: ':' expected
+main.s:1207: Error: Unexpected trailing garbage characters
+main.s:1208: Error: Symbol 'LD' is already defined
+main.s:1208: Error: ':' expected
+main.s:1208: Error: Unexpected trailing garbage characters
+main.s:1211: Error: Symbol 'LD' is already defined
+main.s:1211: Error: ':' expected
+main.s:1211: Error: Unexpected trailing garbage characters
+main.s:1213: Error: Symbol 'ADD' is already defined
+main.s:1213: Error: ':' expected
+main.s:1213: Error: Unexpected trailing garbage characters
+main.s:1223: Error: Symbol 'LD' is already defined
+main.s:1223: Error: ':' expected
+main.s:1223: Error: Unexpected trailing garbage characters
+main.s:1241: Error: Syntax error
+main.s:1241: Error: Unexpected trailing garbage characters
+main.s:1243: Error: Syntax error
+main.s:1243: Error: Unexpected trailing garbage characters
+main.s:1260: Error: Symbol 'POP' is already defined
+main.s:1260: Error: ':' expected
+main.s:1260: Error: Unexpected trailing garbage characters
+main.s:1261: Error: Symbol 'LD' is already defined
+main.s:1261: Error: ':' expected
+main.s:1261: Error: Unexpected trailing garbage characters
+main.s:1262: Error: Symbol 'OR' is already defined
+main.s:1262: Error: ':' expected
+main.s:1262: Error: Unexpected trailing garbage characters
+main.s:1263: Error: Symbol 'JR' is already defined
+main.s:1263: Error: ':' expected
+main.s:1263: Error: Unexpected trailing garbage characters
+main.s:1265: Error: Symbol 'PUSH' is already defined
+main.s:1265: Error: ':' expected
+main.s:1265: Error: Unexpected trailing garbage characters
+main.s:1269: Error: Symbol 'LD' is already defined
+main.s:1269: Error: ':' expected
+main.s:1269: Error: Unexpected trailing garbage characters
+main.s:1273: Error: Symbol 'exec_' is already defined
+main.s:1277: Error: Symbol 'POP' is already defined
+main.s:1277: Error: ':' expected
+main.s:1277: Error: Unexpected trailing garbage characters
+main.s:1278: Error: Symbol 'EX' is already defined
+main.s:1278: Error: ':' expected
+main.s:1278: Error: Unexpected trailing garbage characters
+main.s:1282: Error: Symbol 'LD' is already defined
+main.s:1282: Error: ':' expected
+main.s:1282: Error: Unexpected trailing garbage characters
+main.s:1284: Error: Symbol 'POP' is already defined
+main.s:1284: Error: ':' expected
+main.s:1284: Error: Unexpected trailing garbage characters
+main.s:1310: Error: Symbol 'LD' is already defined
+main.s:1310: Error: ':' expected
+main.s:1310: Error: Unexpected trailing garbage characters
+main.s:1314: Error: Symbol 'POP' is already defined
+main.s:1314: Error: ':' expected
+main.s:1314: Error: Unexpected trailing garbage characters
+main.s:1315: Error: Symbol 'LD' is already defined
+main.s:1315: Error: ':' expected
+main.s:1315: Error: Unexpected trailing garbage characters
+main.s:1316: Error: Symbol 'LD' is already defined
+main.s:1316: Error: ':' expected
+main.s:1316: Error: Unexpected trailing garbage characters
+main.s:1317: Error: ':' expected
+main.s:1317: Error: Unexpected trailing garbage characters
+main.s:1318: Error: ':' expected
+main.s:1318: Error: Unexpected trailing garbage characters
+main.s:1319: Error: Symbol 'SRL' is already defined
+main.s:1319: Error: ':' expected
+main.s:1319: Error: Unexpected trailing garbage characters
+main.s:1320: Error: Symbol 'RR' is already defined
+main.s:1320: Error: ':' expected
+main.s:1320: Error: Unexpected trailing garbage characters
+main.s:1321: Error: Symbol 'LD' is already defined
+main.s:1321: Error: ':' expected
+main.s:1321: Error: Unexpected trailing garbage characters
+main.s:1323: Error: Symbol 'LD' is already defined
+main.s:1323: Error: ':' expected
+main.s:1323: Error: Unexpected trailing garbage characters
+main.s:1324: Error: Symbol 'ADD' is already defined
+main.s:1324: Error: ':' expected
+main.s:1324: Error: Unexpected trailing garbage characters
+main.s:1325: Error: Symbol 'LD' is already defined
+main.s:1325: Error: ':' expected
+main.s:1325: Error: Unexpected trailing garbage characters
+main.s:1329: Error: Symbol 'LD' is already defined
+main.s:1329: Error: ':' expected
+main.s:1329: Error: Unexpected trailing garbage characters
+main.s:1330: Error: ':' expected
+main.s:1330: Error: Unexpected trailing garbage characters
+main.s:1331: Error: Symbol 'ADD' is already defined
+main.s:1331: Error: ':' expected
+main.s:1331: Error: Unexpected trailing garbage characters
+main.s:1332: Error: Symbol 'LD' is already defined
+main.s:1332: Error: ':' expected
+main.s:1332: Error: Unexpected trailing garbage characters
+main.s:1333: Error: Symbol 'LD' is already defined
+main.s:1333: Error: ':' expected
+main.s:1333: Error: Unexpected trailing garbage characters
+main.s:1334: Error: Symbol 'PUSH' is already defined
+main.s:1334: Error: ':' expected
+main.s:1334: Error: Unexpected trailing garbage characters
+main.s:1338: Error: Symbol 'PUSH' is already defined
+main.s:1338: Error: ':' expected
+main.s:1338: Error: Unexpected trailing garbage characters
+main.s:1342: Error: Symbol 'PUSH' is already defined
+main.s:1342: Error: ':' expected
+main.s:1342: Error: Unexpected trailing garbage characters
+main.s:1343: Error: Symbol 'POP' is already defined
+main.s:1343: Error: ':' expected
+main.s:1343: Error: Unexpected trailing garbage characters
+main.s:1344: Error: Symbol 'LD' is already defined
+main.s:1344: Error: ':' expected
+main.s:1344: Error: Unexpected trailing garbage characters
+main.s:1345: Error: Symbol 'ADD' is already defined
+main.s:1345: Error: ':' expected
+main.s:1345: Error: Unexpected trailing garbage characters
+main.s:1346: Error: Symbol 'PUSH' is already defined
+main.s:1346: Error: ':' expected
+main.s:1346: Error: Unexpected trailing garbage characters
+main.s:1351: Error: Symbol 'LD' is already defined
+main.s:1351: Error: ':' expected
+main.s:1351: Error: Unexpected trailing garbage characters
+main.s:1352: Error: Symbol 'LD' is already defined
+main.s:1352: Error: ':' expected
+main.s:1352: Error: Unexpected trailing garbage characters
+main.s:1353: Error: Symbol 'PUSH' is already defined
+main.s:1353: Error: ':' expected
+main.s:1353: Error: Unexpected trailing garbage characters
+main.s:1369: Error: Symbol 'POP' is already defined
+main.s:1369: Error: ':' expected
+main.s:1369: Error: Unexpected trailing garbage characters
+main.s:1370: Error: Symbol 'LD' is already defined
+main.s:1370: Error: ':' expected
+main.s:1370: Error: Unexpected trailing garbage characters
+main.s:1371: Error: Symbol 'OR' is already defined
+main.s:1371: Error: ':' expected
+main.s:1371: Error: Unexpected trailing garbage characters
+main.s:1372: Error: Symbol 'JR' is already defined
+main.s:1372: Error: ':' expected
+main.s:1372: Error: Unexpected trailing garbage characters
+main.s:1375: Error: Symbol 'LD' is already defined
+main.s:1375: Error: ':' expected
+main.s:1375: Error: Unexpected trailing garbage characters
+main.s:1376: Error: Symbol 'ADD' is already defined
+main.s:1376: Error: ':' expected
+main.s:1376: Error: Unexpected trailing garbage characters
+main.s:1380: Error: Symbol 'JR' is already defined
+main.s:1380: Error: ':' expected
+main.s:1380: Error: Unexpected trailing garbage characters
+main.s:1394: Error: Symbol 'LD' is already defined
+main.s:1394: Error: ':' expected
+main.s:1394: Error: Unexpected trailing garbage characters
+main.s:1395: Error: Symbol 'POP' is already defined
+main.s:1395: Error: ':' expected
+main.s:1395: Error: Unexpected trailing garbage characters
+main.s:1396: Error: Symbol 'ADD' is already defined
+main.s:1396: Error: ':' expected
+main.s:1396: Error: Unexpected trailing garbage characters
+main.s:1397: Error: Symbol 'EX' is already defined
+main.s:1397: Error: ':' expected
+main.s:1397: Error: Unexpected trailing garbage characters
+main.s:1397: Error: Illegal character constant
+main.s:1398: Error: Symbol 'LD' is already defined
+main.s:1398: Error: ':' expected
+main.s:1398: Error: Unexpected trailing garbage characters
+main.s:1399: Error: Symbol 'ADD' is already defined
+main.s:1399: Error: ':' expected
+main.s:1399: Error: Unexpected trailing garbage characters
+main.s:1400: Error: Symbol 'ADD' is already defined
+main.s:1400: Error: ':' expected
+main.s:1400: Error: Unexpected trailing garbage characters
+main.s:1401: Error: Symbol 'LD' is already defined
+main.s:1401: Error: ':' expected
+main.s:1401: Error: Unexpected trailing garbage characters
+main.s:1403: Error: Symbol 'LD' is already defined
+main.s:1403: Error: ':' expected
+main.s:1403: Error: Unexpected trailing garbage characters
+main.s:1404: Error: Symbol 'EX' is already defined
+main.s:1404: Error: ':' expected
+main.s:1404: Error: Unexpected trailing garbage characters
+main.s:1405: Error: Symbol 'LD' is already defined
+main.s:1405: Error: ':' expected
+main.s:1405: Error: Unexpected trailing garbage characters
+main.s:1406: Error: Symbol 'CP' is already defined
+main.s:1406: Error: ':' expected
+main.s:1406: Error: Unexpected trailing garbage characters
+main.s:1407: Error: Symbol 'LD' is already defined
+main.s:1407: Error: ':' expected
+main.s:1407: Error: Unexpected trailing garbage characters
+main.s:1408: Error: Symbol 'JR' is already defined
+main.s:1408: Error: ':' expected
+main.s:1408: Error: Unexpected trailing garbage characters
+main.s:1409: Error: Symbol 'LD' is already defined
+main.s:1409: Error: ':' expected
+main.s:1409: Error: Unexpected trailing garbage characters
+main.s:1411: Error: Symbol 'EX' is already defined
+main.s:1411: Error: ':' expected
+main.s:1411: Error: Unexpected trailing garbage characters
+main.s:1411: Error: Illegal character constant
+main.s:1413: Error: Symbol 'JR' is already defined
+main.s:1413: Error: ':' expected
+main.s:1413: Error: Unexpected trailing garbage characters
+main.s:1417: Error: Symbol 'LD' is already defined
+main.s:1417: Error: ':' expected
+main.s:1417: Error: Unexpected trailing garbage characters
+main.s:1419: Error: Symbol 'CP' is already defined
+main.s:1419: Error: ':' expected
+main.s:1419: Error: Unexpected trailing garbage characters
+main.s:1420: Error: Symbol 'JR' is already defined
+main.s:1420: Error: ':' expected
+main.s:1420: Error: Unexpected trailing garbage characters
+main.s:1422: Error: Symbol 'LD' is already defined
+main.s:1422: Error: ':' expected
+main.s:1422: Error: Unexpected trailing garbage characters
+main.s:1423: Error: Symbol 'EX' is already defined
+main.s:1423: Error: ':' expected
+main.s:1423: Error: Unexpected trailing garbage characters
+main.s:1424: Error: Symbol 'OR' is already defined
+main.s:1424: Error: ':' expected
+main.s:1424: Error: Unexpected trailing garbage characters
+main.s:1425: Error: Syntax error
+main.s:1425: Error: Illegal addressing mode
+main.s:1425: Error: Unexpected trailing garbage characters
+main.s:1426: Error: Symbol 'LD' is already defined
+main.s:1426: Error: ':' expected
+main.s:1426: Error: Unexpected trailing garbage characters
+main.s:1431: Error: String constant expected
+main.s:1440: Error: Symbol 'PUSH' is already defined
+main.s:1440: Error: ':' expected
+main.s:1440: Error: Unexpected trailing garbage characters
+main.s:1441: Error: Symbol 'EX' is already defined
+main.s:1441: Error: ':' expected
+main.s:1441: Error: Unexpected trailing garbage characters
+main.s:1442: Error: Symbol 'LD' is already defined
+main.s:1442: Error: ':' expected
+main.s:1442: Error: Unexpected trailing garbage characters
+main.s:1443: Error: Symbol 'OR' is already defined
+main.s:1443: Error: ':' expected
+main.s:1443: Error: Unexpected trailing garbage characters
+main.s:1444: Error: Syntax error
+main.s:1444: Error: Illegal addressing mode
+main.s:1444: Error: Unexpected trailing garbage characters
+main.s:1445: Error: Symbol 'LD' is already defined
+main.s:1445: Error: ':' expected
+main.s:1445: Error: Unexpected trailing garbage characters
+main.s:1446: Error: Symbol 'OR' is already defined
+main.s:1446: Error: ':' expected
+main.s:1446: Error: Unexpected trailing garbage characters
+main.s:1447: Error: Symbol 'JR' is already defined
+main.s:1447: Error: ':' expected
+main.s:1447: Error: Unexpected trailing garbage characters
+main.s:1448: Error: Symbol 'SRL' is already defined
+main.s:1448: Error: ':' expected
+main.s:1448: Error: Unexpected trailing garbage characters
+main.s:1449: Error: Symbol 'RR' is already defined
+main.s:1449: Error: ':' expected
+main.s:1449: Error: Unexpected trailing garbage characters
+main.s:1451: Error: Symbol 'PUSH' is already defined
+main.s:1451: Error: ':' expected
+main.s:1451: Error: Unexpected trailing garbage characters
+main.s:1452: Error: Symbol 'LD' is already defined
+main.s:1452: Error: ':' expected
+main.s:1452: Error: Unexpected trailing garbage characters
+main.s:1514: Error: 'Y' expected
+main.s:1514: Error: Unexpected trailing garbage characters
+main.s:1549: Error: Hexadecimal digit expected
+main.s:1549: Error: Unexpected trailing garbage characters
+main.s:1605: Error: Symbol 'LD' is already defined
+main.s:1605: Error: ':' expected
+main.s:1605: Error: Unexpected trailing garbage characters
+main.s:1615: Error: Symbol 'POP' is already defined
+main.s:1615: Error: ':' expected
+main.s:1615: Error: Unexpected trailing garbage characters
+main.s:1616: Error: Symbol 'POP' is already defined
+main.s:1616: Error: ':' expected
+main.s:1616: Error: Unexpected trailing garbage characters
+main.s:1617: Error: Symbol 'PUSH' is already defined
+main.s:1617: Error: ':' expected
+main.s:1617: Error: Unexpected trailing garbage characters
+main.s:1618: Error: Symbol 'LD' is already defined
+main.s:1618: Error: ':' expected
+main.s:1618: Error: Unexpected trailing garbage characters
+main.s:1619: Error: Symbol 'LD' is already defined
+main.s:1619: Error: ':' expected
+main.s:1619: Error: Unexpected trailing garbage characters
+main.s:1621: Error: Symbol 'LD' is already defined
+main.s:1621: Error: ':' expected
+main.s:1621: Error: Unexpected trailing garbage characters
+main.s:1622: Error: Symbol 'LD' is already defined
+main.s:1622: Error: ':' expected
+main.s:1622: Error: Unexpected trailing garbage characters
+main.s:1624: Error: Symbol 'ADD' is already defined
+main.s:1624: Error: ':' expected
+main.s:1624: Error: Unexpected trailing garbage characters
+main.s:1625: Error: ':' expected
+main.s:1625: Error: Unexpected trailing garbage characters
+main.s:1626: Error: Symbol 'RL' is already defined
+main.s:1626: Error: ':' expected
+main.s:1626: Error: Unexpected trailing garbage characters
+main.s:1627: Error: Symbol 'JR' is already defined
+main.s:1627: Error: ':' expected
+main.s:1627: Error: Unexpected trailing garbage characters
+main.s:1627: Error: Hexadecimal digit expected
+main.s:1628: Error: Symbol 'ADD' is already defined
+main.s:1628: Error: ':' expected
+main.s:1628: Error: Unexpected trailing garbage characters
+main.s:1629: Error: Symbol 'JR' is already defined
+main.s:1629: Error: ':' expected
+main.s:1629: Error: Unexpected trailing garbage characters
+main.s:1629: Error: Hexadecimal digit expected
+main.s:1631: Error: Illegal addressing mode
+main.s:1632: Error: Symbol 'JR' is already defined
+main.s:1632: Error: ':' expected
+main.s:1632: Error: Unexpected trailing garbage characters
+main.s:1634: Error: Symbol 'POP' is already defined
+main.s:1634: Error: ':' expected
+main.s:1634: Error: Unexpected trailing garbage characters
+main.s:1635: Error: Symbol 'PUSH' is already defined
+main.s:1635: Error: ':' expected
+main.s:1635: Error: Unexpected trailing garbage characters
+main.s:1636: Error: ':' expected
+main.s:1636: Error: Unexpected trailing garbage characters
+main.s:1650: Error: Symbol 'POP' is already defined
+main.s:1650: Error: ':' expected
+main.s:1650: Error: Unexpected trailing garbage characters
+main.s:1651: Error: Symbol 'POP' is already defined
+main.s:1651: Error: ':' expected
+main.s:1651: Error: Unexpected trailing garbage characters
+main.s:1652: Error: Symbol 'PUSH' is already defined
+main.s:1652: Error: ':' expected
+main.s:1652: Error: Unexpected trailing garbage characters
+main.s:1653: Error: Symbol 'LD' is already defined
+main.s:1653: Error: ':' expected
+main.s:1653: Error: Unexpected trailing garbage characters
+main.s:1654: Error: Symbol 'LD' is already defined
+main.s:1654: Error: ':' expected
+main.s:1654: Error: Unexpected trailing garbage characters
+main.s:1656: Error: ':' expected
+main.s:1656: Error: Unexpected trailing garbage characters
+main.s:1657: Error: Symbol 'ld' is already defined
+main.s:1657: Error: ':' expected
+main.s:1657: Error: Unexpected trailing garbage characters
+main.s:1660: Error: ':' expected
+main.s:1660: Error: Unexpected trailing garbage characters
+main.s:1661: Error: ':' expected
+main.s:1661: Error: Unexpected trailing garbage characters
+main.s:1662: Error: Syntax error
+main.s:1662: Error: Illegal addressing mode
+main.s:1662: Error: Unexpected trailing garbage characters
+main.s:1664: Error: Syntax error
+main.s:1664: Error: Illegal addressing mode
+main.s:1664: Error: Unexpected trailing garbage characters
+main.s:1665: Error: ':' expected
+main.s:1665: Error: Unexpected trailing garbage characters
+main.s:1667: Error: Symbol 'jr' is already defined
+main.s:1667: Error: ':' expected
+main.s:1667: Error: Unexpected trailing garbage characters
+main.s:1670: Error: ':' expected
+main.s:1670: Error: Unexpected trailing garbage characters
+main.s:1673: Error: Illegal addressing mode
+main.s:1674: Error: Symbol 'jr' is already defined
+main.s:1674: Error: ':' expected
+main.s:1674: Error: Unexpected trailing garbage characters
+main.s:1676: Error: Symbol 'LD' is already defined
+main.s:1676: Error: ':' expected
+main.s:1676: Error: Unexpected trailing garbage characters
+main.s:1677: Error: Symbol 'LD' is already defined
+main.s:1677: Error: ':' expected
+main.s:1677: Error: Unexpected trailing garbage characters
+main.s:1680: Error: Symbol 'POP' is already defined
+main.s:1680: Error: ':' expected
+main.s:1680: Error: Unexpected trailing garbage characters
+main.s:1682: Error: Symbol 'PUSH' is already defined
+main.s:1682: Error: ':' expected
+main.s:1682: Error: Unexpected trailing garbage characters
+main.s:1683: Error: Symbol 'PUSH' is already defined
+main.s:1683: Error: ':' expected
+main.s:1683: Error: Unexpected trailing garbage characters
+main.s:1693: Error: Symbol 'optcodes' is already defined
