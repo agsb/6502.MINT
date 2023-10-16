@@ -47,6 +47,51 @@
 ;   alt-g reserved, copycat of references ****
 
 ;----------------------------------------------------------------------
+.macro spull addr
+    ldx xp
+    lda spz, x
+    sta addr, 0
+    lda spz, x
+    sta addr, 1
+    inx
+    inx
+    stx xp
+.endmacro
+
+.macro spush addr
+    ldx xp
+    dex
+    dex
+    lda addr, x
+    sta spz, 0
+    lda addr, x
+    sta spz, 1
+    stx xp
+.endmacro
+
+.macro rpull addr
+    ldy yp
+    lda rpz, y
+    sta addr, 0
+    lda rpz, y
+    sta addr, 1
+    iny
+    iny
+    sty yp
+.endmacro
+
+.macro rpush addr
+    ldy yp
+    dey
+    dey
+    lda addr, y
+    sta rpz, 0
+    lda addr, y
+    sta rpz, 1
+    sty yp
+.endmacro
+
+;----------------------------------------------------------------------
 ; page 0, reserved cells
     zpage = $f0
 
@@ -66,7 +111,7 @@
     wrk = zpage + $a  ; work register
 
     nxt = zpage + $c  ; next pointer  
-    ips = zpage + $e  ; instruction pointer, used for parser 
+    ips = zpage + $e  ; instruction pointer 
 
 ; if all in RAM, better put tables at end of code ?
 
@@ -157,12 +202,6 @@ initialize:
     sta ib
     sta ns
     
-; indirect jump
-    lda #<next_
-    sta nxt + 0
-    lda #>next_
-    sta nxt + 1
-
 ; done
     rst
      
@@ -211,68 +250,6 @@ interpret2:                     ; calc nesting (a macro might have changed it)
 
     ; ???    POP BC                  ; restore offset into TIB
         
-; push a reference to user variable into stack
-var_:
-    lda #<vars
-    sta nos + 0
-    lda #>vars
-    sta nos + 1
-    jmp a2z_
-
-; push a reference to mint variable into stack
-alt_:
-    lda #<vsys
-    sta nos + 0
-    lda #>vsys
-    sta nos + 1
-    jmp a2z_
-
-; push a reference into stack
-def_:
-    lda #<defs
-    sta nos + 0
-    lda #>defs
-    sta nos + 1
-    jmp A2Z_
-
-a2z_:
-    lda ch
-    sec
-    sbc #'a'
-    jsr offset
-    jmp iStore_
-
-A2Z_:
-    lda ch
-    sec
-    sbc #'A'
-    jsr offset
-    jmp (tos)
-
-; offset a reference
-offset:
-    asl
-    clc
-    adc nos + 0
-    sta tos + 0
-    lda nos + 1
-    sta tos + 1
-    bcc @nocc
-    inc tos + 1
-@nocc:
-    rts
-    
-iStore:
-    dex
-    dex
-    ldy #$00
-    lda (tos), y
-    sta spz + 0, x
-    iny
-    lda (tos), y
-    sta spz + 1, x
-    jmp next_
-
 ; *******************************************************************         
 ; Wait for a character from the serial input (keyboard) 
 ; and store it in the text buffer. Keep apcepting characters,
@@ -456,6 +433,43 @@ key_:
     jsr spush_
     jmp next_
     
+; TOPS
+
+; puts a string
+str_:                       
+    jsr incps_
+    jsr ldach_
+    cmp "`"              ; ` is the string terminator
+    beq @ends
+    jsr putchar
+    clc
+    bcc @str_
+@ends:  
+    jmp next_ 
+
+; increase instruction pointer
+incps_:
+    inc ips + 0
+    bne @noeq
+    inc ips + 1
+@noeq:
+    rts 
+
+; decrease instruction pointer
+decps_:
+    lda ips
+    bne @noeq
+    dec ips + 1
+@noeq:
+    dec ips + 0
+    rts 
+
+; load char at instruction pointer
+ldach_:
+    ldy #$00 
+    lda (ips), y
+    rts
+
 ; pull tos into return stack
 rpush_:                              
     ldy yp
@@ -668,12 +682,12 @@ sub_:
 ; Divide the top 2 members of the stack
 ; a b c -- a (b / c)r (b /c)d
 div_:   
-     jmp divd_
+    jmp divd_
 
 ; Multiply the top 2 members of the stack
 ; a b c -- a (b * c)h (b * c)l
 mul_:   
-     jmp mult_      
+    jmp mult_      
 
 ; take two at top 
 take2_:
@@ -767,9 +781,9 @@ gt_:
 ; a b c - a b (c)
 ; fetch a byte
 cfetch_:
-    lda #$01
+    lda #$00
     sta tos + 1
-    tay
+    ldy #$01
     jmp isfetch_
 
 ; fetch a word
@@ -805,9 +819,8 @@ cstore_:
     jmp isstore_
 ; store a word
 store_:
-    ldy #$00
+    ldy #$02
     jmp isstore_
-
 isstore_:
     jsr spull_
     lda tos + 0
@@ -824,8 +837,71 @@ isstore_:
     ; next
     jmp next_
 
+; push a reference to user variable into stack
+var_:
+    lda #<vars
+    sta nos + 0
+    lda #>vars
+    sta nos + 1
+    jmp a2z_
+
+; push a reference to mint variable into stack
+alt_:
+    lda #<vsys
+    sta nos + 0
+    lda #>vsys
+    sta nos + 1
+    jmp a2z_
+
+a2z_:
+    lda ch
+    sec
+    sbc #'a'
+    jsr offset
+    jmp iStore_
+
+; push a reference into stack
+def_:
+    lda #<defs
+    sta nos + 0
+    lda #>defs
+    sta nos + 1
+    jmp A2Z_
+
+A2Z_:
+    lda ch
+    sec
+    sbc #'A'
+    jsr offset
+    jmp (tos)
+
+; offset a reference
+offset:
+    asl
+    clc
+    adc nos + 0
+    sta tos + 0
+    lda nos + 1
+    sta tos + 1
+    bcc @nocc
+    inc tos + 1
+@nocc:
+    rts
+    
+iStore:
+    dex
+    dex
+    ldy #$00
+    lda (tos), y
+    sta spz + 0, x
+    iny
+    lda (tos), y
+    sta spz + 1, x
+    jmp next_
+
 ; hook for debug
 exec_:
+    jsr spull_
     jmp (tos)
 
 hex_:   
@@ -864,8 +940,6 @@ call _:
         DEC BC
         jmp next_                ; Execute code from User def
 
-
-
 ; print hexadecimal
 hdot_:                              
     jsr pull_
@@ -903,36 +977,21 @@ exit_:
         jmp (HL)
         
 ret_:
-        jsr  rpull               ; Restore Instruction pointer
-        LD BC,HL                
-        jmp next_             
+    ldy yp
+    lda rpz + 0, y
+    sta ips + 0
+    lda rpz + 1, y
+    sta ips + 1
+    iny
+    iny
+    sty yp
+    jmp next_             
 
-        POP    HL      
-        POP    DE 
-        LD     (HL),E
-        INC    HL 
-        LD     (HL),D   
-        jmp next_   
-    
 getRef_:    
         jmp getRef
 
 again_:     
         jmp again
-str_:                       
-str:                                ;= 15
-        INC BC
-        
-nextchar:            
-        LD A, (BC) INC BC
-        CP "`"              ; ` is the string terminator
-        JR Z,str2
-        jsr putchar
-        JR nextchar
-
-str2:  
-        DEC BC
-        jmp next_ 
 
 ;*******************************************************************
 ; Page 5 primitive routines 
@@ -970,6 +1029,7 @@ def:                        ; Create a colon definition
         LD (HL),E           ; Save low byte of address in CFA
         INC HL              
         LD (HL),D           ; Save high byte of address in CFA+1
+
 def1:                   ; Skip to end of definition   
         LD A,(BC)           ; Get the next character
         INC BC              ; Point to next character
@@ -981,6 +1041,7 @@ def1:                   ; Skip to end of definition
 
 def2:    
         DEC BC
+
 def3:
         LD (vHeapPtr),DE        ; bump heap ptr to after definiton
         jmp next_       
@@ -1189,26 +1250,6 @@ charCode_:
         PUSH HL
         jmp next_
 
-incips_:
-    inc ips + 0
-    bne @noeq
-    inc ips + 1
-@noeq:
-    rts 
-
-decips_:
-    lda ips
-    bne @noeq
-    dec ips + 1
-@noeq:
-    dec ips + 0
-    rts 
-
-ldach_:
-    ldy #$00 
-    lda (ips), y
-    rts
-
 comment_:
     jsr incips
     jsr ldach_
@@ -1249,12 +1290,32 @@ exec1:
         EX (SP),HL
         jmp (HL)
 
-go_:
+enter:                          ; 9
         LD HL,BC
         jsr  rpush              ; save Instruction Pointer
         POP BC
         DEC BC
         jmp next_                ; Execute code from User def
+
+go_:
+; push ps into RS 
+    ldy yp
+    dey
+    dey
+    lda ips + 0
+    sta rpz + 0, y
+    lda ips + 1
+    sta rpz + 1, y
+    sty yp
+; pull ps from DS
+    lda spz + 0, x
+    sta ips + 0 
+    lda spz + 1, x
+    sta ips + 1 
+    inx
+    inx
+    jsr decps_
+    jmp next_
 
 endGroup_:
         jsr  rpull
@@ -1289,17 +1350,6 @@ i_:
         PUSH IX
         jmp next_
 
-
-inPort_:
-        POP HL
-        LD A,C
-        LD C,L
-        IN L,(C)
-        LD H,0
-        LD C,A
-        PUSH HL
-        jmp next_        
-
 j_:
         PUSH IX
         POP HL
@@ -1319,14 +1369,13 @@ newln_:
         jsr  crlf
         jmp next_        
 
+; 6502 is memory mapped IO
+inPort_:
+    jmp cfetch_
+
+; 6502 is memory mapped IO
 outPort_:
-        POP HL
-        LD E,C
-        LD C,L
-        POP HL
-        OUT (C),L
-        LD C,E
-        jmp next_        
+    jmp cstore_
 
 break_:
         POP HL
@@ -1418,17 +1467,10 @@ arrEnd2:
 ;*******************************************************************
 
 crlf:                               ;=7
-    jsr  printStr
-    .asciiz  "\r\n"
+    jsr printStr
+    .asciiz "\r\n"
     rts
     
-enter:                          ; 9
-        LD HL,BC
-        jsr  rpush              ; save Instruction Pointer
-        POP BC
-        DEC BC
-        jmp next_                ; Execute code from User def
-
 lookupDef:                          ;=20
         SUB "A"  
         LD (vEdited),A      
