@@ -915,7 +915,28 @@ arrDef1:
     jmp NEXT         ; hardwired to NEXT 
  
 arrEnd_: 
-    jmp arrEnd 
+ 
+arrEnd:                     ;= 27 
+    jsr rpull_               ; DE = start of array 
+    jsr spush_ 
+ 
+        EX DE,HL 
+        LD HL,(vHeapPtr)        ; HL = heap ptr 
+        OR A 
+        SBC HL,DE               ; bytes on heap 
+        LD A,(vByteMode) 
+        OR A 
+        JR NZ,arrEnd2 
+        SRL H           ; BC = m words 
+        RR L 
+
+arrEnd2: 
+        PUSH HL 
+    lda #<next_ 
+    sta nxt + 0 
+    lda #>next_ 
+    sta nxt + 1 
+    jmp next_         ; hardwired to NEXT 
  
 begin_: 
     jmp begin 
@@ -1428,27 +1449,6 @@ printStk:                   ;= 40
 ;******************************************************************* 
 ; Page 5 primitive routines continued 
 ;******************************************************************* 
- 
-arrEnd:                     ;= 27 
-        jsr rpull_               ; DE = start of array 
-        jsr spush_ 
- 
-        EX DE,HL 
-        LD HL,(vHeapPtr)        ; HL = heap ptr 
-        OR A 
-        SBC HL,DE               ; bytes on heap 
-        LD A,(vByteMode) 
-        OR A 
-        JR NZ,arrEnd2 
-        SRL H           ; BC = m words 
-        RR L 
-arrEnd2: 
-        PUSH HL 
-        lda #<next_ 
-        sta nxt + 0 
-        lda #>next_ 
-        sta nxt + 1 
-        jmp next_         ; hardwired to NEXT 
  
 ;******************************************************************* 
 ; Subroutines 
