@@ -946,13 +946,13 @@ arrEnd:
 
     lda vByteMode
     cmp TRUE 
-    beq arrEnd2 
+    beq @iseq 
     
     ; words
     lsr tos + 1
     ror tos + 0
 
-arrEnd2: 
+@iseq: 
     jsr spush_ 
     lda #<next_ 
     sta nxt + 0 
@@ -961,9 +961,6 @@ arrEnd2:
     jmp next_ 
 
 ;---------------------------------------------------------------------- 
-begin_: 
-    jmp begin 
- 
 call_: 
     ; push ips 
     ldy yp 
@@ -1028,9 +1025,6 @@ ret_:
  
 getRef_: 
         jmp getRef 
- 
-again_: 
-        jmp again 
  
 ;******************************************************************* 
 ; Page 5 primitive routines 
@@ -1193,67 +1187,110 @@ mul16_:
 ; ************************************* 
 ; Loop Handling Code 
 ; ************************************* 
-                                ;= 23 
- 
-; Left parentesis begins a loop 
+;----------------------------------------------------------------------
+; Left parentesis ( begins a loop 
+begin_: 
 begin: 
-        POP HL 
-        LD A,L                  ; zero? 
-        OR H 
-        JR Z,begin1 
+    jsr spull_
+    lda tos + 0
+    or  tos + 1
+    beq begin1
  
-        DEC HL 
-        LD DE,-6 
-        ADD IX,DE 
-        LD (IX+0),0             ; loop var 
-        LD (IX+1),0 
-        LD (IX+2),L             ; loop limit 
-        LD (IX+3),H 
-        LD (IX+4),C             ; loop address 
-        LD (IX+5),B 
- 
-        jmp next_ 
+    lda yp
+    sec
+    sbc #6
+    sta yp
+
+    ldy yp
+
+    ; counter
+    lda #$00
+    sta rpz + 0, y
+    sta rpz + 1, y
+    ; limit
+    lda tos + 0
+    sta rpz + 2, y
+    lda tos + 1
+    sta rpz + 3, y
+    ; pointer
+    lda ips + 0
+    sta rpz + 4, y
+    lda ips + 1
+    sta rpz + 5, y
+    jmp next_ 
+
 begin1: 
-        LD E,1 
-begin2: 
-        INC BC LD A,(BC) 
-        jsr  nesting 
-        XOR A 
-        OR E 
-        JR NZ,begin2 
-begin3: 
-        jmp next_ 
+    lda #$01
+    sta ns 
+
+@loop: 
+    jsr incps_
+    jsr ldaps_
+    jsr nesting 
+    lda ns
+    xor ns
+    bne @loop
+    jmp next_ 
  
+;----------------------------------------------------------------------
+again_: 
 again: 
-        LD E,(IX+0)                 ; peek loop var 
-        LD D,(IX+1) 
- 
+    ldy yp
+    ; counter
+    lda rpz + 0, y
+    sta wrk + 0
+    lda rpz + 1, y
+    sta wrk + 1
+
         LD A,D                      ; check if IFTEMode 
         AND E 
         INC A 
         JR NZ,again1 
+
         INC DE 
         PUSH DE                     ; push FALSE condition 
         LD DE,2 
         JR again3                   ; drop IFTEMode 
  
 again1: 
-        LD L,(IX+2)                 ; peek loop limit 
-        LD H,(IX+3) 
-        OR A 
-        SBC HL,DE 
-        JR Z,again2 
-        INC DE 
-        LD (IX+0),E                 ; poke loop var 
-        LD (IX+1),D 
-        LD C,(IX+4)                 ; peek loop address 
-        LD B,(IX+5) 
-        jmp next_ 
-again2: 
-        LD DE,6                     ; drop loop frame 
-again3: 
-        ADD IX,DE 
-        jmp next_ 
+    ; peek loop limit 
+    lda rpz + 2
+    sta nos + 0                 
+    lda rpz + 3
+    sta nos + 3
+
+    sec
+    lda nos + 0
+    sbc wrk + 0
+    bne @noeq
+    lda nos + 1
+    sbc wrk + 1
+    bne @noeq
+    ; ends
+    beq @ends
+@noeq:
+    inc wrk + 0
+    bne @novr
+    inc wrk + 1
+@novr:    
+    ; poke loop var 
+    lda wrk + 0
+    sta rpz + 0
+    lda wrk + 1
+    sta rpz + 1
+        
+    lda rpz + 4, y
+    sta ips + 0
+    lda rpz + 5, y
+    sta ips + 1
+    jmp next_ 
+
+@ends: 
+    lda yp
+    clc
+    adc #6
+    sta yp
+    jmp next_ 
  
 ; ************************************************************************** 
 ; Page 6 Alt primitives 
