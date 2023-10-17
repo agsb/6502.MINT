@@ -115,23 +115,41 @@
  
 ; all in RAM, better put tables at end of code ? 
  
-    start = $200 
-    tib = start  ; terminal input buffer, upwards 
-    spz = start + $1FF  ; absolute data stack, backwards 
-    rpz = start + $2FF  ; absolute parameter stack, backwards 
- 
-    vars = start + $300  ;   26 words 
-    vsys = start + $336  ;   26 words 
-    defs = start + $36C  ;   26 words 
-    tmps = start + $3D8  ;   14 words 
- 
-    free = start + $400  ; free ram start 
- 
+;    start = $200 
+;    tib = start  ; terminal input buffer, upwards 
+;    spz = start + $1FF  ; absolute data stack, backwards 
+;    rpz = start + $2FF  ; absolute parameter stack, backwards 
+; 
+;    vars = start + $300  ;   26 words 
+;    vsys = start + $336  ;   26 words 
+;    defs = start + $36C  ;   26 words 
+;    tmps = start + $3D8  ;   14 words 
+; 
+;    free = start + $400  ; free ram start 
+
 ;---------------------------------------------------------------------- 
 .segment "VECTORS"
+
 .word init
 .word init
 .word init
+
+.segment "CODE"
+VOID:
+    .res $100, $00
+spz:
+    .res $100, $00
+rpz: 
+tib:    
+    .res $100, $00
+vsys:
+    .res $36, $00
+vars:
+    .res $36, $00
+defs:
+    .res $36, $00
+vtmp:
+    .res $5E, $00
 
 ;---------------------------------------------------------------------- 
 .segment "ONCE"
