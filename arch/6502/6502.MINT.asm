@@ -1287,10 +1287,10 @@ again1:
     beq @ends
 
 @noeq:
+    ; increase counter
     inc wrk + 0
     bne @novr
     inc wrk + 1
-
 @novr:    
     ; poke loop var 
     lda wrk + 0
@@ -1298,7 +1298,7 @@ again1:
     lda wrk + 1
     sta rpz + 1
 
-    ; at begin    
+    ; return at begin    
     lda rpz + 4, y
     sta ips + 0
     lda rpz + 5, y
@@ -1339,13 +1339,15 @@ comment_:
     jmp next_ 
  
 depth_: 
+    ; limit to 255 bytes
     lda #ff 
     sec 
     sbc xp 
+    ; words 
+    asl
+    sta tos + 0 
     lda #00 
     sta tos + 1 
-    lda xp 
-    sta tos + 0 
     jsr spush_ 
     jmp next_ 
  
@@ -1354,9 +1356,10 @@ ifte_:
     lda tos + 0
     ora tos + 1
     bne @noeq
+    ; skip to closing ) works with \) too 
     inc tos + 0
     jsr spush_
-    jmp begin1                   ; skip to closing ) works with \) too 
+    jmp begin1                   
 @noeq: 
     lda #$FF
     sta tos + 0
@@ -1364,22 +1367,17 @@ ifte_:
     jsr rpush 
     jmp next_ 
  
+    jsr exec1 
+    jmp next_ 
+
+; jump nos
 exec_: 
-        jsr exec1 
-        jmp next_ 
 exec1: 
-        POP HL 
-        EX (SP),HL 
-        jmp (HL) 
+    jsr take2
+    jsr spush_
+    jmp (nos)
  
-enter:                          ; 9 
-        LD HL,BC 
-        jsr rpush_              ; save Instruction Pointer 
-        POP BC 
-        DEC BC 
-        jmp next_                ; Execute code from User def 
- 
-go_: 
+rpushps_:
 ; push ps into RS 
     ldy yp 
     dey 
@@ -1389,7 +1387,12 @@ go_:
     lda ips + 1 
     sta rpz + 1, y 
     sty yp 
-; pull ps from DS 
+    rts
+
+; Execute code from data stack, from user def
+go_: 
+    jsr rpushps
+; pull ps from data stack 
     lda spz + 0, x 
     sta ips + 0 
     lda spz + 1, x 
@@ -1399,12 +1402,29 @@ go_:
     jsr decps_ 
     jmp next_ 
  
+; Execute code inline system stack
+enter:                           
+    jsr rpushps
+; pull from system stack
+    pla 
+    sta ips + 0 
+    pla
+    sta ips + 1 
+    jsr decps_ 
+    jmp next_ 
+
 endGroup_: 
-        jsr  rpull 
-        LD (vDEFS),HL 
-        jmp next_ 
+    jsr rpull_
+
+endgrp:    
+    lda tos + 0
+    sta vDEFS + 0
+    lda tos + 1
+    sta vDEFS + 1
+    jmp next_ 
  
 group_: 
+    jsr spull_
         POP DE 
         LD D,E 
         LD E,0 
@@ -1415,9 +1435,7 @@ group_:
         LD HL,(vDEFS) 
         jsr  rpush 
         LD HL,DEFS 
-        ADD HL,DE 
-        LD (vDEFS),HL 
-        jmp next_                ; Execute code from User def 
+        jmp endgrp
  
 sysVar_: 
         LD A,(BC) 
@@ -1441,15 +1459,15 @@ j_:
         jmp next_ 
  
 key_: 
-        jsr  getchar 
+    jsr getchar 
         LD L,A 
         LD H,0 
-        PUSH HL 
-        jmp next_ 
+    jsr spush_
+    jmp next_ 
  
 newln_: 
-        jsr  crlf 
-        jmp next_ 
+    jsr  crlf 
+    jmp next_ 
  
 ; 6502 is memory mapped IO 
 inPort_: 
@@ -1521,7 +1539,7 @@ editDef3:
         jmp next_ 
  
 printStk:                   ;= 40 
-        jsr  enter 
+        jsr enter 
         .asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'" 
         jmp next_ 
  
