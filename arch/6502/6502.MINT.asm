@@ -45,7 +45,9 @@
 ;   alt-a used for vS0, start of data stack 
 ;   alt-f used for vR0, start of return stack **** 
 ;   alt-g reserved, copycat of references **** 
- 
+; 
+;   all rotines must end with: 
+;   jmp next_ or jmp drop_ or a jmp / branch 
 ;---------------------------------------------------------------------- 
 .macro spull addr 
     ldx xp 
@@ -210,6 +212,7 @@ initialize:
 ; done 
     rts 
  
+;---------------------------------------------------------------------- 
 ; full address table 
 ; ???? 
 macro: 
@@ -226,6 +229,7 @@ macro:
     ;    LD BC,(vTIBPtr) 
     jmp interpret2 
  
+;---------------------------------------------------------------------- 
 interpret: 
     jsr  enter_ 
     .asciiz "\\N`> `" 
@@ -263,6 +267,7 @@ interpret2:                     ; calc nesting (a macro might have changed it)
 ; increasing the instruction pointer BC - until a newline received. 
 ; ******************************************************************* 
  
+;---------------------------------------------------------------------- 
 ; loop around waiting for character 
 waitchar: 
     jsr getchar 
@@ -336,6 +341,7 @@ waitchar:
 ; ********************************************************************************* 
  
 NEXT: 
+;---------------------------------------------------------------------- 
 next_: 
     ; using full jump table 
     asl 
@@ -388,6 +394,7 @@ nesting_:
     dec ns 
     rts 
  
+;---------------------------------------------------------------------- 
 prompt: 
     jsr  printStr 
     .asciiz  "\r\n> " 
@@ -396,21 +403,21 @@ prompt:
 ; ********************************************************************** 
 ; 
 ; (not yet) routines are ordered to occupy pages of 256 bytes 
-; all rotines must end with: jmp next_ or jmp drop_ or a jmp / branch 
 ; 
 ; ********************************************************************** 
  
-; ********************************************************************** 
-; Page 4 primitive routines 
-; ********************************************************************** 
-        .align $100 
-page4: 
- 
+;---------------------------------------------------------------------- 
 alt_: 
     jmp alt 
  
-; TOPS 
+;---------------------------------------------------------------------- 
+empty_
+    jsr printStr 
+    .asciiz  "void define\r\n" 
+    jsr (nxt)
+
  
+;---------------------------------------------------------------------- 
 ; puts a string 
 str_: 
     jsr incps_ 
@@ -423,6 +430,7 @@ str_:
 @ends: 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; increase instruction pointer 
 incps_: 
     inc ips + 0 
@@ -431,6 +439,7 @@ incps_:
 @noeq: 
     rts 
  
+;---------------------------------------------------------------------- 
 ; decrease instruction pointer 
 decps_: 
     lda ips 
@@ -440,13 +449,15 @@ decps_:
     dec ips + 0 
     rts 
  
+;---------------------------------------------------------------------- 
 ; load char at instruction pointer 
 ldaps_: 
     ldy #$00 
     lda (ips), y 
     rts 
  
-; pull tos into return stack 
+;---------------------------------------------------------------------- 
+; push tos into return stack 
 rpush_: 
     ldy yp 
     dey 
@@ -458,6 +469,7 @@ rpush_:
     sty yp 
     rts 
  
+;---------------------------------------------------------------------- 
 ; push tos from return stack 
 rpull_: 
     ldy yp 
@@ -470,6 +482,7 @@ rpull_:
     sty yp 
     rts 
  
+;---------------------------------------------------------------------- 
 ; push tos into stack 
 spush_: 
     dex 
@@ -480,6 +493,7 @@ spush_:
     sta spz + 1, x 
     rts 
  
+;---------------------------------------------------------------------- 
 ; pull tos from stack 
 spull_: 
     lta spz + 0, x 
@@ -490,6 +504,7 @@ spull_:
     inx 
     rts 
  
+;---------------------------------------------------------------------- 
 ; NEGate the value on top of stack (2's complement) 
 neg_: 
     sec 
@@ -502,6 +517,7 @@ neg_:
     sta spz + 0, x 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; Bitwise INVert the top member of the stack (1's complement) 
 inv_: 
     lda #$FF 
@@ -511,6 +527,7 @@ inv_:
     sta spz + 1, x 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; Duplicate the top member of the stack 
 ; a b c -- a b c c 
 dup_: 
@@ -522,6 +539,7 @@ dup_:
     sta spz + 1, x 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; Duplicate 2nd element of the stack 
 ; a b c -- a b c b 
 over_: 
@@ -533,6 +551,7 @@ over_:
     sta spz + 1, x 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; Rotate 3 elements at stack 
 ; a b c -- b c a 
 rot_: 
@@ -563,6 +582,7 @@ rot_:
     sta spz + 3, x 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; Swap 2nd and 1st elements of the stack 
 ; a b c -- a c b 
 swap_: 
@@ -583,18 +603,21 @@ swap_:
     sta spz + 1, x 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ;  Left shift { is multply by 2 
 shl_: 
     asl spz + 0, x 
     rol spz + 1, x 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ;  Right shift } is a divide by 2 
 shr_: 
     lsr spz + 0, x 
     ror spz + 1, x 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; Drop the top member of the stack 
 ; a b c -- a b 
 drop_: 
@@ -602,6 +625,7 @@ drop_:
     inx 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ;  Bitwise AND the top 2 elements of the stack 
 and_: 
     lda spz + 2, x 
@@ -612,6 +636,7 @@ and_:
     sta spz + 3, x 
     jmp drop_ 
  
+;---------------------------------------------------------------------- 
 ;  Bitwise OR the top 2 elements of the stack 
 or_: 
     lda spz + 2, x 
@@ -622,6 +647,7 @@ or_:
     sta spz + 3, x 
     jmp drop_ 
  
+;---------------------------------------------------------------------- 
 ;  Bitwise XOR the top 2 elements of the stack 
 xor_: 
     lda spz + 2, x 
@@ -632,6 +658,7 @@ xor_:
     sta spz + 3, x 
     jmp drop_ 
  
+;---------------------------------------------------------------------- 
 ; Add the top 2 members of the stack 
 ; a b c -- a (b+c) 
 add_: 
@@ -644,6 +671,7 @@ add_:
     sta spz + 3, x 
     jmp drop_ 
  
+;---------------------------------------------------------------------- 
 ; Subtract the top 2 members of the stack 
 ; a b c -- a (b-c) 
 sub_: 
@@ -656,16 +684,19 @@ sub_:
     sta spz + 3, x 
     jmp drop_ 
  
+;---------------------------------------------------------------------- 
 ; Divide the top 2 members of the stack 
 ; a b c -- a (b / c)r (b /c)d 
 div_: 
     jmp divd_ 
  
+;---------------------------------------------------------------------- 
 ; Multiply the top 2 members of the stack 
 ; a b c -- a (b * c)h (b * c)l 
 mul_: 
     jmp mult_ 
  
+;---------------------------------------------------------------------- 
 ; take two at top 
 take2_: 
     lda spz + 0, x 
@@ -682,7 +713,8 @@ take2_:
     inx 
     rts 
  
-; \+    a b c -- a ; [c]+b  ; increment variable at b by a 
+;---------------------------------------------------------------------- 
+; \+    a b c -- a ; [c]+b  ; increment variable at c by b 
 incr_: 
     jsr take2_ 
     clc 
@@ -696,7 +728,8 @@ incr_:
     sta (tos), y 
     jmp next_ 
  
-; \-    a b c -- a ; [c]-b  ; decrement variable at b by a 
+;---------------------------------------------------------------------- 
+; \-    a b c -- a ; [c]-b  ; decrement variable at c by b 
 decr_: 
     jsr take2_ 
     sec 
@@ -710,6 +743,7 @@ decr_:
     sta (tos), y 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; false 
 false2_: 
     lda #$00 
@@ -717,6 +751,7 @@ false2_:
     sta spz + 3, x 
     jmp drop_ 
  
+;---------------------------------------------------------------------- 
 ; true 
 true2_: 
     lda #$01 
@@ -725,6 +760,7 @@ true2_:
     sta spz + 3, x 
     jmp drop_ 
  
+;---------------------------------------------------------------------- 
 ; subtract for compare 
 cmp_: 
     sec 
@@ -734,18 +770,21 @@ cmp_:
     sbc spz + 1, x 
     rts 
  
+;---------------------------------------------------------------------- 
 ; signed equal than 
 eq_: 
     jsr cmp_ 
     bne false2 
     beq true2 
  
+;---------------------------------------------------------------------- 
 ; signed less than 
 lt_: 
     jsr cmp_ 
     bmi true2_ 
     bpl false2_ 
  
+;---------------------------------------------------------------------- 
 ; signed greather than 
 ; must be in that order, bpl is non negative flag 
 gt_: 
@@ -754,6 +793,7 @@ gt_:
     beq false2_ 
     bpl true2_ 
  
+;---------------------------------------------------------------------- 
 ; fetch the value from the address placed on the top of the stack 
 ; a b c - a b (c) 
 ; fetch a byte 
@@ -763,11 +803,13 @@ cfetch_:
     ldy #$01 
     jmp isfetch_ 
  
+;---------------------------------------------------------------------- 
 ; fetch a word 
 fetch_: 
     ldy #$02 
     jmp isfetch_ 
  
+;---------------------------------------------------------------------- 
 isfetch_: 
     ; load the reference 
     lda spz + 0, x 
@@ -775,7 +817,6 @@ isfetch_:
     lda spz + 1, x 
     sta nos + 1 
     ; then the value 
- 
 @loop: 
     dey 
     lda (nos), y 
@@ -789,6 +830,8 @@ isfetch_:
     ; next 
     jmp next_ 
  
+ 
+;---------------------------------------------------------------------- 
 ; store the value into the address placed on the top of the stack 
 ; a b c -- a 
 ; store a byte 
@@ -796,11 +839,13 @@ cstore_:
     ldy #$01 
     jmp isstore_ 
  
+;---------------------------------------------------------------------- 
 ; store a word 
 store_: 
     ldy #$02 
     jmp isstore_ 
  
+;---------------------------------------------------------------------- 
 isstore_: 
     jsr spull_ 
     lda tos + 0 
@@ -818,6 +863,7 @@ isstore_:
     ; next 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; push a reference to user variable into stack 
 var_: 
     sta ac 
@@ -827,6 +873,7 @@ var_:
     sta tos + 1 
     jmp a2z_ 
  
+;---------------------------------------------------------------------- 
 ; push a reference to mint variable into stack 
 alt_: 
     sta ac 
@@ -848,21 +895,26 @@ a2z_:
     jsr spush_ 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; hook for debug 
 exec_: 
     jsr spull_ 
     jmp (tos) 
  
+;---------------------------------------------------------------------- 
 hex_: 
     jmp hex2_ 
  
+;---------------------------------------------------------------------- 
 aNop_: 
 nop_: 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 num_: 
     jmp num2_ 
  
+;---------------------------------------------------------------------- 
 def_: 
     jmp def2_ 
  
@@ -870,15 +922,16 @@ def_:
 ; define a byte array 
 carrDef_:                   
     lda TRUE 
-    jmp arrDef1 
+    jmp arrDef 
  
+;---------------------------------------------------------------------- 
 ; define a word array 
 arrDef_: 
-arrDef:                     
     lda FALSE 
-    jmp arrDef1
+    jmp arrDef
  
-arrDef1: 
+;---------------------------------------------------------------------- 
+arrDef: 
     ; wire next 
     lda #<compNEXT 
     sta nxt + 0 
@@ -924,8 +977,6 @@ compNEXT:
 
 ;---------------------------------------------------------------------- 
 arrEnd_: 
- 
-arrEnd:  
     ; start of array 
     jsr rpull_               
     jsr spush_ 
@@ -976,24 +1027,28 @@ call_:
     jsr lookupDef1 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; print hexadecimal 
 hdot_: 
     jsr pull_ 
     jsr printhex_ 
     jmp dotsp 
  
+;---------------------------------------------------------------------- 
 ; print decimal 
 dot_: 
     jsr pull_ 
     jsr printdec_ 
     jmp dotsp 
  
+;---------------------------------------------------------------------- 
 ; print space 
 dotsp: 
     lda #' ' 
     jsr  writeChar1 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 etx_: 
 etx: 
         LD HL,-DSTACK 
@@ -1004,6 +1059,7 @@ etx1:
         jmp interpret 
  
  
+;---------------------------------------------------------------------- 
 exit_: 
         INC BC 
         LD DE,BC 
@@ -1012,6 +1068,7 @@ exit_:
         EX DE,HL 
         jmp (HL) 
  
+;---------------------------------------------------------------------- 
 ret_: 
     ldy yp 
     lda rpz + 0, y 
@@ -1023,19 +1080,14 @@ ret_:
     sty yp 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 getRef_: 
-        jmp getRef 
- 
-;******************************************************************* 
-; Page 5 primitive routines 
-;******************************************************************* 
-        ;falls through 
- 
 getRef:                         ;= 8 
         INC BC LD A,(BC) 
         jsr  lookupDef 
         jmp fetch1 
  
+;---------------------------------------------------------------------- 
 alt:                                ;= 11 
         INC BC LD A,(BC) 
         LD HL,altcodes 
@@ -1053,7 +1105,7 @@ alt:                                ;= 11
 ; The remainder of the characters are then skipped until after a semicolon 
 ; is found. 
 ; *************************************************************************** 
-                            ;= 31 
+;---------------------------------------------------------------------- 
 def:                        ; Create a colon definition 
         INC BC LD  A,(BC)          ; Get the next character 
         INC BC 
@@ -1083,6 +1135,7 @@ def3:
 ; number handling routine - converts numeric ascii string to a 16-bit 
 ; ********************************************************************* 
  
+;---------------------------------------------------------------------- 
 ; convert a decimal value to binary 
 numd_: 
     lda #$00 
@@ -1108,6 +1161,7 @@ numd_:
 @ends: 
     jmp push_ 
  
+;---------------------------------------------------------------------- 
 ; convert a hexadecimal value to binary 
 numh_: 
     lda #$00 
@@ -1146,6 +1200,7 @@ numh_:
 @ends: 
     jmp push_ 
  
+;---------------------------------------------------------------------- 
 ; multiply by ten 
 mul10_: 
     clc 
@@ -1169,6 +1224,7 @@ mul10_:
     clc 
     rts 
  
+;---------------------------------------------------------------------- 
 ; multiply by sixteen 
 mul16_: 
     ldy #04 
@@ -1182,11 +1238,6 @@ mul16_:
     bne @loop 
     rts 
  
-; ************************************* 
- 
-; ************************************* 
-; Loop Handling Code 
-; ************************************* 
 ;----------------------------------------------------------------------
 ; Left parentesis ( begins a loop 
 begin_: 
@@ -1310,15 +1361,11 @@ again1:
     sta yp
     jmp next_ 
  
-; ************************************************************************** 
-; Page 6 Alt primitives 
-; ************************************************************************** 
-        .align $100 
-page6: 
- 
+;----------------------------------------------------------------------
 anop_: 
     jmp next_        ; 8t 
  
+;---------------------------------------------------------------------- 
 charCode_: 
     jsr incps_ 
     jsr ldaps_ 
@@ -1327,7 +1374,8 @@ charCode_:
     sta tos + 1 
     jsr spush_ 
     jmp next_ 
- 
+
+;---------------------------------------------------------------------- 
 comment_: 
     jsr incps 
     jsr ldaps_ 
@@ -1338,6 +1386,7 @@ comment_:
     jsr decps 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 depth_: 
     ; limit to 255 bytes
     lda #ff 
@@ -1351,6 +1400,7 @@ depth_:
     jsr spush_ 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ifte_: 
     jsr spull_
     lda tos + 0
@@ -1370,13 +1420,14 @@ ifte_:
     jsr exec1 
     jmp next_ 
 
+;---------------------------------------------------------------------- 
 ; jump nos
 exec_: 
 exec1: 
-    jsr take2
-    jsr spush_
-    jmp (nos)
+    jsr spull_
+    jmp (tos)
  
+;---------------------------------------------------------------------- 
 rpushps_:
 ; push ps into RS 
     ldy yp 
@@ -1389,6 +1440,7 @@ rpushps_:
     sty yp 
     rts
 
+;---------------------------------------------------------------------- 
 ; Execute code from data stack, from user def
 go_: 
     jsr rpushps
@@ -1402,6 +1454,7 @@ go_:
     jsr decps_ 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; Execute code inline system stack
 enter:                           
     jsr rpushps
@@ -1413,10 +1466,12 @@ enter:
     jsr decps_ 
     jmp next_ 
 
+;---------------------------------------------------------------------- 
 endGroup_: 
     jsr rpull_
 
 endgrp:    
+    
     lda tos + 0
     sta vDEFS + 0
     lda tos + 1
@@ -1424,19 +1479,39 @@ endgrp:
     jmp next_ 
  
 group_: 
+    ; rpush vDEFS
+    lda vDEFS + 0
+    sta tos + 0
+    lda vDEFS + 1
+    sta tos + 1
+    jsr rpush_
+
+    ; spull offset
     jsr spull_
-        POP DE 
-        LD D,E 
-        LD E,0 
-        SRL D 
-        RR E 
-        SRL D 
-        RR E 
-        LD HL,(vDEFS) 
-        jsr  rpush 
-        LD HL,DEFS 
-        jmp endgrp
+
+    ; value * 64
+    lda tos + 0
+    sta tos + 1
+    eor tos + 0
+    sta tos + 0
+    
+    asl tos + 1
+    rol tos + 0
+    asl tos + 1
+    rol tos + 0
+    
+    ; add offset
+    clc
+    lda DEFS + 0
+    adc tos + 0
+    sta tos + 0
+    lda DEFS + 1
+    adc tos + 1
+    sta tos + 1
+    
+    jmp endgrp
  
+;---------------------------------------------------------------------- 
 sysVar_: 
         LD A,(BC) 
         SUB "a" - ((sysVars - mintVars)/2) 
@@ -1446,10 +1521,12 @@ sysVar_:
         PUSH HL 
         jmp next_                ; Execute code from User def 
  
+;---------------------------------------------------------------------- 
 i_: 
         PUSH IX 
         jmp next_ 
  
+;---------------------------------------------------------------------- 
 j_: 
         PUSH IX 
         POP HL 
@@ -1458,6 +1535,7 @@ j_:
         PUSH HL 
         jmp next_ 
  
+;---------------------------------------------------------------------- 
 key_: 
     jsr getchar 
         LD L,A 
@@ -1465,18 +1543,22 @@ key_:
     jsr spush_
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 newln_: 
     jsr  crlf 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
 ; 6502 is memory mapped IO 
 inPort_: 
     jmp cfetch_ 
  
+;---------------------------------------------------------------------- 
 ; 6502 is memory mapped IO 
 outPort_: 
     jmp cstore_ 
  
+;---------------------------------------------------------------------- 
 break_: 
         POP HL 
         LD A,L                      ; zero? 
@@ -1538,6 +1620,7 @@ editDef3:
         LD (vTIBPtr),HL 
         jmp next_ 
  
+;---------------------------------------------------------------------- 
 printStk:                   ;= 40 
         jsr enter 
         .asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'" 
@@ -1551,11 +1634,13 @@ printStk:                   ;= 40
 ; Subroutines 
 ;******************************************************************* 
  
+;---------------------------------------------------------------------- 
 crlf:                               ;=7 
     jsr printStr 
     .asciiz "\r\n" 
     rts 
  
+;---------------------------------------------------------------------- 
 lookupDef:                          ;=20 
     sec 
     sbc #'A' 
@@ -1695,10 +1780,12 @@ printhex8:
     jsr putchar 
     rts 
  
+;---------------------------------------------------------------------- 
 writeChar: 
         LD (DE),A 
         INC DE 
  
+;---------------------------------------------------------------------- 
 writeChar1: 
         jmp putchar 
  
