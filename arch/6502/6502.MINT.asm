@@ -364,26 +364,26 @@ next_:
 ; limited to 127 levels 
 ; ************************************************************************** 
 nesting_: 
-    CP '`' 
+    cmp #'`' 
     bne @nests 
     lda #$80 
-    eoa ns 
+    eor ns 
     sta ns 
     rts 
 @nests_: 
     bit ns 
     bmi @nonest 
-    cmp ':' 
+    cmp #':' 
     beq @nestinc 
-    cmp '[' 
+    cmp #'[' 
     beq @nestinc 
-    cmp '(' 
+    cmp #'(' 
     beq @nestinc 
-    cmp ';' 
+    cmp #';' 
     beq @nestdec 
-    cmp ']' 
+    cmp #']' 
     beq @nestdec 
-    cmp ')' 
+    cmp #')' 
     beq @nestdec 
 @nonest: 
     rts 
@@ -396,8 +396,8 @@ nesting_:
  
 ;---------------------------------------------------------------------- 
 prompt: 
-    jsr  printStr 
-    .asciiz  "\r\n> " 
+    jsr printStr 
+    .asciiz "\r\n> " 
     rts 
  
 ; ********************************************************************** 
@@ -407,22 +407,17 @@ prompt:
 ; ********************************************************************** 
  
 ;---------------------------------------------------------------------- 
-alt_: 
-    jmp alt 
- 
-;---------------------------------------------------------------------- 
-empty_
+empty_:
     jsr printStr 
     .asciiz  "void define\r\n" 
-    jsr (nxt)
-
+    jmp (nxt)
  
 ;---------------------------------------------------------------------- 
 ; puts a string 
 str_: 
     jsr incps_ 
     jsr ldaps_ 
-    cmp "`"              ; ` is the string terminator 
+    cmp #'`'              ; ` is the string terminator 
     beq @ends 
     jsr putchar 
     clc 
@@ -496,10 +491,10 @@ spush_:
 ;---------------------------------------------------------------------- 
 ; pull tos from stack 
 spull_: 
-    lta spz + 0, x 
-    sda tos + 0 
-    lta spz + 1, x 
-    sda tos + 1 
+    lda spz + 0, x 
+    sta tos + 0 
+    lda spz + 1, x 
+    sta tos + 1 
     inx 
     inx 
     rts 
@@ -1088,7 +1083,7 @@ getRef:                         ;= 8
         jmp fetch1 
  
 ;---------------------------------------------------------------------- 
-alt:                                ;= 11 
+xalt:                                ;= 11 
         INC BC LD A,(BC) 
         LD HL,altcodes 
         ADD A,L 
