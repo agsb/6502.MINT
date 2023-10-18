@@ -189,6 +189,7 @@ emit_:
     jmp next_
 
 ;---------------------------------------------------------------------- 
+aNop_:
 nop_:
     clc
     jmp next_
@@ -819,9 +820,39 @@ str_:
     jmp next_ 
  
 ;---------------------------------------------------------------------- 
+interpret: 
+    jsr  enter_ 
+    .asciiz "\\N`> `" 
+    ; fall throught
+
+interpret1:                     ; used by tests 
+    lda #$00 
+    sta vTIBPtr + 0 
+    sta vTIBPtr + 1 
+
+interpret2:                     
+    lda #$00
+    sta ns
+    tay
+    beq @cast
+
+; calc nesting (a macro might have changed it) 
+@loop: 
+    lda tib, y 
+    iny 
+    jsr  nesting            ; update nesting value 
+
+@cast: 
+    cpy #0 
+    bne @loop 
+    ; fall throught
+
+;---------------------------------------------------------------------- 
 ; loop around waiting for character 
+; get a line into tib
 waitchar: 
-    ldy #$00 
+getstr:
+    ; already ldy #$00 
 @loop:
     jsr getchar 
     cmp #32                 ; ge space ? 
@@ -850,24 +881,34 @@ waitchar:
     lda ns 
     cmp #$00 
     beq @loop 
-@isend: 
-    ; ETX 
-    lda #$03 
-    jsr @inbuff 
-; mark end
+; mark etx, used later to check Z80 stack deep, 
+; not need in 6502 round-robin stack,
+; preserved for compability
 @endstr: 
+    ; mark ETX 
+    lda #$03 
+    sta tib, y
+    iny
+    ; mark NUL
     lda #$00 
     sta tib, y 
+
+    lda #<tib
+    sta ips + 0
+    lda #>tib
+    sta ips + 1
+    jsr decps_
     jmp next_ 
+
 ; maximum 255 chars 
 @echo:
     ; echo 
     jsr putchar 
-@inbuff: 
     ; store
     sta tib, y 
     iny 
-    cpy #$FE
+    ; limit 253
+    cpy #$FD
     beq @endstr
     rts 
  
@@ -1226,7 +1267,7 @@ prompt:
     rts 
  
 ;---------------------------------------------------------------------- 
-printStk:  
+printStk_:  
     jsr enter 
     ;.asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'" 
     .asciiz  "\\a@2-\\D1-(34@\\b@\\(,)(.)2-)'" 
@@ -1242,6 +1283,16 @@ inPort_:
 outPort_: 
     jmp cStore_ 
  
+;---------------------------------------------------------------------- 
+charCode_:
+    jsr incps_
+    jsr ldaps_
+    sta tos + 0
+    lda #$00
+    sta tos + 1
+    jsr spush_
+    jmp next_
+
 ;---------------------------------------------------------------------- 
 ; Execute next opcode
 next_: 
@@ -1493,6 +1544,24 @@ again1:
     jmp next_ 
  
 ;----------------------------------------------------------------------
+j_:
+    lda yp
+    sec
+    sbc #6
+    tay
+    ; fall through
+;----------------------------------------------------------------------
+i_:
+    ldy yp
+    lda spz + 0, y
+    sta tos + 0
+    iny
+    lda spz + 0, y
+    sta tos + 1
+    jsr spush_
+    jmp next_
+
+;----------------------------------------------------------------------
 ifte_:
     jsr spull_
     lda tos + 0
@@ -1514,22 +1583,35 @@ ret_:
     jmp next_
 
 ;---------------------------------------------------------------------- 
+; 
+exit_:
+    jsr incps_
+    lda ips + 0
+    sta tos + 0
+    lda ips + 1
+    sta tos + 1
+    jsr pullps_
+    jmp (tos)
+
+;---------------------------------------------------------------------- 
+; 6502 stack is fixed and round robin
+; no need control deep
+etx_:
+    jmp interpret
+    
+;---------------------------------------------------------------------- 
 init:
 endGroup_:
 group_:
-j_:
-i_:
-charCode_:
+
 cArrDef_:
 editDef_:
-printStk_:
-aNop_:
+
 arrEnd_:
 arrDef_:
+
 getRef_:
 def_:
-etx_:
-exit_:
 ;---------------------------------------------------------------------- 
 ;optcodes:
 ;altcodes:
