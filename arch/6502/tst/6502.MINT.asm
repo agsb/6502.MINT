@@ -49,49 +49,6 @@
 ;   all rotines must end with: 
 ;   jmp next_ or jmp drop_ or a jmp / branch 
 ;---------------------------------------------------------------------- 
-.macro spull addr 
-    ldx xp 
-    lda spz, x 
-    sta addr, 0 
-    lda spz, x 
-    sta addr, 1 
-    inx 
-    inx 
-    stx xp 
-.endmacro 
- 
-.macro spush addr 
-    ldx xp 
-    dex 
-    dex 
-    lda addr, x 
-    sta spz, 0 
-    lda addr, x 
-    sta spz, 1 
-    stx xp 
-.endmacro 
- 
-.macro rpull addr 
-    ldy yp 
-    lda rpz, y 
-    sta addr, 0 
-    lda rpz, y 
-    sta addr, 1 
-    iny 
-    iny 
-    sty yp 
-.endmacro 
- 
-.macro rpush addr 
-    ldy yp 
-    dey 
-    dey 
-    lda addr, y 
-    sta rpz, 0 
-    lda addr, y 
-    sta rpz, 1 
-    sty yp 
-.endmacro 
  
 ;---------------------------------------------------------------------- 
 ; page 0, reserved cells 
@@ -134,20 +91,29 @@
 .word init
 .word init
 
+;---------------------------------------------------------------------- 
 .segment "CODE"
+
 VOID:
+
     .res $100, $00
 spz:
+
     .res $100, $00
 rpz: 
+
 tib:    
     .res $100, $00
+
 vsys:
     .res $36, $00
+
 vars:
     .res $36, $00
+
 defs:
     .res $36, $00
+
 vtmp:
     .res $5E, $00
 
@@ -539,8 +505,8 @@ opin:
     sta tmp + 0
     lda spz + 3, y
     sta tmp + 1
-    lda #0
     ; clear results
+    lda #0
     sta tos + 0
     sta tos + 1
     sta nos + 0 
@@ -805,7 +771,7 @@ _empty_:
     jmp next_
  
 ;---------------------------------------------------------------------- 
-; puts a string 
+; puts a string, limit 255 chars 
 str_: 
     ldy #$00
 @loop:
@@ -814,18 +780,39 @@ str_:
     cmp #'`'              ; ` is the string terminator 
     beq @ends 
     jsr putchar 
+    clc
     bcc @loop 
     ; error in putchar
 @ends: 
     jmp next_ 
  
 ;---------------------------------------------------------------------- 
+macro:
+    asl
+    sta ap
+    lda #<ctlcodes
+    sta tos + 0
+    lda #>ctlcodes
+    sta tos + 1
+    lda ap
+    clc
+    adc tos + 0
+    sta tos + 0
+    adc tos + 1
+    sta tos + 1
+    jsr spush_
+    jsr enter_
+    .asciiz "\\G"
+    jmp interpret2
+
+;---------------------------------------------------------------------- 
 interpret: 
-    jsr  enter_ 
+    jsr enter_ 
     .asciiz "\\N`> `" 
     ; fall throught
 
-interpret1:                     ; used by tests 
+; used by tests 
+interpret1:
     lda #$00 
     sta vTIBPtr + 0 
     sta vTIBPtr + 1 
@@ -1242,14 +1229,6 @@ writeChar1:
     jmp putchar 
  
 ;---------------------------------------------------------------------- 
-enter_:
-    jmp next_
-
-;---------------------------------------------------------------------- 
-macro:
-    jmp next_
-
-;---------------------------------------------------------------------- 
 newln_: 
     jsr crlf 
     jmp next_ 
@@ -1268,7 +1247,7 @@ prompt:
  
 ;---------------------------------------------------------------------- 
 printStk_:  
-    jsr enter 
+    jsr enter_
     ;.asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'" 
     .asciiz  "\\a@2-\\D1-(34@\\b@\\(,)(.)2-)'" 
     jmp next_ 
@@ -1325,7 +1304,7 @@ alt_:
  
 ;---------------------------------------------------------------------- 
 ; Execute code inline 
-enter:                           
+enter_:                           
     jsr pushps_
 ; pull from system stack
     pla 
@@ -1360,6 +1339,11 @@ call_:
     jsr decps_
     jmp next_
 
+lookupDeft:
+    lda ap
+    sta vEdited
+    ; fall throught
+
 lookupDefs:
     lda ap
     sbc 'A'
@@ -1369,11 +1353,6 @@ lookupDefs:
     sta tos + 0
     lda vDefs + 1
     sta tos + 1
-    lda (tos), y
-    sta ips + 0
-    iny
-    lda (tos), y
-    sta ips + 1
     rts 
 
 ;---------------------------------------------------------------------- 
@@ -1411,6 +1390,66 @@ a2z_:
     jsr spush_ 
     jmp next_ 
  
+;---------------------------------------------------------------------- 
+; skip spaces
+nosp_:
+    jsr incps_
+    jsr ldaps_
+    cmp #' '
+    beq nosp_
+    rts
+
+;---------------------------------------------------------------------- 
+getRef_:
+    jsr nosp_
+    sta ap
+    jsr lookupDefs
+    jmp fetch_
+
+;---------------------------------------------------------------------- 
+def_:
+    ; skip spaces
+    jsr nosp_
+    sta ap
+    jsr lookupDefs
+    lda vHeapPtr + 0
+    sta (tos), y
+    sta nos + 0
+    iny
+    lda vHeapPtr + 1
+    sta (tos), y
+    sta nos + 1
+    ldy #0
+    ; copy until 255 or ; 
+@loop:
+    lda (ips), y
+    sta (nos), y
+    iny
+    beq @ends
+    cmp #';'
+    bne @loop
+@ends:
+    tya
+    sta ap
+    ; update Heap
+    clc
+    adc vHeapPtr + 0
+    sta vHeapPtr + 0
+    bcc @iscc
+    inc vHeapPtr + 1
+@iscc:
+    lda ap
+    ; update ip
+    clc
+    adc ips + 0
+    sta ips + 0
+    bcc @iscci
+    inc ips + 1
+@iscci:
+    jmp next_
+    
+
+
 ;---------------------------------------------------------------------- 
 break_:
     jsr spull_
@@ -1601,6 +1640,7 @@ etx_:
     
 ;---------------------------------------------------------------------- 
 init:
+
 endGroup_:
 group_:
 
@@ -1610,12 +1650,11 @@ editDef_:
 arrEnd_:
 arrDef_:
 
-getRef_:
-def_:
+
 ;---------------------------------------------------------------------- 
 ;optcodes:
 ;altcodes:
-;ctrcodes:
+;ctlcodes:
 
 .include "jumptables.s"
 
