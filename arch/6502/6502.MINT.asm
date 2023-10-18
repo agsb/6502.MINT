@@ -173,6 +173,22 @@ hitchar:
     rts
 
 ;---------------------------------------------------------------------- 
+key_:
+    jsr getchar
+    sta tos + 0
+    lda #0
+    sta tos + 1
+    jsr spush_
+    jmp next_
+    
+;---------------------------------------------------------------------- 
+emit_:
+    jsr spull_
+    lda tos + 0
+    jsr putchar
+    jmp next_
+
+;---------------------------------------------------------------------- 
 nop_:
     clc
     jmp next_
@@ -306,12 +322,12 @@ neg_:
     ; ldx xp
     sec 
     lda #0 
-    sbc spz + 1, x 
-    sta spz + 1, x 
-    sec 
-    lda #0 
     sbc spz + 0, x 
     sta spz + 0, x 
+    sec 
+    lda #0 
+    sbc spz + 1, x 
+    sta spz + 1, x 
     ; stx xp
     jmp next_ 
  
@@ -322,6 +338,7 @@ inv_:
     lda #$FF 
     eor spz + 0, x 
     sta spz + 0, x 
+    lda #$FF 
     eor spz + 1, x 
     sta spz + 1, x 
     ; stx xp
@@ -706,7 +723,7 @@ gt_:
 ; fetch the value from the address placed on the top of the stack 
 ; a b c - a b (c) 
 ; fetch a byte 
-cfetch_: 
+cFetch_: 
     lda #$00 
     sta tos + 1 
     sec
@@ -730,11 +747,11 @@ isfetch_:
     ldy #$00
     lda (nos), y 
     sta tos + 0
-    bcs @iset
+    bcs @cset
     iny
     lda (nos), y 
     sta tos + 1
-@iset:
+@cset:
     ; save the value 
     lda tos + 0 
     sta spz + 0, x 
@@ -748,7 +765,7 @@ isfetch_:
 ; store the value into the address placed on the top of the stack 
 ; a b c -- a 
 ; store a byte 
-cstore_: 
+cStore_: 
     sec 
     jmp isstore_ 
  
@@ -765,12 +782,12 @@ isstore_:
     ldy #$00
     lda nos + 0
     sta (tos), y
-    bcs @iset
+    bcs @cset
     iny
     lda nos + 1
     sta (tos), y
     ; next 
-@iset:    
+@cset:    
     ; stx xp
     jmp next_ 
  
@@ -781,7 +798,7 @@ exec_:
     jmp (tos) 
  
 ;---------------------------------------------------------------------- 
-empty_:
+_empty_:
     jsr printStr 
     .asciiz  "void define\r\n" 
     jmp next_
@@ -905,13 +922,13 @@ printStr:
 ; prints a asciiz, refered by wrk 
 puts_: 
     ldy #$00 
-    jsr @isne 
+    jsr @noeq 
 @loop: 
     jsr putchar 
     inc wrk + 0 
-    bne @isne 
+    bne @noeq 
     inc wrk + 1 
-@isne: 
+@noeq: 
     lda (wrk), y 
     bne @loop 
 @ends: 
@@ -919,6 +936,7 @@ puts_:
  
 ;---------------------------------------------------------------------- 
 ; prints number in tos to decimal ASCII 
+; ps. putchar ends with rts
 printdec: 
     lda #<10000 
     sta nos + 0 
@@ -965,7 +983,6 @@ printdec:
     sta tos + 1 
     tya 
     jmp putchar 
-    rts 
  
 ;---------------------------------------------------------------------- 
 ; prints number in tos to hexadecimal ASCII 
@@ -995,86 +1012,61 @@ printhex8:
     bcc @ends 
     adc #$06 
 @ends: 
-    jsr putchar 
-    rts 
+    jmp putchar 
  
 ;---------------------------------------------------------------------- 
 ; convert a decimal value to binary 
-numd_: 
+num_: 
+    jsr decps_
     lda #$00 
     sta tos + 0 
     sta tos + 1 
 @loop: 
-    ; get a char from buffer 
-    ; zzzz lda ch 
-    cmp '0' + 0 
-    bcc @ends 
-    cmp '9' + 1 
-    bcs @ends 
-@cv10: 
-    sec 
-    sbc #'0' 
-@uval: 
-    ; zzzz sta ch 
-    jsr mul10_ 
-    lda tos + 0 
-    ; zzzz adc ch 
-    sta tos + 0 
-    bcc @loop 
-@ends: 
-    jmp spush_ 
- 
-;---------------------------------------------------------------------- 
-; convert a hexadecimal value to binary 
-numh_: 
-    lda #$00 
-    sta tos + 0 
-    sta tos + 1 
-@loop: 
-    ; get a char from buffer 
-    ; zzzz lda ch 
-@isd: 
-    cmp #'0' 
+    jsr incps_
+    jsr ldaps_
+    cmp #'0' + 0 
     bcc @ends 
     cmp #'9' + 1 
-    bcs @ish 
+    bcs @ends 
 @cv10: 
     sec 
     sbc #'0' 
-    clc 
-    bcc @uval 
-@ish: 
-    and #%11011111 
-    cmp 'F' + 1 
-    bcs @ends 
-    cmp 'A' 
-    bcc @ends 
-@cv16: 
-    sec 
-    sbc #'A' - 10 
-    bcc @uval 
 @uval: 
-    ; zzzzz sta ch 
-    jsr mul16_ 
-    lda tos + 0 
-    ; zzzz adc ch 
+    clc
+    adc tos + 0 
     sta tos + 0 
+    lda #$00
+    adc tos + 1
+    sta tos + 1
+    jsr mul10_ 
+    clc
     bcc @loop 
 @ends: 
-    jmp spush_ 
+    jsr spush_ 
+    jmp next_
  
 ;---------------------------------------------------------------------- 
 ; multiply by ten 
 ; 2x + 8x 
 mul10_: 
+    ; 2x
     asl tos + 0 
+    sta tos + 0 
     sta nos + 0 
     rol tos + 1 
+    sta tos + 1 
     sta nos + 1 
+    ; 2x
     asl tos + 0 
+    sta tos + 0 
     rol tos + 1 
+    sta tos + 1 
+    ; 2x
     asl tos + 0 
+    sta tos + 0 
     rol tos + 1 
+    sta tos + 1 
+    ; 2x + 8x
     clc
     lda tos + 0 
     adc nos + 0 
@@ -1083,6 +1075,50 @@ mul10_:
     adc nos + 1 
     sta tos + 1 
     rts 
+ 
+;---------------------------------------------------------------------- 
+; convert a hexadecimal value to binary 
+hex_: 
+    jsr decps_
+    lda #$00 
+    sta tos + 0 
+    sta tos + 1 
+@loop: 
+    jsr incps_
+    jsr ldaps_
+@isd: 
+    cmp #'0' 
+    bcc @ends 
+    cmp #'9' + 1 
+    bcs @ish 
+@cv10: 
+    sec 
+    sbc #'0' 
+    clc
+    bcc @uval 
+@ish: 
+    ; to upper
+    and #%11011111 
+    cmp 'A' 
+    bcc @ends 
+    cmp 'F' + 1 
+    bcs @ends 
+@cv16: 
+    sec 
+    sbc #'A' - 10 
+@uval: 
+    clc
+    adc tos + 0 
+    sta tos + 0 
+    lda #$00
+    adc tos + 1
+    sta tos + 1
+    jsr mul16_ 
+    clc
+    bcc @loop 
+@ends: 
+    jsr spush_ 
+    jmp next_
  
 ;---------------------------------------------------------------------- 
 ; multiply by sixteen 
@@ -1151,17 +1187,18 @@ dot_:
 ; print space 
 dotsp: 
     lda #' ' 
-    jsr  writeChar1 
+    jsr writeChar1 
     jmp next_ 
  
 ;---------------------------------------------------------------------- 
 writeChar: 
     jsr ldaps_
+    jsr writeChar1 
+    jmp next_ 
 
 ;---------------------------------------------------------------------- 
 writeChar1: 
     jmp putchar 
-    rts
  
 ;---------------------------------------------------------------------- 
 enter_:
@@ -1173,7 +1210,7 @@ macro:
 
 ;---------------------------------------------------------------------- 
 newln_: 
-    jsr  crlf 
+    jsr crlf 
     jmp next_ 
  
 ;---------------------------------------------------------------------- 
@@ -1198,12 +1235,12 @@ printStk:
 ;---------------------------------------------------------------------- 
 ; 6502 is memory mapped IO 
 inPort_: 
-    jmp cfetch_ 
+    jmp cFetch_ 
  
 ;---------------------------------------------------------------------- 
 ; 6502 is memory mapped IO 
 outPort_: 
-    jmp cstore_ 
+    jmp cStore_ 
  
 ;---------------------------------------------------------------------- 
 ; Execute next opcode
@@ -1217,6 +1254,21 @@ next_:
     sta wrk + 0 
     iny 
     lda optcodes, y 
+    sta wrk + 1 
+    jmp (wrk) 
+ 
+;---------------------------------------------------------------------- 
+; Execute next alt opcode
+alt_: 
+    ; using full jump table 
+    jsr incps_
+    jsr ldaps_
+    asl 
+    tay 
+    lda altcodes, y 
+    sta wrk + 0 
+    iny 
+    lda altcodes, y 
     sta wrk + 1 
     jmp (wrk) 
  
@@ -1249,9 +1301,222 @@ go_:
     jmp next_ 
  
 ;---------------------------------------------------------------------- 
-init:
-    
+; Execute code from a user function
+call_:
+    sta ap
+    jsr pushps_
+    jsr lookupDefs
+    jsr decps_
+    jmp next_
+
+lookupDefs:
+    lda ap
+    sbc 'A'
+    asl
+    tay
+    lda vDefs + 0
+    sta tos + 0
+    lda vDefs + 1
+    sta tos + 1
+    lda (tos), y
+    sta ips + 0
+    iny
+    lda (tos), y
+    sta ips + 1
+    rts 
+
 ;---------------------------------------------------------------------- 
-optcodes:
-altcodes:
-ctrcodes:
+; push an user variable 
+var_: 
+    sta ap 
+    lda #<vars 
+    sta tos + 0 
+    lda #>vars 
+    sta tos + 1 
+    jmp a2z_ 
+ 
+;---------------------------------------------------------------------- 
+; push a mint variable
+sysVar_: 
+    sta ap 
+    lda #<vsys 
+    sta tos + 0 
+    lda #>vsys 
+    sta tos + 1 
+    jmp a2z_ 
+ 
+;---------------------------------------------------------------------- 
+; push a reference into stack
+a2z_: 
+    lda ap 
+    sec 
+    sbc #'a' 
+    asl 
+    clc 
+    adc tos + 0 
+    bcc @iscc 
+    inc tos + 1 
+@iscc:
+    jsr spush_ 
+    jmp next_ 
+ 
+;---------------------------------------------------------------------- 
+break_:
+    jsr spull_
+    lda tos + 0
+    ora tos + 1
+    bne @isne
+    jmp next_
+@isne:
+    lda yp
+    clc
+    adc #$06
+    jmp begin1
+
+;---------------------------------------------------------------------- 
+; Left parentesis ( begins a loop
+begin_:
+
+	; tos is zero ?
+	jsr spull_
+	lda tos + 0
+	ora tos + 1
+	beq begin1
+
+	; alloc frame
+    lda yp
+    sec
+    sbc #6
+    sta yp
+
+    ldy yp
+    ; counter
+    lda #$00
+    sta rpz + 0, y
+    sta rpz + 1, y
+    ; limit
+    lda tos + 0
+    sta rpz + 2, y
+    lda tos + 1
+    sta rpz + 3, y
+    ; pointer
+    lda ips + 0
+    sta rpz + 4, y
+    lda ips + 1
+    sta rpz + 5, y
+    jmp next_ 
+
+begin1: 
+    lda #$01
+    sta ns 
+
+@loop: 
+    jsr incps_
+    jsr ldaps_
+    jsr nesting 
+    lda ns
+    eor ns
+    bne @loop
+    jmp next_ 
+
+;----------------------------------------------------------------------
+; Right parentesis ) again a loop 
+again_: 
+    ldy yp
+    ; counter
+    lda rpz + 0, y
+    sta wrk + 0
+    lda rpz + 1, y
+    sta wrk + 1
+
+    ; check if IFTEMode $FFFF
+
+    lda wrk + 0
+    and wrk + 1
+    sta ap
+    inc ap
+    bne again1
+    
+    ; push FALSE
+    lda FALSE
+    sta tos + 0
+    sta tos + 1
+    jsr spush_
+
+    ; drop IFTEMmode
+    lda yp
+    clc
+    adc #2
+    jmp next_
+ 
+again1: 
+    ; peek loop limit 
+    lda rpz + 2
+    sta nos + 0                 
+    lda rpz + 3
+    sta nos + 3
+
+    ; test end
+    sec
+    lda nos + 0
+    sbc wrk + 0
+    bne @noeq
+    lda nos + 1
+    sbc wrk + 1
+    bne @noeq
+
+    ; drop loop vars
+    lda yp
+    clc
+    adc #6
+	sta yp
+	jmp next_
+
+@noeq:
+    ; increase counter
+    inc wrk + 0
+    bne @novr
+    inc wrk + 1
+@novr:    
+    ; poke loop var 
+    lda wrk + 0
+    sta rpz + 0
+    lda wrk + 1
+    sta rpz + 1
+
+    ; return at begin    
+    lda rpz + 4, y
+    sta ips + 0
+    lda rpz + 5, y
+    sta ips + 1
+
+    jmp next_ 
+ 
+;----------------------------------------------------------------------
+ 
+;---------------------------------------------------------------------- 
+init:
+endGroup_:
+group_:
+j_:
+i_:
+charCode_:
+cArrDef_:
+editDef_:
+printStk_:
+ifte_:
+aNop_:
+arrEnd_:
+arrDef_:
+getRef_:
+ret_:
+def_:
+etx_:
+exit_:
+;---------------------------------------------------------------------- 
+;optcodes:
+;altcodes:
+;ctrcodes:
+
+.include "jumptables.s"
+
