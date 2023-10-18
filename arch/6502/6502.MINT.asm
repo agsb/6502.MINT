@@ -1493,7 +1493,26 @@ again1:
     jmp next_ 
  
 ;----------------------------------------------------------------------
- 
+ifte_:
+    jsr spull_
+    lda tos + 0
+    ora tos + 1
+    bne @isne
+    inc tos + 0
+    jsr spush_
+    jmp begin1
+@isne:
+    lda #$FF
+    sta tos + 0
+    sta tos + 1
+    jsr spush_
+    jmp next_
+
+;---------------------------------------------------------------------- 
+ret_:
+    jsr pullps_
+    jmp next_
+
 ;---------------------------------------------------------------------- 
 init:
 endGroup_:
@@ -1504,12 +1523,10 @@ charCode_:
 cArrDef_:
 editDef_:
 printStk_:
-ifte_:
 aNop_:
 arrEnd_:
 arrDef_:
 getRef_:
-ret_:
 def_:
 etx_:
 exit_:
