@@ -240,8 +240,8 @@ vBase16:    .word (sysVar_)     ;    b  ; base16 variable
 vTIBPtr:    .word (sysVar_)     ;    c  ; TIBPtr variable 
 vDefs:      .word (sysVar_)     ;    d 
 vEdited:    .word (sysVar_)     ;    e 
-vR0:        .word (sysVar_)     ;    f 
-            .word (sysVar_)     ;    g 
+vR0:        .word (sysVar_)     ;    f  ; start of return stack variable 
+vNext:      .word (sysVar_)     ;    g  ; next routine dispatcher 
 vHeapPtr:   .word (sysVar_)     ;    h  ; heap ptr variable 
        .word (i_)          ;    i  ; returns index variable of current loop 
        .word (j_)          ;    j  ; returns index variable of outer loop 
@@ -252,8 +252,8 @@ vHeapPtr:   .word (sysVar_)     ;    h  ; heap ptr variable
        .word (sysVar_)     ;    o 
        .word (sysVar_)     ;    p 
        .word (sysVar_)     ;    q 
-       .word (sysVar_)     ;    r 
-       .word (sysVar_)     ;    s 
+       .word (sysVar_)     ;    r  ; return stack pointer
+       .word (sysVar_)     ;    s  ; data stack pointer
        .word (sysVar_)     ;    t 
        .word (sysVar_)     ;    u 
        .word (sysVar_)     ;    v 
