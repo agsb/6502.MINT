@@ -846,13 +846,12 @@ str_:
  
 ;---------------------------------------------------------------------- 
 macro:
-    asl
-    sta ap
-    lda #<ctlcodes
+    tay
+    lda ctlcodeslo, y
     sta tos + 0
-    lda #>ctlcodes
+    lda ctlcodeshi, y
     sta tos + 1
-    lda ap
+    tya
     clc
     adc tos + 0
     sta tos + 0
@@ -1076,6 +1075,7 @@ printhex:
     lda tos + 1 
     jsr printhex8 
     lda tos + 0 
+    ; zzz jsr + rts ?
     jsr printhex8 
     rts 
  
@@ -1365,12 +1365,10 @@ next_:
     ; using full jump table 
     jsr incps_
     jsr ldaps_
-    asl 
     tay 
-    lda optcodes, y 
+    lda optcodeslo, y 
     sta wrk + 0 
-    iny 
-    lda optcodes, y 
+    lda optcodeshi, y 
     sta wrk + 1 
     jmp (wrk) 
  
@@ -1380,12 +1378,10 @@ alt_:
     ; using full jump table 
     jsr incps_
     jsr ldaps_
-    asl 
     tay 
-    lda altcodes, y 
+    lda altcodeslo, y 
     sta wrk + 0 
-    iny 
-    lda altcodes, y 
+    lda altcodeshi, y 
     sta wrk + 1 
     jmp (wrk) 
  
@@ -1928,5 +1924,5 @@ editDef_:
 ;altcodes:
 ;ctlcodes:
 
-.include "jumptables.s"
+.include "jumptablesdual.s"
 
