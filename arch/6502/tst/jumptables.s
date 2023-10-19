@@ -207,24 +207,24 @@ altcodes:
        .word (break_)      ;    B 
        .word (nop_)        ;    C 
        .word (depth_)      ;    D  ( -- val ) depth of data stack 
-       .word (emit_)       ;    E   ( val -- ) emits a char to output 
+       .word (emit_)       ;    E  ( val -- ) emits a char to output 
        .word (aNop_)       ;    F 
-       .word (go_)         ;    G   ( -- ? ) execute mint definition 
-       .word (aNop_)       ;    H 
+       .word (go_)         ;    G  ( -- ? ) execute mint definition 
+       .word (keyq_)       ;    H  ( verify if key hit )
        .word (inPort_)     ;    I  ( port -- val ) 
        .word (aNop_)       ;    J 
        .word (key_)        ;    K  ( -- val )  read a char from input 
        .word (aNop_)       ;    L 
        .word (aNop_)       ;    M 
-       .word (newln_)      ;    N   ; prints a newline to output 
+       .word (newln_)      ;    N  ; prints a newline to output 
        .word (outPort_)    ;    O  ( val port -- ) 
        .word (printStk_)   ;    P  ( -- ) non-destructively prints stack 
        .word (aNop_)       ;    Q  quits from Mint REPL 
        .word (rot_)        ;    R  ( a b c -- b c a ) 
        .word (aNop_)       ;    S 
        .word (aNop_)       ;    T 
-       .word (aNop_)       ;    U 
-       .word (aNop_)       ;    V 
+       .word (R2S_)       ;    U  S( -- w ) R( w -- ) 
+       .word (S2R_)       ;    V  S( w -- ) R( -- w )
        .word (aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop 
        .word (exec_)       ;    X 
        .word (aNop_)       ;    Y 
@@ -235,16 +235,16 @@ altcodes:
        .word (charCode_)   ;    ^ 
        .word (aNop_)       ;    _ 
        .word (aNop_)       ;    ` 
-vS0:        .word (sysVar_)     ;    a  ; start of data stack variable 
-vBase16:    .word (sysVar_)     ;    b  ; base16 variable 
-vTIBPtr:    .word (sysVar_)     ;    c  ; TIBPtr variable 
-vDefs:      .word (sysVar_)     ;    d 
-vEdited:    .word (sysVar_)     ;    e 
-vR0:        .word (sysVar_)     ;    f  ; start of return stack variable 
-vNext:      .word (sysVar_)     ;    g  ; next routine dispatcher 
-vHeapPtr:   .word (sysVar_)     ;    h  ; heap ptr variable 
-       .word (i_)          ;    i  ; returns index variable of current loop 
-       .word (j_)          ;    j  ; returns index variable of outer loop 
+       .word (sysVar_)     ;    a  ; start of data stack *fixed 
+       .word (sysVar_)     ;    b  ; base16 flag 
+       .word (sysVar_)     ;    c  ; TIBPtr variable 
+       .word (sysVar_)     ;    d  ; vDefs variable
+       .word (sysVar_)     ;    e  ; 
+       .word (sysVar_)     ;    f  ; start of return stack *fixed
+       .word (sysVar_)     ;    g  ; next dispatcher 
+       .word (sysVar_)     ;    h  ; heap ptr variable 
+       .word (i_)          ;    i  ; returns index of current loop 
+       .word (j_)          ;    j  ; returns index of outer loop 
        .word (sysVar_)     ;    k 
        .word (sysVar_)     ;    l 
        .word (sysVar_)     ;    m  ( a b -- c ) return the minimum value 

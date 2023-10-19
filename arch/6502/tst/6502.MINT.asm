@@ -1,3 +1,5 @@
+;vim: filetype=asm sw=4 ts=4 autoindent expandtab shiftwidth=4 et
+
 ; ********************************************************************* 
 ; 
 ;  MINT Minimal Interpreter 
@@ -15,39 +17,42 @@
 ;  star(tm) date 10/10/2023 
 ; ********************************************************************* 
  
-    DSIZE       = $80 
-    RSIZE       = $80 
+;    DSIZE       = $80 
+;    RSIZE       = $80 
  
     TIBSIZE     = $100 
     TRUE        = 1 
     FALSE       = 0 
  
-    NUMGRPS     = 5 
-    GRPSIZE     = $40 
+;    NUMGRPS     = 5 
+;    GRPSIZE     = $40 
  
 ;---------------------------------------------------------------------- 
-; notes 6502 version: 
+; notes 6502 version V0.4 : 
 ; 
-;   code is for RAM use. 
+;   code is for ROM use. 
 ; 
-;   caller must save a, x, y and 
-;   reserve 32 (?) words at hardware stack 
+;   if made for RAM:
+;       caller must save a, x, y and 
+;       reserve 32 (?) words at hardware stack 
 ; 
-;   stacks are from absolute address. 
-;   data stack indexed by x 
-;   return stack indexed by y 
-;   terminal input buffer 
-;   all just 128 cells deep and round-robin 
-;   a cell is 16-bit 
-;   16-bit jump table 
-;   extense use of post-indexed indirect addressing 
+;   1. a cell is 16-bit 
+;    2. no multiuser, no multitask !
+;   3. stacks are in absolute address. 
+;   4. data stack indexed by x 
+;   5. return stack indexed by y 
+;   6. terminal input buffer and stacks are  
+;      all just 128 cells deep and byte size round-robin 
+;   7. jump table is 16-bits
+;   8. extense use of Y indexed indirect addressing 
+;   9. uses 16 bytes at page zero $F0 to $FF, relocable
+;   10. expands mint variables
+;       alt-a used for vS0, start of data stack 
+;       alt-f used for vR0, start of return stack **** 
+;       alt-g used for vNext, indirect dispatcher **** 
 ; 
-;   alt-a used for vS0, start of data stack 
-;   alt-f used for vR0, start of return stack **** 
-;   alt-g reserved, copycat of references **** 
-; 
-;   all rotines must end with: 
-;   jmp (vNext) or jmp drop_ or a jmp / branch 
+;   11. all rotines must end with: 
+;   	jmp next_ or jmp (vNext) or jmp drop_ 
 ;---------------------------------------------------------------------- 
  
 ;---------------------------------------------------------------------- 
@@ -94,6 +99,8 @@
 ;---------------------------------------------------------------------- 
 .segment "CODE"
 
+; start of RAM
+
 VOID:
 
     .res $100, $00
@@ -114,8 +121,12 @@ defs:
 vsys:
     .res $36, $00
 
-; jump indirect
+; internals
+
 vNextJmp:
+    .word $0
+
+vEdited:
     .word $0
 
 vByteMode:
@@ -124,6 +135,21 @@ vByteMode:
 vtmp:
     .res 2, $00
 
+; aliases
+
+vS0      =  vsys + $00     ;    a  ; start of data stack variable
+vBase16  =  vsys + $02     ;    b  ; base16 flag
+vTIBPtr  =  vsys + $04     ;    c  ; TIBPtr variable
+vDefs    =  vsys + $08     ;    d  ; functions defines
+;        =  vsys + $0a     ;    e  ; 
+vR0      =  vsys + $0c     ;    f  ; start of return stack variable
+vNext    =  vsys + $0e     ;    g  ; next routine dispatcher
+vHeapPtr =  vsys + $10     ;    h  ; heap ptr variable
+
+dStack = vS0
+rStack = vR0
+HEAP = heap
+DEFS = defs
 
 ;---------------------------------------------------------------------- 
 .segment "ONCE"
@@ -134,6 +160,13 @@ vtmp:
 ; 
 ; ********************************************************************** 
  
+init:
+    jmp mint_
+.asciiz "6502 MINT"
+
+;---------------------------------------------------------------------- 
+;    depends on hardware
+;---------------------------------------------------------------------- 
 putchar:
     clc
     rts
@@ -149,9 +182,8 @@ hitchar:
 ;---------------------------------------------------------------------- 
 key_:
     jsr getchar
+keyk:
     sta tos + 0
-    lda #0
-    sta tos + 1
     jsr spush_
     jmp (vNext)
     
@@ -161,6 +193,12 @@ emit_:
     lda tos + 0
     jsr putchar
     jmp (vNext)
+
+;---------------------------------------------------------------------- 
+keyq_:
+    jsr hitchar
+    clv
+    bvc keyk
 
 ;---------------------------------------------------------------------- 
 aNop_:
@@ -290,6 +328,18 @@ take2_:
     inx 
     ; stx xp
     rts 
+
+;---------------------------------------------------------------------- 
+R2S_:
+    jsr rpull_
+    jsr spush_
+    rts
+
+;---------------------------------------------------------------------- 
+S2R_:
+    jsr spull_
+    jsr rpush_
+    rts
 
 ;---------------------------------------------------------------------- 
 ; NEGate the value on top of stack (2's complement) 
@@ -788,8 +838,8 @@ str_:
     cmp #'`'              ; ` is the string terminator 
     beq @ends 
     jsr putchar 
-    clc
-    bcc @loop 
+    clv
+    bvc @loop 
     ; error in putchar
 @ends: 
     jmp (vNext) 
@@ -1075,8 +1125,8 @@ num_:
     adc tos + 1
     sta tos + 1
     jsr mul10_ 
-    clc
-    bcc @loop 
+    clv
+    bvc @loop 
 @ends: 
     jsr spush_ 
     jmp (vNext)
@@ -1130,8 +1180,8 @@ hex_:
 @cv10: 
     sec 
     sbc #'0' 
-    clc
-    bcc @uval 
+    clv
+    bvc @uval 
 @ish: 
     ; to upper
     and #%11011111 
@@ -1150,8 +1200,8 @@ hex_:
     adc tos + 1
     sta tos + 1
     jsr mul16_ 
-    clc
-    bcc @loop 
+    clv
+    bvc @loop 
 @ends: 
     jsr spush_ 
     jmp (vNext)
@@ -1437,6 +1487,49 @@ nosp_:
     rts
 
 ;---------------------------------------------------------------------- 
+group_:
+    jsr spull_
+    lda tos + 0
+    sta nos + 1
+    lda #$00
+    sta nos + 0
+
+    lsr nos + 1
+    ror nos + 0
+    lsr nos + 1
+    ror nos + 0
+
+    lda vDefs + 0
+    sta tos + 0
+    lda vDefs + 1
+    sta tos + 1
+    jsr rpush_
+
+    lda defs + 0
+    sta tos + 0
+    lda defs + 1
+    sta tos + 1
+
+    clc
+    lda tos + 0
+    adc nos + 0
+    sta vDefs + 0
+    lda tos + 1
+    adc nos + 1
+    sta vDefs + 1
+
+    jmp (vNext)
+
+;---------------------------------------------------------------------- 
+endGroup_:
+    jsr rpull_
+    lda tos + 0
+    sta vDefs + 0
+    lda tos + 1
+    sta vDefs + 1
+    jmp (vNext)
+
+;---------------------------------------------------------------------- 
 getRef_:
     jsr nosp_
     sta ap
@@ -1565,13 +1658,13 @@ break_:
 ; Left parentesis ( begins a loop
 begin_:
 
-	; tos is zero ?
-	jsr spull_
-	lda tos + 0
-	ora tos + 1
-	beq begin1
+    ; tos is zero ?
+    jsr spull_
+    lda tos + 0
+    ora tos + 1
+    beq begin1
 
-	; alloc frame
+    ; alloc frame
     lda yp
     sec
     sbc #6
@@ -1657,8 +1750,8 @@ again1:
     lda yp
     clc
     adc #6
-	sta yp
-	jmp (vNext)
+    sta yp
+    jmp (vNext)
 
 @noeq:
     ; increase counter
@@ -1737,21 +1830,96 @@ etx_:
     jmp interpret
     
 ;---------------------------------------------------------------------- 
-init:
+iSysVars:
+        .word  dStack               ; a vS0
+        .word  FALSE                ; b vBase16
+        .word  tib                  ; c vTIBPtr
+        .word  DEFS                 ; d vDEFS
+        .word  FALSE                ; e vEdited
+        .word  rStack               ; f vR0
+        .word  next_                ; g dispatcher
+        .word  HEAP                 ; h vHeapPtr
+fSysVars:
+
+dysys = fSysVars - iSysVars
+
+;---------------------------------------------------------------------- 
+mint_:
+
+; wise
 
     sei
+    lda #$FF
+    tay
+    tax
+    txs
+    lda #$00
+    sta ns
     cld
+    cli
+
+    jsr initialize
+
+    jsr printStr
+    .asciiz "MINT 6502 V1.0\r\n"
+
+    jmp interpret
+
+;---------------------------------------------------------------------- 
+initialize:
+
+; defaults values
+    lda #<vars
+    sta tos + 0
+    lda #>vars
+    sta tos + 1
+    lda #<vsys
+    sta nos + 0
+    lda #>vsys
+    sta nos + 1
+    lda #$00
+    tay
+@loop1:
+    sta (tos), y
+    sta (nos), y
+    iny
+    sta (tos), y
+    sta (nos), y
+    iny
+    cpy #52
+    bne @loop1
+
+; default functions
+    lda #<defs
+    sta wrk + 0
+    lda #>defs
+    sta wrk + 1
+    ldy #$00
+@loop2:
+    lda #<empty_
+    sta (wrk), y
+    iny
+    lda #>empty_
+    sta (wrk), y
+    iny
+    cpy #52
+    bne @loop2
+
+; default system values 
+    ldy dysys
+@loop3:
+    lda iSysVars, y    
+    sta vsys, y
+    dey
+    bne @loop3
 
     lda #<next_
     sta vNext + 0
     lda #>next_
     sta vNext + 1
 
-    jsr initialize
+    rts
 
-;---------------------------------------------------------------------- 
-endGroup_:
-group_:
 
 editDef_:
 
