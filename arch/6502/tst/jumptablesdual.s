@@ -536,7 +536,3 @@ macros:
  
 .include "6502.MINT.macros.asm" 
  
-; heap must be here ! 
- 
-heap: 
- 

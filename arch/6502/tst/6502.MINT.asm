@@ -19,13 +19,21 @@
  
 ;    DSIZE       = $80 
 ;    RSIZE       = $80 
- 
-    TIBSIZE     = $100 
+;    TIBSIZE     = $100 
+
     TRUE        = 1 
     FALSE       = 0 
+
+    CR  = 13
+    LF  = 10
+    ETX = 3
+    NUL = 0
  
-;    NUMGRPS     = 5 
-;    GRPSIZE     = $40 
+    ; more groups for defs
+    NUMGRPS     = 5 
+
+    ; all groups size
+    GRPSIZE     = $40 
  
 ;---------------------------------------------------------------------- 
 ; notes 6502 version V0.4 : 
@@ -34,34 +42,52 @@
 ; 
 ;   if made for RAM:
 ;       caller must save a, x, y and 
-;       reserve 32 (?) words at hardware stack 
-; 
+;       reserve at least 32 words at hardware stack 
+;
+;      a Z80, does ADD HL, DE in 12 t and 1 byte  
+;      a 6502, does it in 13 t and 9 bytes 
+;      
+;   0. it is a 8-bit doing 16-bit things
 ;   1. a cell is 16-bit 
-;    2. no multiuser, no multitask !
-;   3. stacks are in absolute address. 
-;   4. data stack indexed by x 
-;   5. return stack indexed by y 
+;   2. no multiuser, no multitask 
+;   3. no garbage collector
+;   4. stacks are offsets from absolute address. 
+;   5. data stack indexed by X and return stack indexed by Y 
 ;   6. terminal input buffer and stacks are  
 ;      all just 128 cells deep and byte size round-robin 
 ;   7. jump table is 16-bits
 ;   8. extense use of Y indexed indirect addressing 
-;   9. uses 16 bytes at page zero $F0 to $FF, relocable
-;   10. expands mint variables
-;       alt-a used for vS0, start of data stack 
-;       alt-f used for vR0, start of return stack **** 
-;       alt-g used for vNext, indirect dispatcher **** 
-; 
-;   11. all rotines must end with: 
+;   9. uses 16 bytes at page zero $F0 to $FF, 
+;  10. user functions are mapped in five groups, or more
+;  11. user functions are stored in heap
+;  12. all rotines must end with: 
 ;   	jmp next_ or jmp (vNext) or jmp drop_ 
+;
+;  Changes in mint:
+
+;   1. expanded mint variables
+;        alt-a, used for vS0, start of data stack 
+;        alt-f, used for vR0, start of return stack **** 
+;        alt-g, used for vNext, indirect dispatcher **** 
+;   2. expanded mint functions
+;        alt-U, classic Forth R> 
+;        alt-V, classic Forth >R 
+;   3. all variables and functions are composed in groups,
+;        each group have 32 cells, accessed from 'a' to 'z',
+;        with 6 more cells below 'z'.
+;
+;
 ;---------------------------------------------------------------------- 
  
 ;---------------------------------------------------------------------- 
 ; page 0, reserved cells 
     zpage = $f0 
- 
-; copycat 
+
+; reserved 
     yp = zpage + $0  ; y index, return stack pointer, 
     xp = zpage + $1  ; x index, parameter stack pointer, 
+
+; copycat 
     ap = zpage + $2  ; accumulator 
     ns = zpage + $3  ; nests 
  
@@ -72,22 +98,11 @@
     tmp = zpage + $a  ; work register 
 
 ; holds
-    nxt = zpage + $c  ; next pointer 
+    lnk = zpage + $c  ; next pointer 
     ips = zpage + $e  ; instruction pointer 
  
 ; all in RAM, better put tables at end of code ? 
  
-;    start = $200 
-;    tib = start  ; terminal input buffer, upwards 
-;    spz = start + $1FF  ; absolute data stack, backwards 
-;    rpz = start + $2FF  ; absolute parameter stack, backwards 
-; 
-;    vars = start + $300  ;   26 words 
-;    vsys = start + $336  ;   26 words 
-;    defs = start + $36C  ;   26 words 
-;    tmps = start + $3D8  ;   14 words 
-; 
-;    free = start + $400  ; free ram start 
 
 ;---------------------------------------------------------------------- 
 .segment "VECTORS"
@@ -101,25 +116,33 @@
 
 ; start of RAM
 
+    ; .align $100
+
 VOID:
 
+; data stack
     .res $100, $00
 spz:
 
+; return stack
     .res $100, $00
 rpz: 
 
+; terminal input buffer
 tib:    
     .res $100, $00
 
-vars:
-    .res $36, $00
-
-defs:
-    .res $36, $00
-
+; mint variables, 26 plus 6 from z
 vsys:
-    .res $36, $00
+    .res $40, $00
+
+; user variable, 26 plus 6 from z
+vars:
+    .res $40, $00
+
+; user function groups, each with 26 plus 6 from Z
+defs:
+    .res $40 * NUMGRPS, $00
 
 ; internals
 
@@ -132,8 +155,12 @@ vEdited:
 vByteMode:
     .word $0
 
-vtmp:
-    .res 2, $00
+; free = $400  ; free ram start 
+; heap must be here ! 
+    .word $DE, $AD, $C0, $DE
+
+heap:
+    .word $0
 
 ; aliases
 
@@ -162,7 +189,7 @@ DEFS = defs
  
 init:
     jmp mint_
-.asciiz "6502 MINT"
+    .asciiz "6502 MINT"
 
 ;---------------------------------------------------------------------- 
 ;    depends on hardware
@@ -228,7 +255,7 @@ decps_:
 ;---------------------------------------------------------------------- 
 ; load char at instruction pointer 
 ldaps_: 
-    ldy #$00 
+    ldy NUL 
     lda (ips), y 
     rts 
  
@@ -346,11 +373,11 @@ S2R_:
 neg_: 
     ; ldx xp
     sec 
-    lda #0 
+    lda NUL 
     sbc spz + 0, x 
     sta spz + 0, x 
     sec 
-    lda #0 
+    lda NUL
     sbc spz + 1, x 
     sta spz + 1, x 
     ; stx xp
@@ -564,11 +591,13 @@ opin:
     lda spz + 3, y
     sta tmp + 1
     ; clear results
-    lda #0
+    lda NUL
     sta tos + 0
     sta tos + 1
     sta nos + 0 
     sta nos + 0
+    ; countdown
+    ldy #16
     rts
 
 ;---------------------------------------------------------------------- 
@@ -589,13 +618,7 @@ opout:
 ; Divide the top 2 members of the stack 
 ; divisor dividend -- quontient remainder
 div_: 
-    jsr divd 
-    jmp (vNext)
- 
-divd:
     jsr opin
-    ; countdown
-    ldy #16
 @loop:
     asl tmp + 0
     rol tmp + 1
@@ -628,13 +651,7 @@ divd:
 ; multiplier multiplicand -- resultLSW resultMSW
 ; 
 mul_:
-    jsr mult
-    jmp (vNext)
-
-mult:                         
     jsr opin
-    ; countdown
-    ldy #16
 @loop:
     asl tos + 0
     rol tos + 1
@@ -648,7 +665,7 @@ mult:
     lda tmp + 1
     adc tos + 1
     sta tos + 1
-    lda #0
+    lda NUL
     adc nos + 0
     sta nos + 0
 @iscc:
@@ -663,7 +680,7 @@ mult:
 incr_: 
     jsr take2_ 
     clc 
-    ldy #$00 
+    ldy NUL 
     lda (tos), y 
     adc nos + 0 
     sta (tos), y 
@@ -678,7 +695,7 @@ incr_:
 decr_: 
     jsr take2_ 
     sec 
-    ldy #$00 
+    ldy NUL 
     lda (tos), y 
     sbc nos + 0 
     sta (tos), y 
@@ -692,7 +709,7 @@ decr_:
 ; false 
 false2: 
     ; ldx xp
-    lda #$00 
+    lda NUL 
     sta spz + 2, x 
     sta spz + 3, x 
     ; stx xp
@@ -704,14 +721,14 @@ true2:
     ; ldx xp
     lda #$01 
     sta spz + 2, x 
-    lda #$00 
+    lda NUL 
     sta spz + 3, x 
     ; stx xp
     jmp drop_ 
  
 ;---------------------------------------------------------------------- 
 ; subtract for compare 
-cmp_: 
+cmps: 
     ; ldx xp
     sec 
     lda spz + 2, x 
@@ -724,14 +741,14 @@ cmp_:
 ;---------------------------------------------------------------------- 
 ; signed equal than 
 eq_: 
-    jsr cmp_ 
+    jsr cmps 
     bne false2 
     beq true2 
  
 ;---------------------------------------------------------------------- 
 ; signed less than 
 lt_: 
-    jsr cmp_ 
+    jsr cmps 
     bmi true2 
     bpl false2 
  
@@ -739,7 +756,7 @@ lt_:
 ; signed greather than 
 ; must be in that order, bpl is non negative flag 
 gt_: 
-    jsr cmp_ 
+    jsr cmps 
     bmi false2 
     beq false2 
     bpl true2 
@@ -749,19 +766,19 @@ gt_:
 ; a b c - a b (c) 
 ; fetch a byte 
 cFetch_: 
-    lda #$00 
+    lda NUL 
     sta tos + 1 
     sec
-    jmp isfetch_ 
- 
+    jmp isfetch 
+
 ;---------------------------------------------------------------------- 
 ; fetch a word 
 fetch_: 
     clc 
-    jmp isfetch_ 
+    jmp isfetch 
  
 ;---------------------------------------------------------------------- 
-isfetch_: 
+isfetch: 
     ; ldx xp
     ; load the reference 
     lda spz + 0, x 
@@ -769,7 +786,7 @@ isfetch_:
     lda spz + 1, x 
     sta nos + 1 
     ; then the value 
-    ldy #$00
+    ldy NUL
     lda (nos), y 
     sta tos + 0
     bcs @cset
@@ -792,19 +809,19 @@ isfetch_:
 ; store a byte 
 cStore_: 
     sec 
-    jmp isstore_ 
+    jmp isstore 
  
 ;---------------------------------------------------------------------- 
 ; store a word 
 store_: 
     clc 
-    jmp isstore_ 
+    jmp isstore 
  
 ;---------------------------------------------------------------------- 
-isstore_: 
+isstore: 
     jsr take2_ 
     ; copy the value 
-    ldy #$00
+    ldy NUL
     lda nos + 0
     sta (tos), y
     bcs @cset
@@ -829,9 +846,9 @@ _empty_:
     jmp (vNext)
  
 ;---------------------------------------------------------------------- 
-; puts a string, limit 255 chars 
+; puts a string 
 str_: 
-    ldy #$00
+    ldy NUL
 @loop:
     iny
     lda (ips), y
@@ -870,12 +887,12 @@ interpret:
 
 ; used by tests 
 interpret1:
-    lda #$00 
+    lda NUL 
     sta vTIBPtr + 0 
     sta vTIBPtr + 1 
 
 interpret2:                     
-    lda #$00
+    lda NUL
     sta ns
     tay
     beq @cast
@@ -887,7 +904,7 @@ interpret2:
     jsr nesting            ; update nesting value 
 
 @cast: 
-    cpy #0 
+    cpy NUL 
     bne @loop 
     ; fall throught
 
@@ -896,16 +913,16 @@ interpret2:
 ; get a line into tib
 waitchar: 
 getstr:
-    ; already ldy #$00 
+    ; already ldy NUL 
 @loop:
     jsr getchar 
     cmp #32                 ; ge space ? 
     bcs @ischar 
     cmp #$0                 ; is it end of string ? 
     beq @endstr 
-    cmp #13                 ; carriage return ? 
+    cmp CR                 ; carriage return ? 
     beq @iscrlf 
-    cmp #10                 ; line feed ? 
+    cmp LF                 ; line feed ? 
     beq @iscrlf 
 @ismacro: 
     jmp macro 
@@ -913,28 +930,27 @@ getstr:
     jsr @echo 
     ; nest ? 
     jsr nesting 
-    jmp @loop            ; wait for next character 
+    clv
+    bvc @loop            ; wait for next character 
 @iscrlf: 
-    ; CR 
-    lda #13 
+    lda CR 
     jsr @echo 
-    ; LF 
-    lda #10 
+    lda LF 
     jsr @echo 
     ; pending nest ? 
     lda ns 
-    cmp #$00 
+    cmp NUL 
     beq @loop 
 ; mark etx, used later to check Z80 stack deep, 
 ; not need in 6502 round-robin stack,
 ; preserved for compability
 @endstr: 
     ; mark ETX 
-    lda #$03 
+    lda ETX 
     sta tib, y
     iny
     ; mark NUL
-    lda #$00 
+    lda NUL 
     sta tib, y 
 
     lda #<tib
@@ -961,6 +977,7 @@ getstr:
 nesting: 
     cmp #'`' 
     bne @nests 
+    ; clear bit 7
     lda #$80 
     eor ns 
     sta ns 
@@ -1004,16 +1021,25 @@ printStr:
     rts 
  
 ;---------------------------------------------------------------------- 
-; prints a asciiz, refered by wrk 
-puts_: 
-    ldy #$00 
-    jsr @noeq 
-@loop: 
-    jsr putchar 
+incwrk:
     inc wrk + 0 
     bne @noeq 
     inc wrk + 1 
 @noeq: 
+    rts
+
+;---------------------------------------------------------------------- 
+; prints a asciiz, refered by wrk 
+puts_: 
+    ldy NUL 
+    jsr @ends 
+@loop: 
+    jsr putchar
+    ; just until 255
+    ; iny
+    ; beq @ends
+    ; or until no zero
+    jsr incwrk
     lda (wrk), y 
     bne @loop 
 @ends: 
@@ -1036,11 +1062,6 @@ printdec:
     lda #<100 
     sta nos + 0 
     lda #>100 
-    sta nos + 1 
-    jsr @nums 
-    lda #<10 
-    sta nos + 0 
-    lda #>10 
     sta nos + 1 
     jsr @nums 
     lda #<10 
@@ -1104,7 +1125,7 @@ printhex8:
 ; convert a decimal value to binary 
 num_: 
     jsr decps_
-    lda #$00 
+    lda NUL 
     sta tos + 0 
     sta tos + 1 
 @loop: 
@@ -1121,7 +1142,7 @@ num_:
     clc
     adc tos + 0 
     sta tos + 0 
-    lda #$00
+    lda NUL
     adc tos + 1
     sta tos + 1
     jsr mul10_ 
@@ -1166,7 +1187,7 @@ mul10_:
 ; convert a hexadecimal value to binary 
 hex_: 
     jsr decps_
-    lda #$00 
+    lda NUL 
     sta tos + 0 
     sta tos + 1 
 @loop: 
@@ -1196,7 +1217,7 @@ hex_:
     clc
     adc tos + 0 
     sta tos + 0 
-    lda #$00
+    lda NUL
     adc tos + 1
     sta tos + 1
     jsr mul16_ 
@@ -1209,7 +1230,7 @@ hex_:
 ;---------------------------------------------------------------------- 
 ; multiply by sixteen 
 mul16_: 
-    ldy #04 
+    ldy #4 
 @loop: 
     asl tos + 0 
     sta tos + 0 
@@ -1222,11 +1243,11 @@ mul16_:
 ;---------------------------------------------------------------------- 
 ; skip to eol
 comment_: 
-    ldy #$00
+    ldy NUL
 @loop:    
     iny
     lda (ips), y
-    cmp #13 
+    cmp CR 
     bne @loop 
     ; skip \r
     iny
@@ -1250,7 +1271,7 @@ depth_:
     ; words 
     lsr
     sta tos + 0 
-    lda #00 
+    lda NUL 
     sta tos + 1 
     jsr spush_ 
     jmp (vNext) 
@@ -1276,12 +1297,6 @@ dotsp:
     jsr writeChar1 
     jmp (vNext) 
  
-;---------------------------------------------------------------------- 
-writeChar: 
-    jsr ldaps_
-    jsr writeChar1 
-    jmp (vNext) 
-
 ;---------------------------------------------------------------------- 
 writeChar1: 
     jmp putchar 
@@ -1325,7 +1340,7 @@ charCode_:
     jsr incps_
     jsr ldaps_
     sta tos + 0
-    lda #$00
+    lda NUL
     sta tos + 1
     jsr spush_
     jmp (vNext)
@@ -1340,7 +1355,7 @@ compNext:
     lda vHeapPtr + 1
     sta nos + 1
 
-    ldy #$00
+    ldy NUL
     lda tos + 0
     sta (nos), y
     iny
@@ -1439,6 +1454,93 @@ lookupDefs:
     rts 
 
 ;---------------------------------------------------------------------- 
+editDef_:
+    ; which one 
+    jsr spull_
+    ; toChar
+    lda #'A'
+    clc
+    adc tos + 0
+    sta ap
+    ; in words
+    asl tos + 0
+    rol tos + 1
+    ; reference
+    lda vDefs + 0
+    sta nos + 0
+    lda vDefs + 1
+    sta nos + 1
+    ; offset
+    clc
+    lda nos + 0
+    adc tos + 0
+    sta nos + 0
+    lda nos + 1
+    adc tos + 1
+    sta nos + 1
+    ; reference
+    ldy NUL
+
+    lda (nos), y
+    sta tos + 0
+    iny
+    lda (nos), y
+    sta tos + 1
+
+    ; ldy NUL
+    ; empty ?
+    lda (tos), y
+    cmp #';'
+    beq editDef3
+
+    ; destin
+    lda #<tib
+    sta wrk + 0
+    lda #>tib
+    sta wrk + 1
+    
+    ; else
+    ; ldy NUL
+    
+    lda #':'
+    jsr writeChar
+    jsr incwrk
+    
+    lda ap
+    jsr writeChar
+    jsr incwrk
+    
+    clv
+    bvc editDef2
+
+editDef1:
+    iny
+    beq editDef3
+editDef2:
+    lda (tos), y
+    jsr writeChar
+    cmp #';'
+    bne editDef1
+
+editDef3:
+    lda #<tib
+    sta tos + 0
+    lda #>tib
+    sta tos + 1
+
+    lda tos + 0
+    sta vTIBPtr + 0
+    lda tos + 1
+    sta vTIBPtr + 1
+    jmp (vNext)
+
+;---------------------------------------------------------------------- 
+writeChar: 
+    sta (wrk), y
+    jmp putchar
+
+
+;---------------------------------------------------------------------- 
 ; push an user variable 
 var_: 
     sta ap 
@@ -1487,25 +1589,26 @@ group_:
     jsr spull_
     lda tos + 0
     sta nos + 1
-    lda #$00
+    lda NUL
     sta nos + 0
 
+    ; group is 64 bytes
     lsr nos + 1
     ror nos + 0
     lsr nos + 1
     ror nos + 0
-
+    ; save last group
     lda vDefs + 0
     sta tos + 0
     lda vDefs + 1
     sta tos + 1
     jsr rpush_
-
+    ; set origin
     lda defs + 0
     sta tos + 0
     lda defs + 1
     sta tos + 1
-
+    ; update group
     clc
     lda tos + 0
     adc nos + 0
@@ -1518,6 +1621,7 @@ group_:
 
 ;---------------------------------------------------------------------- 
 endGroup_:
+    ; load last group
     jsr rpull_
     lda tos + 0
     sta vDefs + 0
@@ -1608,7 +1712,7 @@ def_:
     lda vHeapPtr + 1
     sta (tos), y
     sta nos + 1
-    ldy #0
+    ldy NUL
     ; copy until 255 or ; 
 @loop:
     lda (ips), y
@@ -1668,7 +1772,7 @@ begin_:
 
     ldy yp
     ; counter
-    lda #$00
+    lda NUL
     sta rpz + 0, y
     sta rpz + 1, y
     ; limit
@@ -1849,7 +1953,7 @@ mint_:
     tay
     tax
     txs
-    lda #$00
+    lda NUL
     sta ns
     cld
     cli
@@ -1873,7 +1977,7 @@ initialize:
     sta nos + 0
     lda #>vsys
     sta nos + 1
-    lda #$00
+    lda NUL
     tay
 @loop1:
     sta (tos), y
@@ -1885,20 +1989,20 @@ initialize:
     cpy #52
     bne @loop1
 
-; default functions
+; default function
     lda #<defs
     sta wrk + 0
     lda #>defs
     sta wrk + 1
-    ldy #$00
+    ldy #(GRPSIZE/2 * NUMGRPS)
 @loop2:
+    dey
     lda #<empty_
     sta (wrk), y
-    iny
+    dey
     lda #>empty_
     sta (wrk), y
-    iny
-    cpy #52
+    cpy NUL
     bne @loop2
 
 ; default system values 
@@ -1909,6 +2013,7 @@ initialize:
     dey
     bne @loop3
 
+; safe
     lda #<next_
     sta vNext + 0
     lda #>next_
@@ -1916,8 +2021,6 @@ initialize:
 
     rts
 
-
-editDef_:
 
 ;---------------------------------------------------------------------- 
 ;optcodes:
