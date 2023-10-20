@@ -16,23 +16,58 @@
  
 ;  star(tm) date 10/10/2023 
 ; ********************************************************************* 
+
+;--------------------------------------------------------
+;
+;	specifc for ca65 assembler 
+;
+;--------------------------------------------------------
+; enable listing
+
+.list on
+
+; identifiers
+
+.case +
+
+; debug
+
+.debuginfo +
+
+; enable features
+
+.feature c_comments
+
+; .feature string_escapes
+
+.feature org_per_seg
+
+.feature dollar_is_pc
+
+.feature pc_assignment
+
+; enable 6502 mode
+
+.p02
+
  
-;    DSIZE       = $80 
-;    RSIZE       = $80 
-;    TIBSIZE     = $100 
+;--------------------------------------------------------
+; constants
+;
 
     TRUE        = 1 
     FALSE       = 0 
 
     CR  = 13
     LF  = 10
+    BS  = 9
     ETX = 3
     NUL = 0
  
-    ; more groups for defs
+    ; groups for defs
     NUMGRPS = 5 
 
-    ; all groups size
+    ; group size
     GRPSIZE = $40
  
     ; size page
@@ -65,6 +100,11 @@
 ;  11. user functions are stored in heap
 ;  12. all rotines must end with: 
 ;   	jmp next_ or jmp (vNext) or jmp drop_ 
+;  13. all stack routines, 
+;      load the index at start
+;      save the index at end, if changed
+;      this leaves free both X and Y for general use
+;      better safe than sorry, tweak if need speed 
 ;
 ;  Changes in mint:
 
@@ -84,36 +124,34 @@
 ;        each group have 32 cells, accessed from 'a' to 'z',
 ;        with 6 more cells below 'z'.
 ;
-;   4. extra functions 
-;       gets_, gets a line into a buffer, asciiz
-;       puts_, puts a line from a buffer, asciiz 
+;   4. extra string functions, both ends at crlf or asciiz
+;       gets_, gets a line into a buffer, 
+;       puts_, puts a line from a buffer,  
 ;
 ;---------------------------------------------------------------------- 
  
 ;---------------------------------------------------------------------- 
 ; page 0, reserved cells 
-    zpage = $f0 
+.segment "ZERO"
+; offset
+* = $00F0
 
-; reserved 
-    yp = zpage + $0  ; y index, return stack pointer, 
-    xp = zpage + $1  ; x index, parameter stack pointer, 
-
-; copycat 
-    ap = zpage + $2  ; accumulator 
-    ns = zpage + $3  ; nests 
- 
-; pseudos 
-    tos = zpage + $4  ; tos  register 
-    nos = zpage + $6  ; nos  register 
-    wrk = zpage + $8  ; work register 
-    tmp = zpage + $a  ; work register 
-
-; holds
-    lnk = zpage + $c  ; next pointer 
-    ips = zpage + $e  ; instruction pointer 
- 
-; all in RAM, better put tables at end of code ? 
- 
+; index for data stack
+sps:    .byte $0
+; index for return stack
+rps:    .byte $0
+; instruction pointer
+ips:    .word $0
+; copycat for registers
+yp: 	.byte $0
+xp: 	.byte $0
+ap: 	.byte $0
+ns: 	.byte $0
+; pseudo registers
+tos:    .word $0
+nos:    .word $0
+wrk:    .word $0
+tmp:    .word $0
 
 ;---------------------------------------------------------------------- 
 .segment "VECTORS"
@@ -127,7 +165,7 @@
 
 ; start of RAM
 
-    ; .align $100
+.align $100
 
 VOID:
 
@@ -157,46 +195,42 @@ defs:
 
 ; internals
 
-vNextJmp:
-    .word $0
-
 vEdited:
     .word $0
 
 vByteMode:
     .word $0
 
-; free = GRPSIZE0  ; free ram start 
-; heap must be here ! 
+; free ram start 
     .word $DEAD, $C0DE
 
+; heap must be here ! 
 heap:
     .word $0
 
+;---------------------------------------------------------------------- 
 ; aliases
 
-vS0      =  vsys + $00     ;    a  ; start of data stack variable
+vS0      =  vsys + $00     ;    a  ; start of data stack 
 vBase16  =  vsys + $02     ;    b  ; base16 flag
 vTIBPtr  =  vsys + $04     ;    c  ; TIBPtr variable
-vDefs    =  vsys + $08     ;    d  ; functions defines
+vDefs    =  vsys + $08     ;    d  ; reference for group user functions
 ;        =  vsys + $0a     ;    e  ; 
-vR0      =  vsys + $0c     ;    f  ; start of return stack variable
+vR0      =  vsys + $0c     ;    f  ; start of return stack 
 vNext    =  vsys + $0e     ;    g  ; next routine dispatcher
 vHeapPtr =  vsys + $10     ;    h  ; heap ptr variable
 
+; the address of stacks are hardcoded, changes will do no apply
 dStack = vS0
 rStack = vR0
+; changes will cause unexpected behavior
 HEAP = heap
 DEFS = defs
 
 ;---------------------------------------------------------------------- 
 .segment "ONCE"
  
-; ********************************************************************** 
-; 
-; (not yet) routines are ordered to occupy pages of 256 bytes 
-; 
-; ********************************************************************** 
+; ********************************************************************* 
  
 init:
     jmp mint_
@@ -223,6 +257,7 @@ key_:
 keyk:
     sta tos + 0
     jsr spush
+    ; next 
     jmp (vNext)
     
 ;---------------------------------------------------------------------- 
@@ -230,6 +265,7 @@ emit_:
     jsr spull
     lda tos + 0
     jsr putchar
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
@@ -241,8 +277,20 @@ keyq_:
 ;---------------------------------------------------------------------- 
 aNop_:
 nop_:
-    clc
+    ; next 
     jmp next
+
+;---------------------------------------------------------------------- 
+addps:    
+; update ip
+    clc
+    adc ips + 0
+    sta ips + 0
+    bcc @iscc
+    inc ips + 1
+@iscc:
+    ; next 
+    jmp (vNext)
 
 ;---------------------------------------------------------------------- 
 ; increase instruction pointer 
@@ -271,87 +319,96 @@ ldaps:
     rts 
  
 ;---------------------------------------------------------------------- 
+vHeap2nos:
+    ; array start
+    lda vHeapPtr + 0
+    sta nos + 0
+    lda vHeapPtr + 1
+    sta nos + 1
+    rts
+
+;---------------------------------------------------------------------- 
 pushps:
 ; push ps into RS 
-    ldy yp 
+    ldy rps 
     dey 
     dey 
     lda ips + 0 
     sta rpz + 0, y 
     lda ips + 1 
     sta rpz + 1, y 
-    sty yp 
+    sty rps 
     rts
 
 ;---------------------------------------------------------------------- 
 pullps:
 ; pull ps from RS 
-    ldy yp 
+    ldy rps 
     lda rpz + 0, y 
     sta ips + 0 
     lda rpz + 1, y 
     sta ips + 1 
     iny 
     iny 
-    sty yp 
+    sty rps 
     rts
 
 ;---------------------------------------------------------------------- 
 ; push tos into return stack 
 rpush: 
-    ldy yp 
+    ldy rps 
     dey 
     dey 
     lda tos + 0 
     sta rpz + 0, y 
     lda tos + 1 
     lda rpz + 1, y 
-    sty yp 
+    sty rps 
     rts 
  
 ;---------------------------------------------------------------------- 
 ; push tos from return stack 
 rpull: 
-    ldy yp 
+    ldy rps 
     lda rpz + 0, y 
     sta tos + 0 
     lda rpz + 1, y 
     sta tos + 1 
     iny 
     iny 
-    sty yp 
+    sty rps 
     rts 
  
 ;---------------------------------------------------------------------- 
 ; push tos into stack 
 spush: 
-    ; ldx xp
+    ldx sps
     dex 
     dex 
     lda tos + 0 
     sta spz + 0, x 
     lda tos + 1 
     sta spz + 1, x 
-    ; stx xp
+    stx sps
     rts 
  
 ;---------------------------------------------------------------------- 
 ; pull tos from stack 
 spull: 
-    ; ldx xp
+    ldx sps
     lda spz + 0, x 
     sta tos + 0 
     lda spz + 1, x 
     sta tos + 1 
     inx 
     inx 
-    ; stx xp
+    stx sps
     rts 
  
 ;---------------------------------------------------------------------- 
 ; take two from stack 
 take2: 
-    ; ldx xp
+    ldx sps
     lda spz + 0, x 
     sta tos + 0 
     lda spz + 1, x 
@@ -364,7 +421,7 @@ take2:
     inx 
     inx 
     inx 
-    ; stx xp
+    stx sps
     rts 
 
 ;---------------------------------------------------------------------- 
@@ -372,19 +429,21 @@ take2:
 R2S_:
     jsr rpull
     jsr spush
-    rts
+    ; next 
+    jmp (vNext) 
 
 ;---------------------------------------------------------------------- 
 ; classic >R
 S2R_:
     jsr spull
     jsr rpush
-    rts
+    ; next 
+    jmp (vNext) 
 
 ;---------------------------------------------------------------------- 
 ; NEGate the value on top of stack (2's complement) 
 neg_: 
-    ; ldx xp
+    ldx sps
     lda NUL 
     sec 
     sbc spz + 0, x 
@@ -393,55 +452,56 @@ neg_:
     sec 
     sbc spz + 1, x 
     sta spz + 1, x 
-    ; stx xp
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; Bitwise INVert the top member of the stack (1's complement) 
 inv_: 
-    ; ldx xp
+    ldx sps
     lda #$FF 
     eor spz + 0, x 
     sta spz + 0, x 
     lda #$FF 
     eor spz + 1, x 
     sta spz + 1, x 
-    ; stx xp
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; Duplicate the top member of the stack 
 ; a b c -- a b c c 
 dup_: 
-    ; ldx xp
+    ldx sps
     dex 
     dex 
     lda spz + 2, x 
     sta spz + 0, x 
     lda spz + 3, x 
     sta spz + 1, x 
-    ; stx xp
+    stx sps
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; Duplicate 2nd element of the stack 
 ; a b c -- a b c b 
 over_: 
-    ; ldx xp
+    ldx sps
     dex 
     dex 
     lda spz + 4, x 
     sta spz + 0, x 
     lda spz + 5, x 
     sta spz + 1, x 
-    ; stx xp
+    stx sps
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; Rotate 3 elements at stack 
 ; a b c -- b c a 
 rot_: 
-    ; ldx xp
+    ldx sps
     ; c -> t 
     lda spz + 0, x 
     sta tos + 0 
@@ -467,14 +527,14 @@ rot_:
     sta spz + 4, x 
     lda nos + 1 
     sta spz + 5, x 
-    ; stx xp
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; Swap 2nd and 1st elements of the stack 
 ; a b c -- a c b 
 swap_: 
-    ; ldx xp
+    ldx sps
     ; b -> w 
     lda spz + 0, x 
     sta tos + 0 
@@ -490,119 +550,115 @@ swap_:
     sta spz + 2, x 
     lda tos + 1 
     sta spz + 3, x 
-    ; stx xp
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ;  Left shift { is multply by 2 
 shl_: 
-    ; ldx xp
+    ldx sps
     asl spz + 0, x 
     rol spz + 1, x 
-    ; stx xp
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ;  Right shift } is a divide by 2 
 shr_: 
-    ; ldx xp
+    ldx sps
     lsr spz + 0, x 
     ror spz + 1, x 
-    ; stx xp
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; Drop the top member of the stack 
 ; a b c -- a b 
 drop_: 
-    ; ldx xp
+    ldx sps
     inx 
     inx 
-    ; stx xp
+    stx sps
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ;  Bitwise AND the top 2 elements of the stack 
 and_: 
-    ; ldx xp
+    ldx sps
     lda spz + 2, x 
     and spz + 0, x 
     sta spz + 2, x 
     lda spz + 3, x 
     and spz + 1, x 
     sta spz + 3, x 
-    ; stx xp
     jmp drop_ 
  
 ;---------------------------------------------------------------------- 
 ;  Bitwise OR the top 2 elements of the stack 
 or_: 
-    ; ldx xp
+    ldx sps
     lda spz + 2, x 
     ora spz + 0, x 
     sta spz + 2, x 
     lda spz + 3, x 
     ora spz + 1, x 
     sta spz + 3, x 
-    ; stx xp
     jmp drop_ 
  
 ;---------------------------------------------------------------------- 
 ;  Bitwise XOR the top 2 elements of the stack 
 xor_: 
-    ; ldx xp
+    ldx sps
     lda spz + 2, x 
     eor spz + 0, x 
     sta spz + 2, x 
     lda spz + 3, x 
     eor spz + 1, x 
     sta spz + 3, x 
-    ; stx xp
     jmp drop_ 
  
 ;---------------------------------------------------------------------- 
 ; Add the top 2 members of the stack 
 ; a b c -- a (b+c) 
 add_:   
-    ; ldx xp
-    clc 
+    ldx sps
     lda spz + 2, x 
+    clc 
     adc spz + 0, x 
     sta spz + 2, x 
     lda spz + 3, x 
     adc spz + 1, x 
     sta spz + 3, x 
-    ; stx xp
     jmp drop_ 
  
 ;---------------------------------------------------------------------- 
 ; Subtract the top 2 members of the stack 
 ; a b c -- a (b-c) 
 sub_: 
-    ; ldx xp
-    sec 
+    ldx sps
     lda spz + 2, x 
+    sec 
     sbc spz + 0, x 
     sta spz + 2, x 
     lda spz + 3, x 
     sbc spz + 1, x 
     sta spz + 3, x 
-    ; stx xp
     jmp drop_ 
  
 ;---------------------------------------------------------------------- 
 ; prepare for mult or divd
 opin:
-    ldy yp
+    ldx sps 
     ; pseudo tos
-    lda spz + 0, y
+    lda spz + 0, x
     sta wrk + 0
-    lda spz + 1, y
+    lda spz + 1, x
     sta wrk + 1
     ; pseudo nos 
-    lda spz + 2, y
+    lda spz + 2, x
     sta tmp + 0
-    lda spz + 3, y
+    lda spz + 3, x
     sta tmp + 1
     ; clear results
     lda NUL
@@ -618,15 +674,15 @@ opin:
 ; resume from mult or divd
 opout:
     ; copy results
-    ldy yp
+    ldx sps
     lda nos + 0
-    sta spz + 0, y
+    sta spz + 0, x
     lda nos + 1
-    sta spz + 1, y
+    sta spz + 1, x
     lda tos + 0
-    sta spz + 2, y
+    sta spz + 2, x
     lda tos + 1
-    sta spz + 3, y
+    sta spz + 3, x
     rts
 
 ;---------------------------------------------------------------------- 
@@ -664,6 +720,7 @@ div_:
     lda tmp + 1
     sta nos + 1
     jsr opout
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
@@ -696,6 +753,7 @@ mul_:
     dey
     bne @shift_r
     jsr opout
+    ; next 
     jmp (vNext)
  
 ;---------------------------------------------------------------------- 
@@ -709,9 +767,9 @@ incr_:
     sta (tos), y 
     iny 
     lda (tos), y 
-    clc
     adc nos + 1 
     sta (tos), y 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -725,42 +783,39 @@ decr_:
     sta (tos), y 
     iny 
     lda (tos), y 
-    sec 
     sbc nos + 1 
     sta (tos), y 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; false 
 false2: 
-    ; ldx xp
+    ldx sps
     lda NUL 
     sta spz + 2, x 
     sta spz + 3, x 
-    ; stx xp
     jmp drop_ 
  
 ;---------------------------------------------------------------------- 
 ; true 
 true2: 
-    ; ldx xp
+    ldx sps
     lda #$01 
     sta spz + 2, x 
     lda NUL 
     sta spz + 3, x 
-    ; stx xp
     jmp drop_ 
  
 ;---------------------------------------------------------------------- 
 ; subtract for compare 
 cmps: 
-    ; ldx xp
+    ldx sps
     lda spz + 2, x 
     sec 
     sbc spz + 0, x 
     lda spz + 3, x 
     sbc spz + 1, x 
-    ; stx xp
     rts 
  
 ;---------------------------------------------------------------------- 
@@ -804,8 +859,8 @@ fetch_:
  
 ;---------------------------------------------------------------------- 
 isfetch: 
-    ; ldx xp
     ; load the reference 
+    ldx sps
     lda spz + 0, x 
     sta nos + 0 
     lda spz + 1, x 
@@ -825,7 +880,6 @@ isfetch:
     lda tos + 1 
     sta spz + 1, x 
     ; next 
-    ; stx xp
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -853,9 +907,8 @@ isstore:
     iny
     lda nos + 1
     sta (tos), y
-    ; next 
 @cset:    
-    ; stx xp
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -871,9 +924,11 @@ str_:
     iny
     bne @loop
 @ends: 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
+; ????
 macro:
     tay
     lda ctlcodeslo, y
@@ -918,10 +973,7 @@ interpret2:
 ; loop around waiting for character 
 ; get a line into tib
 waitchar: 
-    lda #<tib
-    sta tos + 0
-    lda #>tib
-    sta tos + 1
+    jsr tib2tos
     jsr spush
     ; fall throught
 
@@ -936,23 +988,28 @@ gets_:
     cpy #$FE
     beq @endstr
     jsr getchar 
-    cmp #32                 ; ge space ? 
+    ; ge space ? 
+    cmp #32                 
     bcs @ischar 
-    cmp #$0                 ; is it end of string ? 
+    ; is it end of string ? 
+    cmp #$0                
     beq @endstr 
+    ; windows CRLF, linux CR, Mac LF
     cmp CR                 ; carriage return ? 
     beq @iscrlf 
     cmp LF                 ; line feed ? 
     beq @iscrlf 
-    ; ????
 @ismacro: 
     jmp macro 
+
 @ischar: 
     jsr @echo 
     ; nest ? 
     jsr nesting 
+    ; wait for next character 
     clv
-    bvc @loop            ; wait for next character 
+    bvc @loop            
+
 @iscrlf: 
     lda CR 
     jsr @echo 
@@ -979,6 +1036,7 @@ gets_:
     lda tos + 1
     sta ips + 1
     jsr decps
+    ; next 
     jmp next
 
 ; maximum 254 chars 
@@ -1027,11 +1085,13 @@ nesting:
 ;---------------------------------------------------------------------- 
 ; prints a asciiz, refered by hardware stack 
 printStr: 
+    ; reference
     pla 
     sta tos + 1 
     pla 
     sta tos + 0 
     jsr putstr 
+    ; offset
     clc
     adc tos + 0 
     pha 
@@ -1133,13 +1193,20 @@ printhex8:
 @ends: 
     jmp putchar 
  
+
 ;---------------------------------------------------------------------- 
-; convert a decimal value to binary 
-num_: 
+prenum:
     jsr decps
     lda NUL 
     sta tos + 0 
     sta tos + 1 
+    rts
+
+;---------------------------------------------------------------------- 
+; convert a decimal value to binary 
+num_: 
+    jsr prenum
+
 @loop: 
     jsr incps
     jsr ldaps
@@ -1162,6 +1229,7 @@ num_:
     bvc @loop 
 @ends: 
     jsr spush 
+    ; next 
     jmp (vNext)
  
 ;---------------------------------------------------------------------- 
@@ -1198,10 +1266,7 @@ mul10:
 ;---------------------------------------------------------------------- 
 ; convert a hexadecimal value to binary 
 hex_: 
-    jsr decps
-    lda NUL 
-    sta tos + 0 
-    sta tos + 1 
+    jsr prenum
 @loop: 
     jsr incps
     jsr ldaps
@@ -1237,6 +1302,7 @@ hex_:
     bvc @loop 
 @ends: 
     jsr spush 
+    ; next 
     jmp (vNext)
  
 ;---------------------------------------------------------------------- 
@@ -1261,18 +1327,13 @@ comment_:
     lda (ips), y
     cmp CR 
     bne @loop 
-    ; skip \r
-    iny
-    ; skip \n
-    iny
+    ; skip \r ?
+    ; iny
+    ; skip \n ?
+    ; iny
     ; offset
     tya
-    clc
-    adc ips + 0
-    bcc @iscc
-    inc ips + 1
-@iscc:
-    jmp (vNext) 
+    jmp addps
  
 ;---------------------------------------------------------------------- 
 depth_: 
@@ -1286,6 +1347,7 @@ depth_:
     lda NUL 
     sta tos + 1 
     jsr spush 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -1307,6 +1369,7 @@ dot_:
 dotsp: 
     lda #' ' 
     jsr writeChar1 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -1316,6 +1379,7 @@ writeChar1:
 ;---------------------------------------------------------------------- 
 newln_: 
     jsr crlf 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -1335,6 +1399,7 @@ printStk_:
     jsr enter
     ;.asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'" 
     .asciiz  "\\a@2-\\D1-(34@\\b@\\(,)(.)2-)'" 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -1355,6 +1420,7 @@ charCode_:
     lda NUL
     sta tos + 1
     jsr spush
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
@@ -1362,10 +1428,7 @@ charCode_:
 ;
 compNext:
     ; array start
-    lda vHeapPtr + 0
-    sta nos + 0
-    lda vHeapPtr + 1
-    sta nos + 1
+    jsr vHeap2nos
 
     ldy NUL
     jsr spull
@@ -1434,19 +1497,15 @@ enter:
     pla
     sta ips + 1 
     jsr decps
+    ; next 
     jmp (vNext) 
 
 ;---------------------------------------------------------------------- 
-; Execute code from data stack and return
+; Execute code from data stack 
+; 
 exec_:
     jsr spull
-    sta #<exec1
-    pha
-    sta #>exec1
-    pha
     jmp (tos)
-exec1:
-    jmp (vNext)
 
 ;---------------------------------------------------------------------- 
 ; Interpret code from data stack
@@ -1462,6 +1521,7 @@ go_:
     inx 
     ; stx xp
     jsr decps 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -1471,6 +1531,7 @@ call_:
     jsr pushps
     jsr lookupDefs
     jsr decps
+    ; next 
     jmp (vNext)
 
 lookupDeft:
@@ -1480,6 +1541,7 @@ lookupDeft:
 
 lookupDefs:
     lda ap
+    sec
     sbc 'A'
     asl
     tay
@@ -1490,62 +1552,48 @@ lookupDefs:
     rts 
 
 ;---------------------------------------------------------------------- 
-; zzzz
+; Copy a user macro to tib 
+; lookup up def based on a number at data stack
+;
 editDef_:
     ; which one 
     jsr spull
+    
     ; toChar
     lda #'A'
     clc
     adc tos + 0
     sta ap
-    ; in words
-    asl tos + 0
-    rol tos + 1
-    ; reference
-    lda vDefs + 0
-    sta nos + 0
-    lda vDefs + 1
-    sta nos + 1
-    ; offset
-    clc
-    lda nos + 0
-    adc tos + 0
-    sta nos + 0
-    lda nos + 1
-    adc tos + 1
-    sta nos + 1
-    ; reference
-    ldy NUL
+ 
+    jsr lookupDeft
 
-    lda (nos), y
-    sta tos + 0
-    iny
-    lda (nos), y
-    sta tos + 1
-
-    ; ldy NUL
-    ; empty ?
+    ; origin
     lda (tos), y
-    cmp #';'
+    sta nos + 0
+    iny
+    lda (tos), y
+    sta nos + 1
+
+    ldy NUL
+    ; empty ?
+    lda (nos), y
+    beq editDef3    ; is NUL ?
+    cmp #';'        ; is end ?
     beq editDef3
 
-    ; destin
-    lda #<tib
-    sta wrk + 0
-    lda #>tib
-    sta wrk + 1
-    
     ; else
     ; ldy NUL
-    
+
+    ; destiny
+    jsr tib2tos
+
     lda #':'
     jsr writeChar
-    jsr incwrk
-    
+    jsr inctos
+
     lda ap
     jsr writeChar
-    jsr incwrk
+    jsr inctos
     
     clv
     bvc editDef2
@@ -1555,27 +1603,39 @@ editDef1:
     beq editDef3
 
 editDef2:
-    lda (tos), y
+    lda (nos), y
     jsr writeChar
     cmp #';'
     bne editDef1
 
 editDef3:
-    lda #<tib
-    sta tos + 0
-    lda #>tib
-    sta tos + 1
 
-    lda tos + 0
+    lda #<tib
     sta vTIBPtr + 0
-    lda tos + 1
+    lda #>tib
     sta vTIBPtr + 1
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
 writeChar: 
-    sta (wrk), y
+    sta (tos), y
     jmp putchar
+
+inctos:
+    inc tos + 0
+    bcc @iscc1
+    inc tos + 1
+@iscc1:
+    rts
+    
+;---------------------------------------------------------------------- 
+tib2tos:
+    lda #<tib
+    sta tos + 0
+    lda #>tib
+    sta tos + 1
+    rts
 
 ;---------------------------------------------------------------------- 
 ; push an user variable 
@@ -1610,6 +1670,7 @@ a2z:
     inc tos + 1 
 @iscc:
     jsr spush 
+    ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
@@ -1654,6 +1715,7 @@ group_:
     adc nos + 1
     sta vDefs + 1
 
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
@@ -1664,6 +1726,7 @@ endGroup_:
     sta vDefs + 0
     lda tos + 1
     sta vDefs + 1
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
@@ -1694,12 +1757,15 @@ arrDef1:
     sta vNext + 1
 
     ; array start
-    lda vHeapPtr + 0
+    jsr vHeap2nos
+    
+    lda nos + 0
     sta tos + 0
-    lda vHeapPtr + 1
+    lda nos + 1
     sta tos + 1
 
     jsr rpush
+    ; next 
     jmp next
     
 ;---------------------------------------------------------------------- 
@@ -1708,10 +1774,7 @@ arrEnd_:
     jsr rpull
     jsr spush ; ????
 
-    lda vHeapPtr + 0
-    sta nos + 0
-    lda vHeapPtr + 1
-    sta nos + 1
+    jsr vHeap2nos
 
     sec
     lda nos + 0
@@ -1735,21 +1798,25 @@ arrEnd_:
     lda #>next
     sta vNext + 1
 
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
 def_:
     ; skip spaces
     jsr nosp
+    ; get slot at list
     sta ap
     jsr lookupDefs
-    lda vHeapPtr + 0
+    ; get the reference
+    jsr vHeap2nos
+    ; put reference to list
+    lda nos + 0
     sta (tos), y
-    sta nos + 0
     iny
-    lda vHeapPtr + 1
+    lda nos + 1
     sta (tos), y
-    sta nos + 1
+
     ldy NUL
     ; copy until 255 or ; 
 @loop:
@@ -1770,14 +1837,7 @@ def_:
     inc vHeapPtr + 1
 @iscc:
     lda ap
-    ; update ip
-    clc
-    adc ips + 0
-    sta ips + 0
-    bcc @iscci
-    inc ips + 1
-@iscci:
-    jmp (vNext)
+    jmp addps
 
 ;---------------------------------------------------------------------- 
 break_:
@@ -1790,7 +1850,7 @@ break_:
     lda yp
     clc
     adc #$06
-    jmp begin1
+    jmp skipnest
 
 ;---------------------------------------------------------------------- 
 ; Left parentesis ( begins a loop
@@ -1800,15 +1860,15 @@ begin_:
     jsr spull
     lda tos + 0
     ora tos + 1
-    beq begin1
+    beq skipnest
 
-    ; alloc frame
-    lda yp
+    ; alloc frame in return stack
+    lda rps
     sec
     sbc #6
-    sta yp
+    sta rps
 
-    ldy yp
+    ldy rps
     ; counter
     lda NUL
     sta rpz + 0, y
@@ -1823,20 +1883,21 @@ begin_:
     sta rpz + 4, y
     lda ips + 1
     sta rpz + 5, y
+    ; next 
     jmp (vNext) 
 
-begin1: 
+;----------------------------------------------------------------------
+; skip while nest
+skipnest: 
     lda #$01
     sta ns
-
-; escape
 @loop: 
     jsr incps
     jsr ldaps
     jsr nesting 
     lda ns
-    eor ns
     bne @loop
+    ; next 
     jmp (vNext) 
 
 ;----------------------------------------------------------------------
@@ -1867,6 +1928,7 @@ again_:
     lda yp
     clc
     adc #2
+    ; next 
     jmp (vNext)
  
 again1: 
@@ -1890,6 +1952,7 @@ again1:
     clc
     adc #6
     sta yp
+    ; next 
     jmp (vNext)
 
 @noeq:
@@ -1910,6 +1973,7 @@ again1:
     lda rpz + 5, y
     sta ips + 1
 
+    ; next 
     jmp (vNext) 
  
 ;----------------------------------------------------------------------
@@ -1928,27 +1992,29 @@ i_:
     lda spz + 0, y
     sta tos + 1
     jsr spush
+    ; next 
     jmp (vNext)
 
 ;----------------------------------------------------------------------
 ifte_:
     jsr spull
     lda tos + 0
-    ora tos + 1
     bne @isne
     inc tos + 0
     jsr spush
-    jmp begin1
+    jmp skipnest
 @isne:
     lda #$FF
     sta tos + 0
     sta tos + 1
     jsr spush
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
 ret_:
     jsr pullps
+    ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
@@ -1973,11 +2039,11 @@ iSysVars:
     .word  dStack               ; a vS0
     .word  FALSE                ; b vBase16
     .word  tib                  ; c vTIBPtr
-    .word  DEFS                 ; d vDEFS
+    .word  defs                 ; d vDEFS
     .word  FALSE                ; e vEdited
     .word  rStack               ; f vR0
     .word  next                 ; g dispatcher
-    .word  HEAP                 ; h vHeapPtr
+    .word  heap                 ; h vHeapPtr
 fSysVars:
 
 dysys = fSysVars - iSysVars
@@ -2029,18 +2095,14 @@ initialize:
     bne @loop1
 
 ; default function
-    lda #<defs
-    sta wrk + 0
-    lda #>defs
-    sta wrk + 1
     ldy #(GRPSIZE/2 * NUMGRPS)
 @loop2:
     dey
     lda #<empty_
-    sta (wrk), y
+    sta defs, y
     dey
     lda #>empty_
-    sta (wrk), y
+    sta defs, y
     cpy NUL
     bne @loop2
 
@@ -2053,10 +2115,6 @@ initialize:
     bne @loop3
 
 ; safe
-    jmp ldnext
-
-;---------------------------------------------------------------------- 
-ldnext:
     lda #<next
     sta vNext + 0
     lda #>next
@@ -2064,17 +2122,547 @@ ldnext:
     rts
 
 ;---------------------------------------------------------------------- 
-ldcomp:
-    lda #<compNext
-    sta vNext + 0
-    lda #>compNext
-    sta vNext + 1
-    rts
+;optcodes: parsed by opt_ (next)
+;altcodes: parsed by alt_
+;ctlcodes: maybe in a future...
+
+; ********************************************************************* 
+; Jump Tables, optmized for single index
+; ********************************************************************* 
+
+.align $100 
+ 
+;---------------------------------------------------------------------- 
+optcodeslo: 
+   .byte  <exit_    ;   NUL 
+   .byte  <nop_     ;   SOH 
+   .byte  <nop_     ;   STX 
+   .byte  <etx_     ;   ETX 
+   .byte  <nop_     ;   EOT 
+   .byte  <nop_     ;   ENQ 
+   .byte  <nop_     ;   apK 
+   .byte  <nop_     ;   BEL 
+   .byte  <nop_     ;   BS 
+   .byte  <nop_     ;   TAB 
+   .byte  <nop_     ;   LF 
+   .byte  <nop_     ;   VT 
+   .byte  <nop_     ;   FF 
+   .byte  <nop_     ;   CR 
+   .byte  <nop_     ;   SO 
+   .byte  <nop_     ;   SI 
+   .byte  <nop_     ;   DLE 
+   .byte  <nop_     ;   DC1 
+   .byte  <nop_     ;   DC2 
+   .byte  <nop_     ;   DC3 
+   .byte  <nop_     ;   DC4 
+   .byte  <nop_     ;   NAK 
+   .byte  <nop_     ;   SYN 
+   .byte  <nop_     ;   ETB 
+   .byte  <nop_     ;   CAN 
+   .byte  <nop_     ;   EM 
+   .byte  <nop_     ;   SUB 
+   .byte  <nop_     ;   ESC 
+   .byte  <nop_     ;   FS 
+   .byte  <nop_     ;   GS 
+   .byte  <nop_     ;   RS 
+   .byte  <nop_     ;   US 
+   .byte  <nop_     ;   SP 
+   .byte  <store_   ;   ! 
+   .byte  <dup_     ;   " 
+   .byte  <hex_     ;    # 
+   .byte  <swap_    ;    $ 
+   .byte  <over_    ;    % 
+   .byte  <and_     ;    & 
+   .byte  <drop_    ;    ' 
+   .byte  <begin_   ;    ( 
+   .byte  <again_   ;    ) 
+   .byte  <mul_     ;    * 
+   .byte  <add_     ;    + 
+   .byte  <hdot_    ;    , 
+   .byte  <sub_     ;    - 
+   .byte  <dot_     ;    . 
+   .byte  <div_     ;    / 
+   .byte  <num_     ;    0 
+   .byte  <num_     ;    1 
+   .byte  <num_     ;    2 
+   .byte  <num_     ;    3 
+   .byte  <num_     ;    4 
+   .byte  <num_     ;    5 
+   .byte  <num_     ;    6 
+   .byte  <num_     ;    7 
+   .byte  <num_     ;    8 
+   .byte  <num_     ;    9 
+   .byte  <def_     ;    : 
+   .byte  <ret_     ;    ; 
+   .byte  <lt_      ;    < 
+   .byte  <eq_      ;    = 
+   .byte  <gt_      ;    > 
+   .byte  <getRef_  ;    ? 
+   .byte  <fetch_   ;    @ 
+   .byte  <call_    ;    A 
+   .byte  <call_    ;    B 
+   .byte  <call_    ;    C 
+   .byte  <call_    ;    D 
+   .byte  <call_    ;    E 
+   .byte  <call_    ;    F 
+   .byte  <call_    ;    G 
+   .byte  <call_    ;    H 
+   .byte  <call_    ;    I 
+   .byte  <call_    ;    J 
+   .byte  <call_    ;    K 
+   .byte  <call_    ;    L 
+   .byte  <call_    ;    M 
+   .byte  <call_    ;    N 
+   .byte  <call_    ;    O 
+   .byte  <call_    ;    P 
+   .byte  <call_    ;    Q 
+   .byte  <call_    ;    R 
+   .byte  <call_    ;    S 
+   .byte  <call_    ;    T 
+   .byte  <call_    ;    U 
+   .byte  <call_    ;    V 
+   .byte  <call_    ;    W 
+   .byte  <call_    ;    X 
+   .byte  <call_    ;    Y 
+   .byte  <call_    ;    Z 
+   .byte  <arrDef_  ;    [ 
+   .byte  <alt_     ;    \ 
+   .byte  <arrEnd_  ;    ] 
+   .byte  <xor_     ;    ^ 
+   .byte  <neg_     ;    _ 
+   .byte  <str_     ;    ` 
+   .byte  <var_     ;    a 
+   .byte  <var_     ;    b 
+   .byte  <var_     ;    c 
+   .byte  <var_     ;    d 
+   .byte  <var_     ;    e 
+   .byte  <var_     ;    f 
+   .byte  <var_     ;    g 
+   .byte  <var_     ;    h 
+   .byte  <var_     ;    i 
+   .byte  <var_     ;    j 
+   .byte  <var_     ;    k 
+   .byte  <var_     ;    l 
+   .byte  <var_     ;    m 
+   .byte  <var_     ;    n 
+   .byte  <var_     ;    o 
+   .byte  <var_     ;    p 
+   .byte  <var_     ;    q 
+   .byte  <var_     ;    r 
+   .byte  <var_     ;    s 
+   .byte  <var_     ;    t 
+   .byte  <var_     ;    u 
+   .byte  <var_     ;    v 
+   .byte  <var_     ;    w 
+   .byte  <var_     ;    x 
+   .byte  <var_     ;    y 
+   .byte  <var_     ;    z 
+   .byte  <shl_     ;    { 
+   .byte  <or_      ;    | 
+   .byte  <shr_     ;    } 
+   .byte  <inv_     ;    ~ 
+   .byte  <nop_     ;    backspace 
+
+optcodeshi: 
+   .byte  >exit_    ;   NUL 
+   .byte  >nop_     ;   SOH 
+   .byte  >nop_     ;   STX 
+   .byte  >etx_     ;   ETX 
+   .byte  >nop_     ;   EOT 
+   .byte  >nop_     ;   ENQ 
+   .byte  >nop_     ;   apK 
+   .byte  >nop_     ;   BEL 
+   .byte  >nop_     ;   BS 
+   .byte  >nop_     ;   TAB 
+   .byte  >nop_     ;   LF 
+   .byte  >nop_     ;   VT 
+   .byte  >nop_     ;   FF 
+   .byte  >nop_     ;   CR 
+   .byte  >nop_     ;   SO 
+   .byte  >nop_     ;   SI 
+   .byte  >nop_     ;   DLE 
+   .byte  >nop_     ;   DC1 
+   .byte  >nop_     ;   DC2 
+   .byte  >nop_     ;   DC3 
+   .byte  >nop_     ;   DC4 
+   .byte  >nop_     ;   NAK 
+   .byte  >nop_     ;   SYN 
+   .byte  >nop_     ;   ETB 
+   .byte  >nop_     ;   CAN 
+   .byte  >nop_     ;   EM 
+   .byte  >nop_     ;   SUB 
+   .byte  >nop_     ;   ESC 
+   .byte  >nop_     ;   FS 
+   .byte  >nop_     ;   GS 
+   .byte  >nop_     ;   RS 
+   .byte  >nop_     ;   US 
+   .byte  >nop_     ;   SP 
+   .byte  >store_   ;   ! 
+   .byte  >dup_     ;   " 
+   .byte  >hex_     ;    # 
+   .byte  >swap_    ;    $ 
+   .byte  >over_    ;    % 
+   .byte  >and_     ;    & 
+   .byte  >drop_    ;    ' 
+   .byte  >begin_   ;    ( 
+   .byte  >again_   ;    ) 
+   .byte  >mul_     ;    * 
+   .byte  >add_     ;    + 
+   .byte  >hdot_    ;    , 
+   .byte  >sub_     ;    - 
+   .byte  >dot_     ;    . 
+   .byte  >div_     ;    / 
+   .byte  >num_     ;    0 
+   .byte  >num_     ;    1 
+   .byte  >num_     ;    2 
+   .byte  >num_     ;    3 
+   .byte  >num_     ;    4 
+   .byte  >num_     ;    5 
+   .byte  >num_     ;    6 
+   .byte  >num_     ;    7 
+   .byte  >num_     ;    8 
+   .byte  >num_     ;    9 
+   .byte  >def_     ;    : 
+   .byte  >ret_     ;    ; 
+   .byte  >lt_      ;    < 
+   .byte  >eq_      ;    = 
+   .byte  >gt_      ;    > 
+   .byte  >getRef_  ;    ? 
+   .byte  >fetch_   ;    @ 
+   .byte  >call_    ;    A 
+   .byte  >call_    ;    B 
+   .byte  >call_    ;    C 
+   .byte  >call_    ;    D 
+   .byte  >call_    ;    E 
+   .byte  >call_    ;    F 
+   .byte  >call_    ;    G 
+   .byte  >call_    ;    H 
+   .byte  >call_    ;    I 
+   .byte  >call_    ;    J 
+   .byte  >call_    ;    K 
+   .byte  >call_    ;    L 
+   .byte  >call_    ;    M 
+   .byte  >call_    ;    N 
+   .byte  >call_    ;    O 
+   .byte  >call_    ;    P 
+   .byte  >call_    ;    Q 
+   .byte  >call_    ;    R 
+   .byte  >call_    ;    S 
+   .byte  >call_    ;    T 
+   .byte  >call_    ;    U 
+   .byte  >call_    ;    V 
+   .byte  >call_    ;    W 
+   .byte  >call_    ;    X 
+   .byte  >call_    ;    Y 
+   .byte  >call_    ;    Z 
+   .byte  >arrDef_  ;    [ 
+   .byte  >alt_     ;    \ 
+   .byte  >arrEnd_  ;    ] 
+   .byte  >xor_     ;    ^ 
+   .byte  >neg_     ;    _ 
+   .byte  >str_     ;    ` 
+   .byte  >var_     ;    a 
+   .byte  >var_     ;    b 
+   .byte  >var_     ;    c 
+   .byte  >var_     ;    d 
+   .byte  >var_     ;    e 
+   .byte  >var_     ;    f 
+   .byte  >var_     ;    g 
+   .byte  >var_     ;    h 
+   .byte  >var_     ;    i 
+   .byte  >var_     ;    j 
+   .byte  >var_     ;    k 
+   .byte  >var_     ;    l 
+   .byte  >var_     ;    m 
+   .byte  >var_     ;    n 
+   .byte  >var_     ;    o 
+   .byte  >var_     ;    p 
+   .byte  >var_     ;    q 
+   .byte  >var_     ;    r 
+   .byte  >var_     ;    s 
+   .byte  >var_     ;    t 
+   .byte  >var_     ;    u 
+   .byte  >var_     ;    v 
+   .byte  >var_     ;    w 
+   .byte  >var_     ;    x 
+   .byte  >var_     ;    y 
+   .byte  >var_     ;    z 
+   .byte  >shl_     ;    { 
+   .byte  >or_      ;    | 
+   .byte  >shr_     ;    } 
+   .byte  >inv_     ;    ~ 
+   .byte  >nop_     ;    backspace 
 
 ;---------------------------------------------------------------------- 
-;optcodes:
-;altcodes:
-;ctlcodes:
+; alternate function codes 
+ctlcodeslo: 
+altcodeslo: 
+   .byte  <empty_      ; NUL ^@ 
+   .byte  <empty_      ; SOH ^A 
+   .byte  <toggleBase_ ; STX ^B 
+   .byte  <empty_      ; ETX ^C 
+   .byte  <empty_      ; EOT ^D 
+   .byte  <edit_       ; ENQ ^E 
+   .byte  <empty_      ; ACK ^F 
+   .byte  <empty_      ; BEL ^G 
+   .byte  <backsp_     ; BS  ^H 
+   .byte  <empty_      ; TAB ^I 
+   .byte  <reedit_     ; LF  ^J 
+   .byte  <empty_      ; VT  ^K 
+   .byte  <list_       ; FF  ^L 
+   .byte  <empty_      ; CR  ^M 
+   .byte  <empty_      ; SO  ^N 
+   .byte  <empty_      ; SI  ^O 
+   .byte  <printStack_ ; DLE ^P 
+   .byte  <empty_      ; DC1 ^Q 
+   .byte  <empty_      ; DC2 ^R 
+   .byte  <empty_      ; DC3 ^S 
+   .byte  <empty_      ; DC4 ^T 
+   .byte  <empty_      ; NAK ^U 
+   .byte  <empty_      ; SYN ^V 
+   .byte  <empty_      ; ETB ^W 
+   .byte  <empty_      ; CAN ^X 
+   .byte  <empty_      ; EM  ^Y 
+   .byte  <empty_      ; SUB ^Z 
+   .byte  <empty_      ; ESC ^[ 
+   .byte  <empty_      ; FS  ^\ 
+   .byte  <empty_      ; GS  ^] 
+   .byte  <empty_      ; RS  ^^ 
+   .byte  <empty_      ; US  ^_) 
+   .byte  <aNop_       ; SP  ^` 
+   .byte  <cStore_     ;    ! 
+   .byte  <aNop_       ;    " 
+   .byte  <aNop_       ;    # 
+   .byte  <aNop_       ;    $  ( -- adr ) text input ptr 
+   .byte  <aNop_       ;    % 
+   .byte  <aNop_       ;    & 
+   .byte  <aNop_       ;    ' 
+   .byte  <ifte_       ;    (  ( b -- ) 
+   .byte  <aNop_       ;    ) 
+   .byte  <aNop_       ;    * 
+   .byte  <incr_       ;    +  ( adr -- ) decrements variable at address 
+   .byte  <aNop_       ;    , 
+   .byte  <aNop_       ;    - 
+   .byte  <aNop_       ;    . 
+   .byte  <aNop_       ;    / 
+   .byte  <aNop_       ;    0 
+   .byte  <aNop_       ;    1 
+   .byte  <aNop_       ;    2 
+   .byte  <aNop_       ;    3 
+   .byte  <aNop_       ;    4 
+   .byte  <aNop_       ;    5 
+   .byte  <aNop_       ;    6 
+   .byte  <aNop_       ;    7 
+   .byte  <aNop_       ;    8 
+   .byte  <aNop_       ;    9 
+   .byte  <aNop_       ;    :  start defining a macro 
+   .byte  <aNop_       ;    ; 
+   .byte  <aNop_       ;    < 
+   .byte  <aNop_       ;    = 
+   .byte  <aNop_       ;    > 
+   .byte  <aNop_       ;    ? 
+   .byte  <cFetch_     ;    @ 
+   .byte  <aNop_       ;    A 
+   .byte  <break_      ;    B 
+   .byte  <nop_        ;    C 
+   .byte  <depth_      ;    D  ( -- val ) depth of data stack 
+   .byte  <emit_       ;    E  ( val -- ) emits a char to output 
+   .byte  <aNop_       ;    F 
+   .byte  <go_         ;    G  ( -- ? ) execute mint definition 
+   .byte  <keyq_       ;    H  ( verify if key hit )
+   .byte  <inPort_     ;    I  ( port -- val ) 
+   .byte  <aNop_       ;    J 
+   .byte  <key_        ;    K  ( -- val )  read a char from input 
+   .byte  <aNop_       ;    L 
+   .byte  <aNop_       ;    M 
+   .byte  <newln_      ;    N  ; prints a newline to output 
+   .byte  <outPort_    ;    O  ( val port -- ) 
+   .byte  <printStk_   ;    P  ( -- ) non-destructively prints stack 
+   .byte  <aNop_       ;    Q  quits from Mint REPL 
+   .byte  <rot_        ;    R  ( a b c -- b c a ) 
+   .byte  <aNop_       ;    S 
+   .byte  <aNop_       ;    T 
+   .byte  <R2S_        ;    U  S( -- w ) R( w -- ) 
+   .byte  <S2R_        ;    V  S( w -- ) R( -- w )
+   .byte  <aNop_       ;    W   ; ( b -- ) if false, skip to end of loop 
+   .byte  <exec_       ;    X 
+   .byte  <aNop_       ;    Y 
+   .byte  <editDef_    ;    Z 
+   .byte  <cArrDef_    ;    [ 
+   .byte  <comment_    ;    \  comment text, skips reading until end of line 
+   .byte  <aNop_       ;    ] 
+   .byte  <charCode_   ;    ^ 
+   .byte  <aNop_       ;    _ 
+   .byte  <aNop_       ;    ` 
+   .byte  <sysVar_     ;    a  ; start of data stack *fixed 
+   .byte  <sysVar_     ;    b  ; base16 flag 
+   .byte  <sysVar_     ;    c  ; TIBPtr variable 
+   .byte  <sysVar_     ;    d  ; vDefs variable
+   .byte  <sysVar_     ;    e  ; 
+   .byte  <sysVar_     ;    f  ; start of return stack *fixed
+   .byte  <sysVar_     ;    g  ; next dispatcher 
+   .byte  <sysVar_     ;    h  ; heap ptr variable 
+   .byte  <i_          ;    i  ; returns index of current loop 
+   .byte  <j_          ;    j  ; returns index of outer loop 
+   .byte  <sysVar_     ;    k 
+   .byte  <sysVar_     ;    l 
+   .byte  <sysVar_     ;    m  ( a b -- c ) return the minimum value 
+   .byte  <sysVar_     ;    n 
+   .byte  <sysVar_     ;    o 
+   .byte  <sysVar_     ;    p 
+   .byte  <sysVar_     ;    q 
+   .byte  <sysVar_     ;    r  ; return stack pointer
+   .byte  <sysVar_     ;    s  ; data stack pointer
+   .byte  <sysVar_     ;    t 
+   .byte  <sysVar_     ;    u 
+   .byte  <sysVar_     ;    v 
+   .byte  <sysVar_     ;    w 
+   .byte  <sysVar_     ;    x 
+   .byte  <sysVar_     ;    y 
+   .byte  <sysVar_     ;    z 
+   .byte  <group_      ;    { 
+   .byte  <aNop_       ;    | 
+   .byte  <endGroup_   ;    } 
+   .byte  <aNop_       ;    ~ 
+   .byte  <aNop_       ;    BS 
 
-.include "jumptablesdual.s"
+ctlcodeshi: 
+altcodeshi: 
+   .byte  >empty_      ; NUL ^@ 
+   .byte  >empty_      ; SOH ^A 
+   .byte  >toggleBase_ ; STX ^B 
+   .byte  >empty_      ; ETX ^C 
+   .byte  >empty_      ; EOT ^D 
+   .byte  >edit_       ; ENQ ^E 
+   .byte  >empty_      ; ACK ^F 
+   .byte  >empty_      ; BEL ^G 
+   .byte  >backsp_     ; BS  ^H 
+   .byte  >empty_      ; TAB ^I 
+   .byte  >reedit_     ; LF  ^J 
+   .byte  >empty_      ; VT  ^K 
+   .byte  >list_       ; FF  ^L 
+   .byte  >empty_      ; CR  ^M 
+   .byte  >empty_      ; SO  ^N 
+   .byte  >empty_      ; SI  ^O 
+   .byte  >printStack_ ; DLE ^P 
+   .byte  >empty_      ; DC1 ^Q 
+   .byte  >empty_      ; DC2 ^R 
+   .byte  >empty_      ; DC3 ^S 
+   .byte  >empty_      ; DC4 ^T 
+   .byte  >empty_      ; NAK ^U 
+   .byte  >empty_      ; SYN ^V 
+   .byte  >empty_      ; ETB ^W 
+   .byte  >empty_      ; CAN ^X 
+   .byte  >empty_      ; EM  ^Y 
+   .byte  >empty_      ; SUB ^Z 
+   .byte  >empty_      ; ESC ^[ 
+   .byte  >empty_      ; FS  ^\ 
+   .byte  >empty_      ; GS  ^] 
+   .byte  >empty_      ; RS  ^^ 
+   .byte  >empty_      ; US  ^_) 
+   .byte  >aNop_       ; SP  ^` 
+   .byte  >cStore_     ;    ! 
+   .byte  >aNop_       ;    " 
+   .byte  >aNop_       ;    # 
+   .byte  >aNop_       ;    $  ( -- adr ) text input ptr 
+   .byte  >aNop_       ;    % 
+   .byte  >aNop_       ;    & 
+   .byte  >aNop_       ;    ' 
+   .byte  >ifte_       ;    (  ( b -- ) 
+   .byte  >aNop_       ;    ) 
+   .byte  >aNop_       ;    * 
+   .byte  >incr_       ;    +  ( adr -- ) decrements variable at address 
+   .byte  >aNop_       ;    , 
+   .byte  >aNop_       ;    - 
+   .byte  >aNop_       ;    . 
+   .byte  >aNop_       ;    / 
+   .byte  >aNop_       ;    0 
+   .byte  >aNop_       ;    1 
+   .byte  >aNop_       ;    2 
+   .byte  >aNop_       ;    3 
+   .byte  >aNop_       ;    4 
+   .byte  >aNop_       ;    5 
+   .byte  >aNop_       ;    6 
+   .byte  >aNop_       ;    7 
+   .byte  >aNop_       ;    8 
+   .byte  >aNop_       ;    9 
+   .byte  >aNop_       ;    :  start defining a macro 
+   .byte  >aNop_       ;    ; 
+   .byte  >aNop_       ;    < 
+   .byte  >aNop_       ;    = 
+   .byte  >aNop_       ;    > 
+   .byte  >aNop_       ;    ? 
+   .byte  >cFetch_     ;    @ 
+   .byte  >aNop_       ;    A 
+   .byte  >break_      ;    B 
+   .byte  >nop_        ;    C 
+   .byte  >depth_      ;    D  ( -- val ) depth of data stack 
+   .byte  >emit_       ;    E  ( val -- ) emits a char to output 
+   .byte  >aNop_       ;    F 
+   .byte  >go_         ;    G  ( -- ? ) execute mint definition 
+   .byte  >keyq_       ;    H  ( verify if key hit )
+   .byte  >inPort_     ;    I  ( port -- val ) 
+   .byte  >aNop_       ;    J 
+   .byte  >key_        ;    K  ( -- val )  read a char from input 
+   .byte  >aNop_       ;    L 
+   .byte  >aNop_       ;    M 
+   .byte  >newln_      ;    N  ; prints a newline to output 
+   .byte  >outPort_    ;    O  ( val port -- ) 
+   .byte  >printStk_   ;    P  ( -- ) non-destructively prints stack 
+   .byte  >aNop_       ;    Q  quits from Mint REPL 
+   .byte  >rot_        ;    R  ( a b c -- b c a ) 
+   .byte  >aNop_       ;    S 
+   .byte  >aNop_       ;    T 
+   .byte  >R2S_        ;    U  S( -- w ) R( w -- ) 
+   .byte  >S2R_        ;    V  S( w -- ) R( -- w )
+   .byte  >aNop_       ;    W   ; ( b -- ) if false, skip to end of loop 
+   .byte  >exec_       ;    X 
+   .byte  >aNop_       ;    Y 
+   .byte  >editDef_    ;    Z 
+   .byte  >cArrDef_    ;    [ 
+   .byte  >comment_    ;    \  comment text, skips reading until end of line 
+   .byte  >aNop_       ;    ] 
+   .byte  >charCode_   ;    ^ 
+   .byte  >aNop_       ;    _ 
+   .byte  >aNop_       ;    ` 
+   .byte  >sysVar_     ;    a  ; start of data stack *fixed 
+   .byte  >sysVar_     ;    b  ; base16 flag 
+   .byte  >sysVar_     ;    c  ; TIBPtr variable 
+   .byte  >sysVar_     ;    d  ; vDefs variable
+   .byte  >sysVar_     ;    e  ; 
+   .byte  >sysVar_     ;    f  ; start of return stack *fixed
+   .byte  >sysVar_     ;    g  ; next dispatcher 
+   .byte  >sysVar_     ;    h  ; heap ptr variable 
+   .byte  >i_          ;    i  ; returns index of current loop 
+   .byte  >j_          ;    j  ; returns index of outer loop 
+   .byte  >sysVar_     ;    k 
+   .byte  >sysVar_     ;    l 
+   .byte  >sysVar_     ;    m  ( a b -- c ) return the minimum value 
+   .byte  >sysVar_     ;    n 
+   .byte  >sysVar_     ;    o 
+   .byte  >sysVar_     ;    p 
+   .byte  >sysVar_     ;    q 
+   .byte  >sysVar_     ;    r  ; return stack pointer
+   .byte  >sysVar_     ;    s  ; data stack pointer
+   .byte  >sysVar_     ;    t 
+   .byte  >sysVar_     ;    u 
+   .byte  >sysVar_     ;    v 
+   .byte  >sysVar_     ;    w 
+   .byte  >sysVar_     ;    x 
+   .byte  >sysVar_     ;    y 
+   .byte  >sysVar_     ;    z 
+   .byte  >group_      ;    { 
+   .byte  >aNop_       ;    | 
+   .byte  >endGroup_   ;    } 
+   .byte  >aNop_       ;    ~ 
+   .byte  >aNop_       ;    BS 
+
+; ********************************************************************* 
+; Macros must be written in Mint and end with ; 
+; this code must not span pages 
+; ********************************************************************* 
+macros: 
+ 
+.include "MINT.macros.asm" 
+ 
 
