@@ -31,6 +31,7 @@ rpush:
     sty rpt
     rts
  
+
 spull:
     ldy spt
     lda (vsp), y
@@ -89,6 +90,13 @@ spull2:
     sty spt
     rts
  
+rdrop:
+    ldy rpt
+    iny
+    iny
+    sty rpt
+    rst
+
 drop:
     ldy spt
     iny
@@ -157,6 +165,14 @@ rot:
     jsr spush
     rts
 
+r2s:
+    jsr rpull
+    jsr spush
+    rts
 
+s2r:
+    jsr spull
+    jsr rpush
+    rts
 
     
