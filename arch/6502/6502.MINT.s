@@ -220,10 +220,10 @@ vR0      =  vsys + $0c     ;    f  ; start of return stack
 vNext    =  vsys + $0e     ;    g  ; next routine dispatcher
 vHeapPtr =  vsys + $10     ;    h  ; heap ptr variable
 
-; the address of stacks are hardcoded, changes will do no apply
+; the address of stacks are hardcoded, any change do no apply
 dStack = vS0
 rStack = vR0
-; changes will cause unexpected behavior
+; any change will cause unexpected behavior
 HEAP = heap
 DEFS = defs
 
@@ -294,9 +294,12 @@ addps:
 
 ;---------------------------------------------------------------------- 
 ; increase instruction pointer 
+ldaps: 
+    ldy NUL 
+    lda (ips), y 
 incps: 
     inc ips + 0 
-    bne @noeq 
+    bne ldaps 
     inc ips + 1 
 @noeq: 
     rts 
@@ -309,13 +312,6 @@ decps:
     dec ips + 1 
 @noeq: 
     dec ips + 0 
-    rts 
- 
-;---------------------------------------------------------------------- 
-; load char at instruction pointer 
-ldaps: 
-    ldy NUL 
-    lda (ips), y 
     rts 
  
 ;---------------------------------------------------------------------- 
@@ -1035,7 +1031,6 @@ gets_:
     sta ips + 0
     lda tos + 1
     sta ips + 1
-    jsr decps
     ; next 
     jmp next
 
@@ -1196,7 +1191,6 @@ printhex8:
 
 ;---------------------------------------------------------------------- 
 prenum:
-    jsr decps
     lda NUL 
     sta tos + 0 
     sta tos + 1 
@@ -1208,7 +1202,6 @@ num_:
     jsr prenum
 
 @loop: 
-    jsr incps
     jsr ldaps
     cmp #'0' + 0 
     bcc @ends 
@@ -1268,7 +1261,6 @@ mul10:
 hex_: 
     jsr prenum
 @loop: 
-    jsr incps
     jsr ldaps
 @isd: 
     cmp #'0' 
@@ -1414,7 +1406,6 @@ outPort_:
  
 ;---------------------------------------------------------------------- 
 charCode_:
-    jsr incps
     jsr ldaps
     sta tos + 0
     lda NUL
@@ -1464,7 +1455,6 @@ compNext:
 next: 
 opt_:
     ; using full jump table 
-    jsr incps
     jsr ldaps
     tay 
     lda optcodeslo, y 
@@ -1477,7 +1467,6 @@ opt_:
 ; Execute next alt opcode
 alt_: 
     ; using full jump table 
-    jsr incps
     jsr ldaps
     tay 
     lda altcodeslo, y 
@@ -1496,7 +1485,6 @@ enter:
     sta ips + 0 
     pla
     sta ips + 1 
-    jsr decps
     ; next 
     jmp (vNext) 
 
@@ -1512,15 +1500,14 @@ exec_:
 go_: 
     jsr pushps
 ; pull ps from data stack 
-    ; ldx xp
+    ldx sps
     lda spz + 0, x 
     sta ips + 0 
     lda spz + 1, x 
     sta ips + 1 
     inx 
     inx 
-    ; stx xp
-    jsr decps 
+    stx sps
     ; next 
     jmp (vNext) 
  
@@ -1530,7 +1517,6 @@ call_:
     sta ap
     jsr pushps
     jsr lookupDefs
-    jsr decps
     ; next 
     jmp (vNext)
 
@@ -1609,7 +1595,6 @@ editDef2:
     bne editDef1
 
 editDef3:
-
     lda #<tib
     sta vTIBPtr + 0
     lda #>tib
@@ -1622,6 +1607,7 @@ writeChar:
     sta (tos), y
     jmp putchar
 
+;---------------------------------------------------------------------- 
 inctos:
     inc tos + 0
     bcc @iscc1
@@ -1676,7 +1662,6 @@ a2z:
 ;---------------------------------------------------------------------- 
 ; skip spaces
 nosp:
-    jsr incps
     jsr ldaps
     cmp #' '
     beq nosp
@@ -1685,11 +1670,12 @@ nosp:
 ;---------------------------------------------------------------------- 
 group_:
     jsr spull
+    ; multiply by GROUP (64)
+    ; swap byte
     lda tos + 0
     sta nos + 1
     lda NUL
     sta nos + 0
-
     ; group is 64 bytes
     lsr nos + 1
     ror nos + 0
@@ -1701,20 +1687,14 @@ group_:
     lda vDefs + 1
     sta tos + 1
     jsr rpush
-    ; set origin
-    lda defs + 0
-    sta tos + 0
-    lda defs + 1
-    sta tos + 1
     ; update group
+    lda defs + 0
     clc
-    lda tos + 0
     adc nos + 0
     sta vDefs + 0
-    lda tos + 1
+    lda defs + 1
     adc nos + 1
     sta vDefs + 1
-
     ; next 
     jmp (vNext)
 
@@ -1763,7 +1743,6 @@ arrDef1:
     sta tos + 0
     lda nos + 1
     sta tos + 1
-
     jsr rpush
     ; next 
     jmp next
@@ -1776,8 +1755,9 @@ arrEnd_:
 
     jsr vHeap2nos
 
-    sec
+    ; bytes
     lda nos + 0
+    sec
     sbc tos + 0
     sta tos + 0
     lda nos + 1
@@ -1785,8 +1765,7 @@ arrEnd_:
     sta tos + 1
 
     lda vByteMode
-    cmp FALSE
-    bne @isne
+    bne @isne	
     ; words
     lsr tos + 0
     ror tos + 1
@@ -1892,7 +1871,6 @@ skipnest:
     lda #$01
     sta ns
 @loop: 
-    jsr incps
     jsr ldaps
     jsr nesting 
     lda ns
