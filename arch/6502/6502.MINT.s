@@ -1796,8 +1796,8 @@ def_:
     lda nos + 1
     sta (tos), y
 
-    ldy NUL
     ; copy until 255 or ; 
+    ldy NUL
 @loop:
     lda (ips), y
     sta (nos), y
@@ -1822,13 +1822,14 @@ def_:
 break_:
     jsr spull
     lda tos + 0
-    ora tos + 1
     bne @isne
     jmp (vNext)
 @isne:
-    lda yp
+    ; drop frame
+    lda rps
     clc
     adc #$06
+    sta rps
     jmp skipnest
 
 ;---------------------------------------------------------------------- 
@@ -1838,15 +1839,15 @@ begin_:
     ; tos is zero ?
     jsr spull
     lda tos + 0
-    ora tos + 1
     beq skipnest
 
-    ; alloc frame in return stack
+    ; alloc frame 
     lda rps
     sec
     sbc #6
     sta rps
 
+    ; make a frame
     ldy rps
     ; counter
     lda NUL
@@ -1881,7 +1882,7 @@ skipnest:
 ;----------------------------------------------------------------------
 ; Right parentesis ) again a loop 
 again_: 
-    ldy yp
+    ldy rps
     ; counter
     lda rpz + 0, y
     sta wrk + 0
@@ -1894,6 +1895,8 @@ again_:
     and wrk + 1
     sta ap
     inc ap
+    ; tax
+    ; inx
     bne again1
     
     ; push FALSE
@@ -1903,13 +1906,15 @@ again_:
     jsr spush
 
     ; drop IFTEMmode
-    lda yp
+    lda rps
     clc
     adc #2
+    sta rps
     ; next 
     jmp (vNext)
  
 again1: 
+    ldy rps
     ; peek loop limit 
     lda rpz + 2
     sta nos + 0                 
@@ -1917,15 +1922,16 @@ again1:
     sta nos + 3
 
     ; test end
-    sec
     lda nos + 0
+    sec
     sbc wrk + 0
     bne @noeq
     lda nos + 1
     sbc wrk + 1
     bne @noeq
 
-    ; drop loop vars
+    ; end of loop
+    ; drop frame
     lda yp
     clc
     adc #6
@@ -1939,11 +1945,12 @@ again1:
     bne @novr
     inc wrk + 1
 @novr:    
+    ldy rpz
     ; poke loop var 
     lda wrk + 0
-    sta rpz + 0
+    sta rpz + 0, y
     lda wrk + 1
-    sta rpz + 1
+    sta rpz + 1, y
 
     ; return at begin    
     lda rpz + 4, y
@@ -1956,14 +1963,18 @@ again1:
  
 ;----------------------------------------------------------------------
 j_:
-    lda yp
+    lda rps
     sec
     sbc #6
     tay
-    ; fall through
+    jmp indx
+
 ;----------------------------------------------------------------------
 i_:
-    ldy yp
+    ldy rps
+    ; fall through
+
+indx:
     lda spz + 0, y
     sta tos + 0
     iny
