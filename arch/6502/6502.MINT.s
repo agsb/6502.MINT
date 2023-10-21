@@ -165,7 +165,9 @@ tmp:    .word $0
 
 ; start of RAM
 
-.align $100
+;.align $100
+
+; using ca65 to initialize 
 
 VOID:
 
@@ -196,13 +198,13 @@ defs:
 ; internals
 
 vEdited:
-    .word $0
+    .byte $0
 
 vByteMode:
-    .word $0
+    .byte $0
 
 ; free ram start 
-    .word $DEAD, $C0DE
+    .byte $DE, $AD, $C0, $DE
 
 ; heap must be here ! 
 heap:
@@ -306,13 +308,13 @@ incps:
  
 ;---------------------------------------------------------------------- 
 ; decrease instruction pointer 
-decps: 
-    lda ips + 0
-    bne @noeq 
-    dec ips + 1 
-@noeq: 
-    dec ips + 0 
-    rts 
+;decps: 
+;    lda ips + 0
+;    bne @noeq 
+;    dec ips + 1 
+;@noeq: 
+;    dec ips + 0 
+;    rts 
  
 ;---------------------------------------------------------------------- 
 vHeap2nos:
@@ -2056,6 +2058,20 @@ mint_:
 
     jsr initialize
 
+; default system values 
+    ldy dysys
+@loop:
+    lda iSysVars, y    
+    sta vsys, y
+    dey
+    bne @loop
+
+; safe
+    lda #<next
+    sta vNext + 0
+    lda #>next
+    sta vNext + 1
+
     jsr printStr
     .asciiz "MINT 6502 V1.0\r\n"
 
@@ -2073,8 +2089,7 @@ initialize:
     sta nos + 0
     lda #>vsys
     sta nos + 1
-    lda GRPSIZE
-    tay
+    ldy GRPSIZE
     lda NUL
 @loop1:
     sta (tos), y
@@ -2086,31 +2101,49 @@ initialize:
     bne @loop1
 
 ; default function
-    ldy #(GRPSIZE * NUMGRPS)
+    lda #<(GRPSIZE * NUMGRPS)
+    sta nos + 0
+    lda #>(GRPSIZE * NUMGRPS)
+    sta nos + 1
+    lda #<defs
+    sta tos + 0
+    lda #>defs
+    sta tos + 1
+
 @loop2:
-    dey
+    ; default
+    ldy NUL
     lda #<empty_
-    sta defs, y
-    dey
+    sta (tos), y
+    iny
     lda #>empty_
-    sta defs, y
-    cpy NUL
+    sta (tos), y
+
+    ; increment 
+    lda tos + 0
+    clc
+    adc #2
+    sta tos + 0
+    lda tos + 1
+    adc #0
+    sta tos + 1
+
+    ; decrement
+    lda nos + 0
+    sec
+    sbc #2
+    sta nos + 0
+    lda nos + 1
+    sbc #0
+    sta nos + 1
+
+    ; ends ?
+    ora nos + 0
     bne @loop2
 
-; default system values 
-    ldy dysys
-@loop3:
-    lda iSysVars, y    
-    sta vsys, y
-    dey
-    bne @loop3
-
-; safe
-    lda #<next
-    sta vNext + 0
-    lda #>next
-    sta vNext + 1
     rts
+
+.word $DEAD
 
 ;---------------------------------------------------------------------- 
 ;optcodes: parsed by opt_ (next)
@@ -2121,7 +2154,7 @@ initialize:
 ; Jump Tables, optmized for single index
 ; ********************************************************************* 
 
-.align $100 
+; .align $100 
  
 ;---------------------------------------------------------------------- 
 optcodeslo: 

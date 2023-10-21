@@ -1,1 +1,1 @@
-6502.MINT.asm
+6502.MINT.s
