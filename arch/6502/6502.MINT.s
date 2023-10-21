@@ -134,7 +134,9 @@
 ; page 0, reserved cells 
 .segment "ZERO"
 ; offset
-* = $00F0
+;* = $00F0
+
+.res $EF, $0
 
 ; index for data stack
 sps:    .byte $0
@@ -203,9 +205,6 @@ vEdited:
 vByteMode:
     .byte $0
 
-; free ram start 
-    .byte $DE, $AD, $C0, $DE
-
 ; heap must be here ! 
 heap:
     .word $0
@@ -232,8 +231,8 @@ DEFS = defs
 ;---------------------------------------------------------------------- 
 .segment "ONCE"
  
-; ********************************************************************* 
- 
+; start of ROM
+
 init:
     jmp mint_
     .asciiz "6502 MINT"
