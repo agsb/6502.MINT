@@ -194,6 +194,7 @@ hitchar:
     rts
 
 ;---------------------------------------------------------------------- 
+; get a char
 key_:
     jsr getchar
 keyk:
@@ -203,6 +204,7 @@ keyk:
     jmp (vNext)
     
 ;---------------------------------------------------------------------- 
+; put a char
 emit_:
     jsr spull
     lda tos + 0
@@ -211,18 +213,21 @@ emit_:
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
+; hit a char ?
 keyq_:
     jsr hitchar
     clv
     bvc keyk
 
 ;---------------------------------------------------------------------- 
+; NOOP
 aNop_:
 nop_:
     ; next 
     jmp next
 
 ;---------------------------------------------------------------------- 
+; add a byte offset to instruction pointer
 addps:    
 ; update ip
     clc
@@ -235,7 +240,7 @@ addps:
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
-; increase instruction pointer 
+; load a byte and increase instruction pointer 
 ldaps: 
     ldy NUL 
     lda (ips), y 
@@ -246,16 +251,7 @@ ldaps:
     rts 
  
 ;---------------------------------------------------------------------- 
-; decrease instruction pointer 
-;decps: 
-;    lda ips + 0
-;    bne @noeq 
-;    dec ips + 1 
-;@noeq: 
-;    dec ips + 0 
-;    rts 
- 
-;---------------------------------------------------------------------- 
+; copy vHeap to nos
 vHeap2nos:
     ; array start
     lda vHeapPtr + 0
@@ -381,12 +377,12 @@ S2R_:
 ; NEGate the value on top of stack (2's complement) 
 neg_: 
     ldx sps
-    lda NUL 
     sec 
+    lda NUL 
     sbc spz + 0, x 
     sta spz + 0, x 
-    lda NUL
     sec 
+    lda NUL
     sbc spz + 1, x 
     sta spz + 1, x 
     jmp (vNext) 
@@ -405,7 +401,7 @@ inv_:
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
-; Duplicate the top member of the stack 
+; copy 1st element of the stack 
 ; a b c -- a b c c 
 dup_: 
     ldx sps
@@ -420,7 +416,7 @@ dup_:
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
-; Duplicate 2nd element of the stack 
+; copy 2nd element of the stack 
 ; a b c -- a b c b 
 over_: 
     ldx sps
@@ -435,7 +431,7 @@ over_:
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
-; Rotate 3 elements at stack 
+; Rotate down 3 elements at stack 
 ; a b c -- b c a 
 rot_: 
     ldx sps
@@ -509,7 +505,7 @@ shr_:
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
-; Drop the top member of the stack 
+; Drop the 1st element of the stack 
 ; a b c -- a b 
 drop_: 
     ldx sps
@@ -560,8 +556,8 @@ xor_:
 ; a b c -- a (b+c) 
 add_:   
     ldx sps
-    lda spz + 2, x 
     clc 
+    lda spz + 2, x 
     adc spz + 0, x 
     sta spz + 2, x 
     lda spz + 3, x 
@@ -574,8 +570,8 @@ add_:
 ; a b c -- a (b-c) 
 sub_: 
     ldx sps
-    lda spz + 2, x 
     sec 
+    lda spz + 2, x 
     sbc spz + 0, x 
     sta spz + 2, x 
     lda spz + 3, x 
@@ -635,8 +631,8 @@ div_:
     rol tos + 0
     rol tos + 1
     
-    lda tos + 0
     sec
+    lda tos + 0
     sbc wrk + 0
     sta nos + 0
     lda tos + 1
@@ -673,8 +669,8 @@ mul_:
     ror wrk + 0
     bcc @rotate_r
     ; add multiplicand to upper half product
-    lda tos + 0
     clc
+    lda tos + 0
     adc tmp + 0
     sta tos + 0
     lda tmp + 1
@@ -698,8 +694,8 @@ mul_:
 incr_: 
     jsr take2 
     ldy NUL 
-    lda (tos), y 
     clc 
+    lda (tos), y 
     adc nos + 0 
     sta (tos), y 
     iny 
@@ -714,8 +710,8 @@ incr_:
 decr_: 
     jsr take2 
     ldy NUL 
-    lda (tos), y 
     sec 
+    lda (tos), y 
     sbc nos + 0 
     sta (tos), y 
     iny 
@@ -748,8 +744,8 @@ true2:
 ; subtract for compare 
 cmps: 
     ldx sps
-    lda spz + 2, x 
     sec 
+    lda spz + 2, x 
     sbc spz + 0, x 
     lda spz + 3, x 
     sbc spz + 1, x 
@@ -784,8 +780,8 @@ gt_:
 ; fetch a byte 
 cFetch_: 
     lda NUL 
-    sta tos + 1 
     sec
+    sta tos + 1 
     jmp isfetch 
 
 ;---------------------------------------------------------------------- 
@@ -1083,16 +1079,16 @@ printdec:
     ldy #'0'-1 
 @loop: 
     iny 
-    lda tos + 0 
     sec 
+    lda tos + 0 
     sbc nos + 0 
     sta tos + 0 
     lda tos + 1 
     sbc nos + 1 
     sta tos + 1 
     bcc @loop 
-    lda tos + 0 
     clc 
+    lda tos + 0 
     adc nos + 0 
     sta tos + 0 
     lda tos + 1 
@@ -1274,9 +1270,9 @@ comment_:
 ;---------------------------------------------------------------------- 
 depth_: 
     ; limit to 255 bytes
-    lda #$FF 
     sec 
-    sbc xp 
+    lda #$FF 
+    sbc sps 
     ; words 
     lsr
     sta tos + 0 
@@ -1471,8 +1467,8 @@ lookupDeft:
     ; fall throught
 
 lookupDefs:
-    lda ap
     sec
+    lda ap
     sbc 'A'
     asl
     tay
@@ -1491,8 +1487,8 @@ editDef_:
     jsr spull
     
     ; toChar
-    lda #'A'
     clc
+    lda #'A'
     adc tos + 0
     sta ap
  
@@ -1591,8 +1587,8 @@ sysVar_:
 ;---------------------------------------------------------------------- 
 ; push a reference into stack
 a2z: 
-    lda ap 
     sec 
+    lda ap 
     sbc #'a' 
     asl 
     clc 
@@ -1701,8 +1697,8 @@ arrEnd_:
     jsr vHeap2nos
 
     ; bytes
-    lda nos + 0
     sec
+    lda nos + 0
     sbc tos + 0
     sta tos + 0
     lda nos + 1
@@ -1771,8 +1767,8 @@ break_:
     jmp (vNext)
 @isne:
     ; drop frame
-    lda rps
     clc
+    lda rps
     adc #$06
     sta rps
     jmp skipnest
@@ -1787,8 +1783,8 @@ begin_:
     beq skipnest
 
     ; alloc frame 
-    lda rps
     sec
+    lda rps
     sbc #6
     sta rps
 
@@ -1851,8 +1847,8 @@ again_:
     jsr spush
 
     ; drop IFTEMmode
-    lda rps
     clc
+    lda rps
     adc #2
     sta rps
     ; next 
@@ -1867,8 +1863,8 @@ again1:
     sta nos + 3
 
     ; test end
-    lda nos + 0
     sec
+    lda nos + 0
     sbc wrk + 0
     bne @noeq
     lda nos + 1
@@ -1877,8 +1873,8 @@ again1:
 
     ; end of loop
     ; drop frame
-    lda yp
     clc
+    lda yp
     adc #6
     sta yp
     ; next 
@@ -1908,8 +1904,8 @@ again1:
  
 ;----------------------------------------------------------------------
 j_:
-    lda rps
     sec
+    lda rps
     sbc #6
     tay
     jmp indx
@@ -2046,8 +2042,8 @@ initialize:
     sta (tos), y
 
     ; increment 
-    lda tos + 0
     clc
+    lda tos + 0
     adc #2
     sta tos + 0
     lda tos + 1
@@ -2055,8 +2051,8 @@ initialize:
     sta tos + 1
 
     ; decrement
-    lda nos + 0
     sec
+    lda nos + 0
     sbc #2
     sta nos + 0
     lda nos + 1
