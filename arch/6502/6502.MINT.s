@@ -110,8 +110,6 @@ tmp:    .word $0
 
 ;.align $100
 
-; using ca65 to initialize 
-
 VOID:
 
 ; data stack
@@ -252,13 +250,22 @@ ldaps:
  
 ;---------------------------------------------------------------------- 
 ; copy vHeap to nos
-vHeap2nos:
+heap2nos:
     ; array start
     lda vHeapPtr + 0
     sta nos + 0
     lda vHeapPtr + 1
     sta nos + 1
     rts
+
+add2heap:
+    clc
+    adc vHeapPtr + 0
+    sta vHeapPtr + 0
+    bcc @ends
+    inc vHeapPtr + 1
+@iends:
+    rts 
 
 ;---------------------------------------------------------------------- 
 pushps:
@@ -850,18 +857,18 @@ str_:
     ldy NUL
 @loop:
     lda (ips), y
-    beq @ends
-    cmp #'`'              ; ` is the string terminator 
+    beq @ends       ; NUL
+    cmp #'`'        ; ` is the string terminator 
     beq @ends 
     jsr putchar 
     iny
-    bne @loop
+    bne @loop       ; limit 255
 @ends: 
     ; next 
     jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
-; ????
+; $00 to $1F, reserved for macros
 macro:
     tay
     lda ctlcodeslo, y
@@ -932,8 +939,9 @@ gets_:
     beq @iscrlf 
     cmp LF                 ; line feed ? 
     beq @iscrlf 
+
 @ismacro: 
-    ; still not sure how it works
+    ; $00 to $1F
     jmp macro 
 
 @ischar: 
@@ -953,9 +961,8 @@ gets_:
     lda ns 
     cmp NUL 
     beq @loop 
-; mark etx, used later to check Z80 stack deep, 
-; not need in 6502 round-robin stack,
-; preserved for compability
+
+; mark with etx, 
 @endstr: 
     ; mark ETX 
     lda ETX 
@@ -1044,10 +1051,10 @@ putstr:
     ldy NUL 
 @loop: 
     lda (tos), y 
-    beq @ends 
+    beq @ends   ; limit NUL 
     jsr putchar
     iny
-    bne @loop 
+    bne @loop   ; limit 255
 @ends: 
     tya
     rts 
@@ -1138,7 +1145,6 @@ prenum:
 ; convert a decimal value to binary 
 num_: 
     jsr prenum
-
 @loop: 
     jsr ldaps
     cmp #'0' + 0 
@@ -1254,7 +1260,7 @@ comment_:
     ldy NUL
 @loop:    
     iny
-    beq @ends   ; limit 256 
+    beq @ends   ; limit 255 
     lda (ips), y
     cmp CR 
     bne @loop 
@@ -1341,6 +1347,7 @@ outPort_:
     jmp cStore_ 
  
 ;---------------------------------------------------------------------- 
+; ascii code
 charCode_:
     jsr ldaps
     sta tos + 0
@@ -1351,35 +1358,30 @@ charCode_:
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
-; ??? maybe just count and at end copy and update ?
-;
+; copy and update 
 compNext:
     ; array start
-    jsr vHeap2nos
+    jsr heap2nos
 
-    ldy NUL
     jsr spull
 
+    ; byte
+    ldy NUL
     lda tos + 0
     sta (nos), y
     iny
+    
     lda vByteMode + 0
     bne @isbm  
+    
+    ; word
     lda tos + 1
     sta (nos), y
     iny
 @isbm:
+    
     tya
-    clc
-    adc nos + 0
-    sta nos + 0
-    bcc @isnc
-    inc nos + 1
-@isnc:
-    lda nos + 0
-    sta vHeapPtr + 0
-    lda nos + 1
-    sta vHeapPtr + 1
+    jsr add2heap
     ; fall throught 
 
 ;---------------------------------------------------------------------- 
@@ -1457,7 +1459,15 @@ go_:
 call_:
     sta ap
     jsr pushps
+
     jsr lookupDefs
+    tya
+    clc
+    adc tos + 0
+    sta ips + 0
+    adc tos + 1
+    sta ips + 1
+
     ; next 
     jmp (vNext)
 
@@ -1494,6 +1504,13 @@ editDef_:
  
     jsr lookupDeft
 
+    tya
+    clc
+    adc tos + 0
+    sta ips + 0
+    adc tos + 1
+    sta ips + 1
+    
     ; origin
     lda (tos), y
     sta nos + 0
@@ -1677,31 +1694,32 @@ arrDef1:
     lda #>compNext
     sta vNext + 1
 
-    ; array start
-    jsr vHeap2nos
-    
-    lda nos + 0
-    sta tos + 0
-    lda nos + 1
-    sta tos + 1
-    jsr rpush
+    ; save array start
+    ldx rps
+    dex
+    dex
+    lda vHeapPtr + 0
+    sta rpz + 0, x
+    lda vHeapPtr + 1
+    sta rpz + 1, x
+    sty rps
+
     ; next 
     jmp next
     
 ;---------------------------------------------------------------------- 
 arrEnd_:
 
+    ; start of array
     jsr rpull
-    jsr spush ; ????
-
-    jsr vHeap2nos
+    jsr spush 
 
     ; bytes
     sec
-    lda nos + 0
+    lda vHeapPtr + 0
     sbc tos + 0
     sta tos + 0
-    lda nos + 1
+    lda vHeapPtr + 1
     sbc tos + 1
     sta tos + 1
 
@@ -1711,6 +1729,7 @@ arrEnd_:
     lsr tos + 0
     ror tos + 1
 @isne:    
+    ; size of array
     jsr spush
 
     lda #<next
@@ -1725,19 +1744,31 @@ arrEnd_:
 def_:
     ; skip spaces
     jsr nosp
+
     ; get slot at list
     sta ap
     jsr lookupDefs
-    ; get the reference
-    jsr vHeap2nos
-    ; put reference to list
+
+    ; offset
+    tya
+    clc
+    adc tos + 0
+    sta tos + 0
+    lda NUL
+    adc tos + 1
+    sta tos + 1
+
+    ; get heap
+    jsr heap2nos
+    
+    ; put heap at list
     lda nos + 0
     sta (tos), y
     iny
     lda nos + 1
     sta (tos), y
 
-    ; copy until 255 or ; 
+    ; copy  
     ldy NUL
 @loop:
     lda (ips), y
@@ -1747,15 +1778,11 @@ def_:
     cmp #';'
     bne @loop
 @ends:
+
     tya
     sta ap
-    ; update Heap
-    clc
-    adc vHeapPtr + 0
-    sta vHeapPtr + 0
-    bcc @iscc
-    inc vHeapPtr + 1
-@iscc:
+    jsr add2heap
+
     lda ap
     jmp addps
 
