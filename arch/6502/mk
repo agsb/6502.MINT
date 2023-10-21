@@ -41,7 +41,7 @@ o)
     ;;
 
 l)
-    ld65 -o $2.bin -m $2.map -Ln $2.lbs -C $2.cfg $2.obj
+    ld65 -o $2.bin -m $2.map -Ln $2.lbl -C $2.cfg $2.obj
     
     ;;
 
