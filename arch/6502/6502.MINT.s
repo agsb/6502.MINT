@@ -1974,6 +1974,7 @@ i_:
     ldy rps
     ; fall through
 
+;----------------------------------------------------------------------
 indx:
     lda spz + 0, y
     sta tos + 0
@@ -1988,6 +1989,7 @@ indx:
 ifte_:
     jsr spull
     lda tos + 0
+    ora tos + 1
     bne @isne
     inc tos + 0
     jsr spush
@@ -1996,7 +1998,7 @@ ifte_:
     lda #$FF
     sta tos + 0
     sta tos + 1
-    jsr spush
+    jsr rpush
     ; next 
     jmp (vNext)
 
@@ -2010,11 +2012,11 @@ ret_:
 ; 
 exit_:
     jsr incps
+    jsr pullps
     lda ips + 0
     sta tos + 0
     lda ips + 1
     sta tos + 1
-    jsr pullps
     jmp (tos)
 
 ;---------------------------------------------------------------------- 
@@ -2084,7 +2086,7 @@ initialize:
     bne @loop1
 
 ; default function
-    ldy #(GRPSIZE/2 * NUMGRPS)
+    ldy #(GRPSIZE * NUMGRPS)
 @loop2:
     dey
     lda #<empty_
