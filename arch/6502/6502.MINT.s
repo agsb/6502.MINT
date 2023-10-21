@@ -52,7 +52,7 @@
 
  
 ;--------------------------------------------------------
-; constants
+; constants, must be.
 ;
 
     TRUE        = 1 
@@ -64,79 +64,20 @@
     ETX = 3
     NUL = 0
  
-    ; groups for defs
-    NUMGRPS = 5 
-
-    ; group size
-    GRPSIZE = $40
- 
     ; size page
     PAGE = $100
 
-;---------------------------------------------------------------------- 
-; notes 6502 version V0.4 : 
-; 
-;   code is for ROM use. 
-; 
-;   if made for RAM:
-;       caller must save a, x, y and 
-;       reserve at least 32 words at hardware stack 
-;
-;      a Z80, does ADD HL, DE in 12 t and 1 byte  
-;      a 6502, does it in 13 t and 9 bytes 
-;      
-;   0. it is a 8-bit doing 16-bit things
-;   1. a cell is 16-bit 
-;   2. no multiuser, no multitask 
-;   3. no garbage collector
-;   4. stacks are offsets from absolute address. 
-;   5. data stack indexed by X and return stack indexed by Y 
-;   6. terminal input buffer and stacks are  
-;      all just 128 cells deep and byte size round-robin 
-;   7. jump table is 16-bits
-;   8. extense use of Y indexed indirect addressing 
-;   9. uses 16 bytes at page zero $F0 to $FF, 
-;  10. user functions are mapped in five groups, or more
-;  11. user functions are stored in heap
-;  12. all rotines must end with: 
-;   	jmp next_ or jmp (vNext) or jmp drop_ 
-;  13. all stack routines, 
-;      load the index at start
-;      save the index at end, if changed
-;      this leaves free both X and Y for general use
-;      better safe than sorry, tweak if need speed 
-;
-;  Changes in mint:
+    ; group size
+    GRPSIZE = $40
 
-;   1. expanded mint variables
-;        alt-a, used for vS0, start of data stack 
-;        alt-f, used for vR0, start of return stack **** 
-;        alt-g, used for vNext, indirect dispatcher **** 
-;        alt-r, return the return stack pointer
-;        alt-s, return the data stack pointer
-;
-;   2. expanded mint functions
-;        alt-U, classic Forth R> 
-;        alt-V, classic Forth >R 
-;        alt-H, verify if a key was hit 
-;
-;   3. all variables and functions are composed in groups,
-;        each group have 32 cells, accessed from 'a' to 'z',
-;        with 6 more cells below 'z'.
-;
-;   4. extra string functions, both ends at crlf or asciiz
-;       gets_, gets a line into a buffer, 
-;       puts_, puts a line from a buffer,  
-;
-;---------------------------------------------------------------------- 
- 
+    ; groups for defs, could be more
+    NUMGRPS = 6 
+
 ;---------------------------------------------------------------------- 
 ; page 0, reserved cells 
 .segment "ZERO"
 ; offset
-;* = $00F0
-
-.res $EF, $0
+* = $00F0
 
 ; index for data stack
 sps:    .byte $0
@@ -298,9 +239,8 @@ addps:
 ldaps: 
     ldy NUL 
     lda (ips), y 
-incps: 
     inc ips + 0 
-    bne ldaps 
+    bne @noeq 
     inc ips + 1 
 @noeq: 
     rts 
@@ -683,11 +623,11 @@ opout:
     rts
 
 ;---------------------------------------------------------------------- 
-; Divide the top 2 members of the stack 
+; Divide the top 2 cell of the stack 
 ; http://codebase64.org/doku.php?id=base:16bit_division_16-bit_result
 ; dividend divisor -- result remainder
 ; ( tmp wrk -- nos tos )
-div_: 
+div_:
     jsr opin
 @loop:
     asl tmp + 0
@@ -723,7 +663,7 @@ div_:
 ;---------------------------------------------------------------------- 
 ; 16-bit multiply 16x16, 32 result
 ; http://codebase64.org/doku.php?id=base:16bit_multiplication_32-bit_product
-; ( multiplicand multiplier -- resultLSW resultMSW )
+; ( multiplicand multiplier -- resultMSW resultLSW )
 ; ( tmp wrk -- nos tos )
 mul_:
     jsr opin
@@ -997,6 +937,7 @@ gets_:
     cmp LF                 ; line feed ? 
     beq @iscrlf 
 @ismacro: 
+    ; still not sure how it works
     jmp macro 
 
 @ischar: 
@@ -1317,6 +1258,7 @@ comment_:
     ldy NUL
 @loop:    
     iny
+    beq @ends   ; limit 256 
     lda (ips), y
     cmp CR 
     bne @loop 
@@ -1325,6 +1267,7 @@ comment_:
     ; skip \n ?
     ; iny
     ; offset
+@ends:
     tya
     jmp addps
  
@@ -1361,13 +1304,9 @@ dot_:
 ; print space 
 dotsp: 
     lda #' ' 
-    jsr writeChar1 
+    jsr putchar 
     ; next 
     jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-writeChar1: 
-    jmp putchar 
  
 ;---------------------------------------------------------------------- 
 newln_: 
@@ -1428,16 +1367,12 @@ compNext:
     lda tos + 0
     sta (nos), y
     iny
-    
     lda vByteMode + 0
     bne @isbm  
-
     lda tos + 1
     sta (nos), y
     iny
-
 @isbm:
-    
     tya
     clc
     adc nos + 0
@@ -1478,9 +1413,7 @@ alt_:
  
 ;---------------------------------------------------------------------- 
 ; Execute code inline 
-; where it returns ????
 enter:                           
-    jsr pushps
 ; pull from system stack
     pla 
     sta ips + 0 
@@ -1490,11 +1423,22 @@ enter:
     jmp (vNext) 
 
 ;---------------------------------------------------------------------- 
+; char 0, Continue from enter 
+exit_:
+    jmp (ips)
+
+;---------------------------------------------------------------------- 
 ; Execute code from data stack 
 ; 
 exec_:
     jsr spull
     jmp (tos)
+
+;---------------------------------------------------------------------- 
+ret_:
+    jsr pullps
+    ; next 
+    jmp (vNext)
 
 ;---------------------------------------------------------------------- 
 ; Interpret code from data stack
@@ -2004,23 +1948,6 @@ ifte_:
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
-ret_:
-    jsr pullps
-    ; next 
-    jmp (vNext)
-
-;---------------------------------------------------------------------- 
-; 
-exit_:
-    jsr incps
-    jsr pullps
-    lda ips + 0
-    sta tos + 0
-    lda ips + 1
-    sta tos + 1
-    jmp (tos)
-
-;---------------------------------------------------------------------- 
 ; 6502 stack is fixed and round robin
 ; no need control deep
 etx_:
@@ -2199,12 +2126,12 @@ optcodeslo:
    .byte  <drop_    ;    ' 
    .byte  <begin_   ;    ( 
    .byte  <again_   ;    ) 
-   .byte  <mul_     ;    * 
+   .byte  <mul_     ;    * multiply 16x16
    .byte  <add_     ;    + 
    .byte  <hdot_    ;    , 
    .byte  <sub_     ;    - 
    .byte  <dot_     ;    . 
-   .byte  <div_     ;    / 
+   .byte  <div_     ;    / divide 16x16
    .byte  <num_     ;    0 
    .byte  <num_     ;    1 
    .byte  <num_     ;    2 
@@ -2329,12 +2256,12 @@ optcodeshi:
    .byte  >drop_    ;    ' 
    .byte  >begin_   ;    ( 
    .byte  >again_   ;    ) 
-   .byte  >mul_     ;    * 
-   .byte  >add_     ;    + 
+   .byte  >mul_     ;    *  multiply 16x16
+   .byte  >add_     ;    +
    .byte  >hdot_    ;    , 
    .byte  >sub_     ;    - 
    .byte  >dot_     ;    . 
-   .byte  >div_     ;    / 
+   .byte  >div_     ;    /  divide 16x16
    .byte  >num_     ;    0 
    .byte  >num_     ;    1 
    .byte  >num_     ;    2 
@@ -2462,12 +2389,12 @@ altcodeslo:
    .byte  <aNop_       ;    ' 
    .byte  <ifte_       ;    (  ( b -- ) 
    .byte  <aNop_       ;    ) 
-   .byte  <aNop_       ;    * 
+   .byte  <aNop_       ;    *  
    .byte  <incr_       ;    +  ( adr -- ) decrements variable at address 
    .byte  <aNop_       ;    , 
    .byte  <aNop_       ;    - 
    .byte  <aNop_       ;    . 
-   .byte  <aNop_       ;    / 
+   .byte  <aNop_       ;    /  
    .byte  <aNop_       ;    0 
    .byte  <aNop_       ;    1 
    .byte  <aNop_       ;    2 
