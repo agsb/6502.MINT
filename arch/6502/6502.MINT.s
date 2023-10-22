@@ -158,7 +158,7 @@ vDefs    =  vsys + $08     ;    d  ; reference for group user functions
 ;        =  vsys + $0a     ;    e  ; 
 vR0      =  vsys + $0c     ;    f  ; start of return stack 
 vNext    =  vsys + $0e     ;    g  ; next routine dispatcher
-vHeapPtr =  vsys + $10     ;    h  ; heap ptr variable
+vHeap =  vsys + $10     ;    h  ; heap ptr variable
 
 ; the address of stacks are hardcoded, any change do no apply
 dStack = vS0
@@ -252,18 +252,18 @@ ldaps:
 ; copy vHeap to nos
 heap2nos:
     ; array start
-    lda vHeapPtr + 0
+    lda vHeap + 0
     sta nos + 0
-    lda vHeapPtr + 1
+    lda vHeap + 1
     sta nos + 1
     rts
 
 add2heap:
     clc
-    adc vHeapPtr + 0
-    sta vHeapPtr + 0
+    adc vHeap + 0
+    sta vHeap + 0
     bcc @ends
-    inc vHeapPtr + 1
+    inc vHeap + 1
 @ends:
     rts 
 
@@ -1282,8 +1282,10 @@ comment_:
 ;---------------------------------------------------------------------- 
 depth_: 
     ; limit to 255 bytes
+    sec
+    lda #$FF
+    sbc sps 
     ; words 
-    lda sps 
     lsr
     sta tos + 0 
     lda NUL 
@@ -1414,7 +1416,7 @@ alt_:
     jmp (wrk) 
  
 ;---------------------------------------------------------------------- 
-; Execute code inline 
+; Execute code inline, as asciiz 
 enter:                           
 ; pull from system stack
     pla 
@@ -1465,12 +1467,6 @@ call_:
     jsr pushps
 
     jsr lookupDefs
-    tya
-    clc
-    adc tos + 0
-    sta ips + 0
-    adc tos + 1
-    sta ips + 1
 
     ; next 
     jmp (vNext)
@@ -1486,9 +1482,12 @@ lookupDefs:
     sbc 'A'
     asl
     tay
-    lda vDefs + 0
+    ; offset
+    clc
+    adc vDefs + 0
     sta tos + 0
-    lda vDefs + 1
+    lda NUL
+    adc vDefs + 1
     sta tos + 1
     rts 
 
@@ -1508,13 +1507,6 @@ editDef_:
  
     jsr lookupDeft
 
-    tya
-    clc
-    adc tos + 0
-    sta ips + 0
-    adc tos + 1
-    sta ips + 1
-    
     ; origin
     lda (tos), y
     sta nos + 0
@@ -1697,9 +1689,9 @@ arrDef:
     ldx rps
     dex
     dex
-    lda vHeapPtr + 0
+    lda vHeap + 0
     sta rpz + 0, x
-    lda vHeapPtr + 1
+    lda vHeap + 1
     sta rpz + 1, x
     sty rps
 
@@ -1721,10 +1713,10 @@ arrEnd_:
 
     ; bytes
     sec
-    lda vHeapPtr + 0
+    lda vHeap + 0
     sbc tos + 0
     sta tos + 0
-    lda vHeapPtr + 1
+    lda vHeap + 1
     sbc tos + 1
     sta tos + 1
 
@@ -1754,15 +1746,6 @@ def_:
     ; get slot at list
     sta ap
     jsr lookupDefs
-
-    ; offset
-    tya
-    clc
-    adc tos + 0
-    sta tos + 0
-    lda NUL
-    adc tos + 1
-    sta tos + 1
 
     ; get heap
     jsr heap2nos
@@ -1992,7 +1975,7 @@ iSysVars:
     .word  FALSE                ; e vEdited
     .word  rStack               ; f vR0
     .word  next                 ; g dispatcher
-    .word  heap                 ; h vHeapPtr
+    .word  heap                 ; h vHeap
 fSysVars:
 
 dysys = fSysVars - iSysVars
