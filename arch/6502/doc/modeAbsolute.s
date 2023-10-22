@@ -270,17 +270,21 @@ shr:
     ror asp + 1, x
     rts
 
-to:
+cto:
     jsr take2
     ldy #0
     lda nos + 0
     sta (tos), y
+    rts
+
+to:
+    jsr cto
     iny
     lda nos + 1
     sta (tos), y
     rts
 
-at:
+cat:
     ldx isp
     lda asp + 0, x
     sta tos + 0
@@ -289,21 +293,39 @@ at:
     ldy #0
     lda (tos), y
     sta asp + 0, x
+    rts
+
+at:
+    jsr cat
     iny 
     lda (tos), y
     sta asp + 1, x
     rts
 
+goto:
+    jsr pull
+    jmp (tos)
 
+exec:
+    pla
+    sta tos + 0
+    pla
+    sta tos + 1
+    jmp (tos)
 
-r2s:
-    jsr rpull
-    jsr spush
-    rts
-
-s2r:
-    jsr spull
-    jsr rpush
-    rts
+;
+;exit:
+;    jsr rpull
+;    jmp (tos)
+;
+;r2s:
+;    jsr rpull
+;    jsr spush
+;    rts
+;
+;s2r:
+;    jsr spull
+;    jsr rpush
+;    rts
 
     
