@@ -174,7 +174,8 @@ DEFS = defs
 
 init:
     jmp mint_
-    .asciiz "6502 MINT"
+
+    .asciiz "MINT 6502 MINT"
 
 ;---------------------------------------------------------------------- 
 ;    depends on hardware
@@ -1661,7 +1662,7 @@ arrEnd_:
 
 ;---------------------------------------------------------------------- 
 def_:
-    ; skip spaces
+    ; must be a A-Z 
     jsr nosp
 
     ; get slot at list
@@ -1678,7 +1679,7 @@ def_:
     lda nos + 1
     sta (tos), y
 
-    ; copy to heap  
+    ; copy to heap
     ldy NUL
 @loop:
     lda (ipt), y
@@ -1689,11 +1690,11 @@ def_:
     cmp #';'
     bne @loop
 @ends:
-
+    ; update heap
     tya
     sta ap
     jsr add2heap
-
+    ; update instruction pointer
     lda ap
     jmp add2ps
 
@@ -1715,13 +1716,15 @@ break_:
     jsr spull
     lda tos + 0
     bne @isne
+    ; parse frame
     jmp (vNext)
 @isne:
-    ; drop frame
+    ; skip frame
     clc
-    lda isp
-    adc #$06
-    sta isp
+    lda irp
+    adc #6
+    sta irp
+@iscc:
     jmp skipnest
 
 ;---------------------------------------------------------------------- 
@@ -1735,47 +1738,36 @@ begin_:
 
     ; alloc a frame 
     sec
-    lda isp
+    lda irp
     sbc #6
-    sta isp
+    sta irp
 
     ; make a frame
-    ldy isp
+    ldx irp
     ; counter
     lda NUL
-    sta apr + 0, y
-    sta apr + 1, y
+    sta apr + 0, x
+    sta apr + 1, x 
     ; limit
     lda tos + 0
-    sta apr + 2, y
+    sta apr + 2, x
     lda tos + 1
-    sta apr + 3, y
+    sta apr + 3, x
     ; pointer
     lda ipt + 0
-    sta apr + 4, y
+    sta apr + 4, x
     lda ipt + 1
-    sta apr + 5, y
+    sta apr + 5, x
     ; next 
     jmp (vNext) 
 
 ;----------------------------------------------------------------------
 ; Right parentesis ) again a loop 
 again_: 
-    ; counter
-    ldy isp
-    lda apr + 0, y
-    sta wrk + 0
-    lda apr + 1, y
-    sta wrk + 1
-
     ; check if IFTEMode $FFFF
-
-    lda wrk + 0
-    and wrk + 1
-    sta ap
-    inc ap
-    ; tax
-    ; inx
+    lda apr + 0, x
+    and apr + 1, x
+    cmp #$FF
     bne again1
     
     ; push FALSE
@@ -1786,55 +1778,42 @@ again_:
 
     ; drop IFTEMmode
     clc
-    lda isp
+    lda irp
     adc #2
-    sta isp
+    sta irp
     ; next 
     jmp (vNext)
  
 again1: 
-    ldy isp
-    ; peek loop limit 
-    lda apr + 2
-    sta nos + 0                 
-    lda apr + 3
-    sta nos + 3
-
     ; test end
-    sec
-    lda nos + 0
-    sbc wrk + 0
+    ldx irp
+    lda apr + 2, x
+    cmp apr + 0, x
     bne @noend
-    lda nos + 1
-    sbc wrk + 1
+    lda apr + 3, x
+    cmp apr + 1, x
     bne @noend
 
     ; end of loop
     ; drop frame
     clc
-    lda yp
+    lda irp
     adc #6
-    sta yp
+    sta irp
     ; next 
     jmp (vNext)
 
 @noend:
     ; increase counter
-    inc wrk + 0
+    inc apr + 0, x
     bne @novr
-    inc wrk + 1
+    inc apr + 1, x
 @novr:    
-    ldy apr
-    ; poke loop var 
-    lda wrk + 0
-    sta apr + 0, y
-    lda wrk + 1
-    sta apr + 1, y
 
     ; return at begin    
-    lda apr + 4, y
+    lda apr + 4, x
     sta ipt + 0
-    lda apr + 5, y
+    lda apr + 5, x
     sta ipt + 1
 
     ; next 
@@ -1843,22 +1822,21 @@ again1:
 ;----------------------------------------------------------------------
 j_:
     sec
-    lda isp
+    lda irp
     sbc #6
-    tay
+    tax
     jmp indx
 
 ;----------------------------------------------------------------------
 i_:
-    ldx isp
+    ldx irp
     ; fall through
 
 ;----------------------------------------------------------------------
 indx:
     lda aps + 0, x
     sta tos + 0
-    inx
-    lda aps + 0, x
+    lda aps + 1, x
     sta tos + 1
     jsr spush
     ; next 
@@ -1935,7 +1913,9 @@ mint_:
     jsr printStr
     .asciiz "MINT 6502 V1.0\r\n"
 
-    jmp interpret
+    ; auto reset if stack overflows
+    jsr interpret
+    jmp mint_
 
 ;---------------------------------------------------------------------- 
 initialize:
