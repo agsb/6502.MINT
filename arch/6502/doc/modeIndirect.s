@@ -9,7 +9,17 @@ nos: .word $0
 wrk: .word $0
 tmp: .word $0
 
-rpull: ; 40 cc
+
+;------------------------------------------------------------------------------
+; using indirect address from a reference in zero page
+; using only (addr), y 
+; pros: could change the stacks pointers
+; cons: all operations needs pull and push, increased overhead
+; multitask and multiuser : just change the base address pointers
+;
+;------------------------------------------------------------------------------
+
+rpull: ; 36 cc
     ldy rpt 
     lda (vrp), y 
     sta tos + 1 
@@ -20,7 +30,7 @@ rpull: ; 40 cc
     sty rpt 
     rts 
  
-rpush:
+rpush: ; 36 cc
     ldy rpt
     dey
     lda tos + 0
@@ -31,6 +41,19 @@ rpush:
     sty rpt
     rts
  
+rdrop: ; 16
+    ldy rpt
+    iny
+    iny
+    sty rpt
+    rst
+
+rkeep: ; 16
+    ldy rpt
+    dey
+    dey
+    sty rpt
+    rst
 
 spull:
     ldy spt
@@ -90,13 +113,6 @@ spull2:
     sty spt
     rts
  
-rdrop:
-    ldy rpt
-    iny
-    iny
-    sty rpt
-    rst
-
 drop:
     ldy spt
     iny
@@ -175,4 +191,3 @@ s2r:
     jsr rpush
     rts
 
-    
