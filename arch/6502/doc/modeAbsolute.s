@@ -24,19 +24,31 @@
 ;   +5  MSB
 ; high memory
 ;------------------------------------------------------------------------------
-
+;
 ; to keep code safe do not using "fall throught". 
-; code uses A, Y, X caller must saves.
+; uses A, Y, X caller must saves.
+; needs 2 levels of hardware stack
+; uses 4 bytes in page zero as temporary
+; uses 4 bytes in memory for internal use
+;
 
 ; zero page 
 tos:    .word $0
 nos:    .word $0
 
 ; any page
-ips:    .word $0
-aps:    .word $0
 
-drop: ; to pull 
+ips:    .byte $0
+ipr:    .byte $0
+
+aps:    .word $0
+apr:    .word $0
+
+;------------------------------------------------------------------------------
+;   data stack
+;------------------------------------------------------------------------------
+
+lose: ; to pull 
     ; ldx isp
     inx
     inx
@@ -91,7 +103,11 @@ pull2:
     sta nos + 1
     jsr drop
     jmp drop
- 
+   
+drop:  
+    ldx isp 
+    jmp lose
+
 dup:
     ldx isp
     lda asp + 0, x
@@ -313,19 +329,59 @@ exec:
     sta tos + 1
     jmp (tos)
 
-;
-;exit:
-;    jsr rpull
-;    jmp (tos)
-;
-;r2s:
-;    jsr rpull
-;    jsr spush
-;    rts
-;
-;s2r:
-;    jsr spull
-;    jsr rpush
-;    rts
+;------------------------------------------------------------------------------
+;   return stack
+;------------------------------------------------------------------------------
+
+rlose: ; to pull 
+    ; ldx isp
+    inx
+    inx
+    stx isp
+    rst
+
+
+rkeep: ; to push 
+    ; ldx isp
+    dex
+    dex
+    stx irp
+    rst
+
+rpull:
+    ldx irp
+    lda arp + 0, x
+    sta tos + 0
+    lda arp + 1, x
+    sta tos + 1
+    jmp rlose
+
+rpush:
+    ldx irp
+    lda tos + 0
+    sta arp - 2, x
+    lda tos + 1
+    sta arp - 1, x
+    jmp rkeep
+ 
+rshow:
+    jsr rpull
+    jsr rpush
+    jsr spush
+    rts
+
+r2s:
+    jsr rpull
+    jsr spush
+    rts
+
+s2r:
+    jsr spull
+    jsr rpush
+    rts
+
+exit:
+    jsr rpull
+    jmp (tos)
 
     
