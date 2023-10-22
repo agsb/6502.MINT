@@ -71,7 +71,7 @@
     GRPSIZE = $40
 
     ; groups for defs, could be more
-    NUMGRPS = 6 
+    NUMGRPS = 5 
 
 ;---------------------------------------------------------------------- 
 ; page 0, reserved cells 
@@ -79,12 +79,12 @@
 ; offset
 * = $00F0
 
-; index for data stack
-sps:    .byte $0
-; index for return stack
-rps:    .byte $0
 ; instruction pointer
-ips:    .word $0
+ipt:    .word $0
+; index for data stack
+isp:    .byte $0
+; index for return stack
+irp:    .byte $0
 ; copycat for registers
 yp: 	.byte $0
 xp: 	.byte $0
@@ -114,11 +114,11 @@ VOID:
 
 ; data stack
     .res PAGE, $00
-spz:
+aps:
 
 ; return stack
     .res PAGE, $00
-rpz: 
+apr:
 
 ; terminal input buffer
 tib:    
@@ -217,388 +217,389 @@ keyq_:
     clv
     bvc keyk
 
-;---------------------------------------------------------------------- 
-; NOOP
-aNop_:
-nop_:
-    ; next 
-    jmp next
+;------------------------------------------------------------------------------
+;   data stack
+;------------------------------------------------------------------------------
 
-;---------------------------------------------------------------------- 
-; add a byte offset to instruction pointer
-add2ps:    
-; update ip
+keep_: ; to push 
+    ; ldx isp
+    dex
+    dex
+    stx isp
+    rts
+
+lose_: ; to pull 
+    ; ldx isp
+    inx
+    inx
+    stx isp
+    rts
+
+spush:
+push_:
+    ldx isp
+    lda tos + 0
+    sta aps - 2, x
+    lda tos + 1
+    sta aps - 1, x
+    jmp keep_
+ 
+spull:
+pull_:
+    ldx isp
+    lda aps + 0, x
+    sta tos + 0
+    lda aps + 1, x
+    sta tos + 1
+    jmp lose_
+
+push2_:
+    ldx isp
+    lda nos + 0
+    sta aps - 4, x
+    lda nos + 1
+    sta aps - 3, x
+    lda tos + 0
+    sta aps - 2, x
+    lda tos + 1
+    sta aps - 1, x
+    jsr keep_
+    jmp keep_
+ 
+take2:
+pull2_:
+    ldx isp
+    lda aps + 0, x
+    sta tos + 0
+    lda aps + 1, x
+    sta tos + 1
+    lda aps + 2, x
+    sta nos + 0
+    lda aps + 3, x
+    sta nos + 1
+    jsr lose_
+    jmp lose_
+   
+drop_:  
+    ldx isp 
+    jsr lose_
+    jmp (vNext)
+
+dup_:
+    ldx isp
+    lda aps + 0, x
+    sta aps - 2 
+    lda aps + 1, x
+    sta aps - 1
+    jsr keep_
+    jmp (vNext)
+
+over_:
+    ldx isp
+    lda aps + 2, x
+    sta aps - 2 
+    lda aps + 3, x
+    sta aps - 1
+    jsr keep_
+    jmp (vNext)
+
+swap_:
+    ldx isp
+    lda aps + 0, x
+    sta aps - 2 
+    lda aps + 1, x
+    sta aps - 1
+    lda aps + 2, x
+    sta aps + 0 
+    lda aps + 3, x
+    sta aps + 1
+    lda aps - 2, x
+    sta aps + 2 
+    lda aps - 1, x
+    sta aps + 3
+    jmp (vNext)
+
+rot_:
+    ldx isp
+    lda aps + 4, x
+    sta aps - 2 
+    lda aps + 5, x
+    sta aps - 1
+    lda aps + 2, x
+    sta aps + 4 
+    lda aps + 3, x
+    sta aps + 5
+    lda aps + 0, x
+    sta aps + 2 
+    lda aps + 1, x
+    sta aps + 3
+    lda aps - 2, x
+    sta aps + 0 
+    lda aps - 1, x
+    sta aps + 1
+    jmp (vNext)
+
+and_:
+    ldx isp
+    lda aps + 0, x
+    and aps + 2, x
+    sta aps + 2, x 
+    lda aps + 1, x 
+    and aps + 3, x
+    sta aps + 3, x
+    jmp drop_
+
+or_:
+    ldx isp
+    lda aps + 0, x
+    ora aps + 2, x
+    sta aps + 2, x
+    lda aps + 1, x
+    ora aps + 3, x
+    sta aps + 3, x
+    jmp drop_
+
+xor_:
+    ldx isp
+    lda aps + 0, x
+    eor aps + 2, x
+    sta aps + 2, x
+    lda aps + 1, x
+    eor aps + 3, x
+    sta aps + 3, x
+    jmp drop_
+
+cpt_:
+    ldx isp
+    sec
+    tya
+    sbc aps + 0, x
+    sta aps + 0, x
+    sec
+    tya
+    sbc aps + 1, x
+    sta aps + 1, x
+    jmp (vNext)
+
+neg_:
+    lda #$00
+    tay
+    jmp cpt_
+
+inv_: 
+    lda #$FF
+    tay
+    jmp cpt_
+
+sub_:
+    ldx isp
+    sec
+    lda aps + 2, x
+    sbc aps + 0, x
+    sta aps + 2, x
+    lda aps + 3, x
+    sbc aps + 1, x
+    sta aps + 3, x
+    jmp drop_
+
+add_:
+    ldx isp
     clc
-    adc ips + 0
-    sta ips + 0
-    bcc @iscc
-    inc ips + 1
-@iscc:
-    ; next 
+    lda aps + 2, x
+    adc aps + 0, x
+    sta aps + 2, x
+    lda aps + 3, x
+    adc aps + 1, x
+    sta aps + 3, x
+    jmp drop_
+
+cmp_:
+    ldx isp
+    sec
+    lda aps + 2, x
+    sbc aps + 0, x
+    lda aps + 3, x
+    sbc aps + 1, x
+    rts
+
+eq_:
+    jsr cmp_
+    beq true2_
+    bne false2_
+
+lt_:
+    jsr cmp_
+    bmi true2_
+    bpl false2_
+
+gt_:
+    jsr cmp_
+    bmi false2_
+    beq false2_
+    bpl true2_
+
+same2_:
+    ldx isp
+    sta aps + 2, x
+    sta aps + 3, x
+    jmp drop_
+
+false2_:
+    lda #(FALSE)
+    beq same2_
+
+true2_:
+    lda #(!FALSE)
+    bne same2_
+
+shl_:
+    ldx isp
+    asl aps + 0, x
+    rol aps + 1, x
+    jmp (vNext)
+
+shr_:
+    ldx isp
+    lsr aps + 0, x
+    ror aps + 1, x
+    jmp (vNext)
+
+cto_:
+    jsr pull2_
+    ldy #0
+    lda nos + 0
+    sta (tos), y
+    rts
+
+to_:
+    jsr cto_
+    iny
+    lda nos + 1
+    sta (tos), y
+    rts
+
+cStore_:
+    jsr cto_
+    jmp (vNext)
+
+store_:
+    jsr to_
+    jmp (vNext)
+
+cat_:
+    ldx isp
+    lda aps + 0, x
+    sta tos + 0
+    lda aps + 1, x
+    sta tos + 1
+    ldy #0
+    lda (tos), y
+    sta aps + 0, x
+    rts
+
+at_:
+    jsr cat_
+    iny 
+    lda (tos), y
+    sta aps + 1, x
+    rts
+
+cFetch_:
+    jsr cat_
+    jmp (vNext)
+
+fetch_:
+    jsr at_
+    jmp (vNext)
+
+incr_:
+addto_:
+    jsr pull2_
+    ldy NUL
+    clc
+    lda (tos), y
+    adc nos + 0
+    sta (tos), y
+    iny
+    lda (tos), y
+    adc nos + 1
+    sta (tos), y
+	jmp (vNext)
+
+decr_:
+subto_:
+    jsr pull2_
+    ldy NUL
+    sec
+    lda (tos), y
+    sbc nos + 0
+    sta (tos), y
+    iny
+    lda (tos), y
+    sbc nos + 1
+    sta (tos), y
+	jmp (vNext)
+
+;------------------------------------------------------------------------------
+;   return stack
+;------------------------------------------------------------------------------
+
+rpush:
+rpush_:
+    ldx isp
+    lda tos + 0
+    sta apr - 2, x
+    lda tos + 1
+    sta apr - 1, x
+    dex
+    dex
+    stx isp
+    rts
+
+rpull:
+rpull_:
+    ldx isp
+    lda apr + 0, x
+    sta tos + 0
+    lda apr + 1, x
+    sta tos + 1
+    inx
+    inx
+    stx isp
+    rts
+
+rshow_:
+    ldx isp
+    lda apr + 0, x
+    sta tos + 0
+    lda apr + 1, x
+    sta tos + 1
+    jsr push_
+    jmp (vNext)
+
+r2s_:
+    jsr rpull_
+    jsr push_
+    jmp (vNext)
+
+s2r_:
+    jsr pull_
+    jsr rpush_
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
-; load a byte and increase instruction pointer 
-ldaps: 
-    ldy NUL 
-    lda (ips), y 
-    inc ips + 0 
-    bne @noeq 
-    inc ips + 1 
-@noeq: 
-    rts 
- 
-;---------------------------------------------------------------------- 
-; copy vHeap to nos
-heap2nos:
-    ; array start
-    lda vHeap + 0
-    sta nos + 0
-    lda vHeap + 1
-    sta nos + 1
-    rts
-
-add2heap:
-    clc
-    adc vHeap + 0
-    sta vHeap + 0
-    bcc @ends
-    inc vHeap + 1
-@ends:
-    rts 
-
-;---------------------------------------------------------------------- 
-pushps:
-; push ps into RS 
-    ldy rps 
-    dey 
-    dey 
-    lda ips + 0 
-    sta rpz + 0, y 
-    lda ips + 1 
-    sta rpz + 1, y 
-    sty rps 
-    rts
-
-;---------------------------------------------------------------------- 
-pullps:
-; pull ps from RS 
-    ldy rps 
-    lda rpz + 0, y 
-    sta ips + 0 
-    lda rpz + 1, y 
-    sta ips + 1 
-    iny 
-    iny 
-    sty rps 
-    rts
-
-;---------------------------------------------------------------------- 
-; push tos into return stack 
-rpush: 
-    ldy rps 
-    dey 
-    dey 
-    lda tos + 0 
-    sta rpz + 0, y 
-    lda tos + 1 
-    lda rpz + 1, y 
-    sty rps 
-    rts 
- 
-;---------------------------------------------------------------------- 
-; push tos from return stack 
-rpull: 
-    ldy rps 
-    lda rpz + 0, y 
-    sta tos + 0 
-    lda rpz + 1, y 
-    sta tos + 1 
-    iny 
-    iny 
-    sty rps 
-    rts 
- 
-;---------------------------------------------------------------------- 
-; push tos into stack 
-spush: 
-    ldx sps
-    dex 
-    dex 
-    lda tos + 0 
-    sta spz + 0, x 
-    lda tos + 1 
-    sta spz + 1, x 
-    stx sps
-    rts 
- 
-;---------------------------------------------------------------------- 
-; pull tos from stack 
-spull: 
-    ldx sps
-    lda spz + 0, x 
-    sta tos + 0 
-    lda spz + 1, x 
-    sta tos + 1 
-    inx 
-    inx 
-    stx sps
-    rts 
- 
-;---------------------------------------------------------------------- 
-; take two from stack 
-take2: 
-    ldx sps
-    lda spz + 0, x 
-    sta tos + 0 
-    lda spz + 1, x 
-    sta tos + 1 
-    lda spz + 2, x 
-    sta nos + 2 
-    lda spz + 3, x 
-    sta nos + 3 
-    inx 
-    inx 
-    inx 
-    inx 
-    stx sps
-    rts 
-
-;---------------------------------------------------------------------- 
-; classic R>
-R2S_:
-    jsr rpull
-    jsr spush
-    ; next 
-    jmp (vNext) 
-
-;---------------------------------------------------------------------- 
-; classic >R
-S2R_:
-    jsr spull
-    jsr rpush
-    ; next 
-    jmp (vNext) 
-
-;---------------------------------------------------------------------- 
-; NEGate the value on top of stack (2's complement) 
-neg_: 
-    ldx sps
-    sec 
-    lda NUL 
-    sbc spz + 0, x 
-    sta spz + 0, x 
-    sec 
-    lda NUL
-    sbc spz + 1, x 
-    sta spz + 1, x 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-; Bitwise INVert the top member of the stack (1's complement) 
-inv_: 
-    ldx sps
-    lda #$FF 
-    eor spz + 0, x 
-    sta spz + 0, x 
-    lda #$FF 
-    eor spz + 1, x 
-    sta spz + 1, x 
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-; copy 1st element of the stack 
-; a b c -- a b c c 
-dup_: 
-    ldx sps
-    dex 
-    dex 
-    lda spz + 2, x 
-    sta spz + 0, x 
-    lda spz + 3, x 
-    sta spz + 1, x 
-    stx sps
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-; copy 2nd element of the stack 
-; a b c -- a b c b 
-over_: 
-    ldx sps
-    dex 
-    dex 
-    lda spz + 4, x 
-    sta spz + 0, x 
-    lda spz + 5, x 
-    sta spz + 1, x 
-    stx sps
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-; Rotate down 3 elements at stack 
-; a b c -- b c a 
-rot_: 
-    ldx sps
-    ; c -> t 
-    lda spz + 0, x 
-    sta tos + 0 
-    lda spz + 0, x 
-    sta tos + 1 
-    ; b -> n 
-    lda spz + 2, x 
-    sta nos + 0 
-    lda spz + 3, x 
-    sta nos + 1 
-    ; a -> c 
-    lda spz + 4, x 
-    sta spz + 0, x 
-    lda spz + 5, x 
-    sta spz + 1, x 
-    ; t -> b 
-    lda tos + 0 
-    sta spz + 2, x 
-    lda tos + 1 
-    sta spz + 3, x 
-    ; n -> a 
-    lda nos + 0 
-    sta spz + 4, x 
-    lda nos + 1 
-    sta spz + 5, x 
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-; Swap 2nd and 1st elements of the stack 
-; a b c -- a c b 
-swap_: 
-    ldx sps
-    ; c -> t
-    lda spz + 0, x 
-    sta tos + 0 
-    lda spz + 1, x 
-    sta tos + 1 
-    ; b -> c 
-    lda spz + 2, x 
-    sta spz + 0, x 
-    lda spz + 3, x 
-    sta spz + 1, x 
-    ; t -> b 
-    lda tos + 0 
-    sta spz + 2, x 
-    lda tos + 1 
-    sta spz + 3, x 
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-;  Left shift { is multply by 2 
-shl_: 
-    ldx sps
-    asl spz + 0, x 
-    rol spz + 1, x 
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-;  Right shift } is a divide by 2 
-shr_: 
-    ldx sps
-    lsr spz + 0, x 
-    ror spz + 1, x 
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-; Drop the 1st element of the stack 
-; a b c -- a b 
-drop_: 
-    ldx sps
-    inx 
-    inx 
-    stx sps
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-;  Bitwise AND the top 2 elements of the stack 
-and_: 
-    ldx sps
-    lda spz + 2, x 
-    and spz + 0, x 
-    sta spz + 2, x 
-    lda spz + 3, x 
-    and spz + 1, x 
-    sta spz + 3, x 
-    jmp drop_ 
- 
-;---------------------------------------------------------------------- 
-;  Bitwise OR the top 2 elements of the stack 
-or_: 
-    ldx sps
-    lda spz + 2, x 
-    ora spz + 0, x 
-    sta spz + 2, x 
-    lda spz + 3, x 
-    ora spz + 1, x 
-    sta spz + 3, x 
-    jmp drop_ 
- 
-;---------------------------------------------------------------------- 
-;  Bitwise XOR the top 2 elements of the stack 
-xor_: 
-    ldx sps
-    lda spz + 2, x 
-    eor spz + 0, x 
-    sta spz + 2, x 
-    lda spz + 3, x 
-    eor spz + 1, x 
-    sta spz + 3, x 
-    jmp drop_ 
- 
-;---------------------------------------------------------------------- 
-; Add the top 2 members of the stack 
-; a b c -- a (b+c) 
-add_:   
-    ldx sps
-    clc 
-    lda spz + 2, x 
-    adc spz + 0, x 
-    sta spz + 2, x 
-    lda spz + 3, x 
-    adc spz + 1, x 
-    sta spz + 3, x 
-    jmp drop_ 
- 
-;---------------------------------------------------------------------- 
-; Subtract the top 2 members of the stack 
-; a b c -- a (b-c) 
-sub_: 
-    ldx sps
-    sec 
-    lda spz + 2, x 
-    sbc spz + 0, x 
-    sta spz + 2, x 
-    lda spz + 3, x 
-    sbc spz + 1, x 
-    sta spz + 3, x 
-    jmp drop_ 
- 
-;---------------------------------------------------------------------- 
 ; prepare for mult or divd
 opin:
-    ldx sps 
+    ldx isp 
     ; pseudo tos
-    lda spz + 0, x
+    lda aps + 0, x
     sta wrk + 0
-    lda spz + 1, x
+    lda aps + 1, x
     sta wrk + 1
     ; pseudo nos 
-    lda spz + 2, x
+    lda aps + 2, x
     sta tmp + 0
-    lda spz + 3, x
+    lda aps + 3, x
     sta tmp + 1
     ; clear results
     lda NUL
@@ -614,15 +615,15 @@ opin:
 ; resume from mult or divd
 opout:
     ; copy results
-    ldx sps
+    ldx isp
     lda nos + 0
-    sta spz + 0, x
+    sta aps + 0, x
     lda nos + 1
-    sta spz + 1, x
+    sta aps + 1, x
     lda tos + 0
-    sta spz + 2, x
+    sta aps + 2, x
     lda tos + 1
-    sta spz + 3, x
+    sta aps + 3, x
     rts
 
 ;---------------------------------------------------------------------- 
@@ -700,166 +701,102 @@ mul_:
     jmp (vNext)
  
 ;---------------------------------------------------------------------- 
-; \+    a b c -- a ; [c]+b  ; increment variable at c by b 
-incr_: 
-    jsr take2 
-    ldy NUL 
-    clc 
-    lda (tos), y 
-    adc nos + 0 
-    sta (tos), y 
-    iny 
-    lda (tos), y 
-    adc nos + 1 
-    sta (tos), y 
+; MINT
+;---------------------------------------------------------------------- 
+; NOOP
+aNop_:
+nop_:
     ; next 
-    jmp (vNext) 
- 
+    jmp next
+
 ;---------------------------------------------------------------------- 
-; \-    a b c -- a ; [c]-b  ; decrement variable at c by b 
-decr_: 
-    jsr take2 
-    ldy NUL 
-    sec 
-    lda (tos), y 
-    sbc nos + 0 
-    sta (tos), y 
-    iny 
-    lda (tos), y 
-    sbc nos + 1 
-    sta (tos), y 
+; add a byte offset to instruction pointer
+add2ps:    
+; update ip
+    clc
+    adc ipt + 0
+    sta ipt + 0
+    bcc @iscc
+    inc ipt + 1
+@iscc:
     ; next 
-    jmp (vNext) 
- 
+    jmp (vNext)
+
 ;---------------------------------------------------------------------- 
-; false 
-false2: 
-    ldx sps
-    lda NUL 
-    sta spz + 2, x 
-    sta spz + 3, x 
-    jmp drop_ 
- 
+pushps:
+    ldx irp
+    lda ipt + 0
+    sta apr - 2, x
+    lda ipt + 1
+    sta apr - 1, x
+    dex
+    dex
+    stx irp
+    rts
+
 ;---------------------------------------------------------------------- 
-; true 
-true2: 
-    ldx sps
-    lda #$01 
-    sta spz + 2, x 
-    lda NUL 
-    sta spz + 3, x 
-    jmp drop_ 
- 
+pullps:
+    ldx irp
+    lda apr + 0, x
+    sta ipt + 0
+    lda apr + 1, x
+    sta ipt + 1
+    inx
+    inx
+    stx irp
+    rts
+
 ;---------------------------------------------------------------------- 
-; subtract for compare 
-cmps: 
-    ldx sps
-    sec 
-    lda spz + 2, x 
-    sbc spz + 0, x 
-    lda spz + 3, x 
-    sbc spz + 1, x 
+ldaps: 
+    ldy NUL 
+    lda (ipt), y 
+    inc ipt + 0 
+    bne @noeq 
+    inc ipt + 1 
+@noeq: 
     rts 
  
 ;---------------------------------------------------------------------- 
-; signed equal than 
-eq_: 
-    jsr cmps 
-    bne false2 
-    beq true2 
- 
-;---------------------------------------------------------------------- 
-; signed less than 
-lt_: 
-    jsr cmps 
-    bmi true2 
-    bpl false2 
- 
-;---------------------------------------------------------------------- 
-; signed greather than 
-; must be in that order, bpl is non negative flag 
-gt_: 
-    jsr cmps 
-    bmi false2 
-    beq false2 
-    bpl true2 
- 
-;---------------------------------------------------------------------- 
-; fetch the value from the address placed on the top of the stack 
-; a b c - a b (c) 
-; fetch a byte 
-cFetch_: 
-    lda NUL 
-    sta tos + 1 
-    sec
-    jmp isfetch 
+heap2nos:
+    ; array start
+    lda vHeap + 0
+    sta nos + 0
+    lda vHeap + 1
+    sta nos + 1
+    rts
 
 ;---------------------------------------------------------------------- 
-; fetch a word 
-fetch_: 
-    clc 
-    jmp isfetch 
- 
+add2heap:
+    clc
+    adc vHeap + 0
+    sta vHeap + 0
+    bcc @ends
+    inc vHeap + 1
+@ends:
+    rts 
+
 ;---------------------------------------------------------------------- 
-isfetch: 
-    ; load the reference 
-    ldx sps
-    lda spz + 0, x 
-    sta nos + 0 
-    lda spz + 1, x 
-    sta nos + 1 
-    ; then the value 
-    ldy NUL
-    lda (nos), y 
+inctos:
+    inc tos + 0
+    bcc @iscc1
+    inc tos + 1
+@iscc1:
+    rts
+    
+;---------------------------------------------------------------------- 
+tib2tos:
+    lda #<tib
     sta tos + 0
-    bcs @cset
-    iny
-    lda (nos), y 
+    lda #>tib
     sta tos + 1
-@cset:
-    ; save the value 
-    lda tos + 0 
-    sta spz + 0, x 
-    lda tos + 1 
-    sta spz + 1, x 
-    ; next 
-    jmp (vNext) 
- 
-;---------------------------------------------------------------------- 
-; store the value into the address placed on the top of the stack 
-; a b c -- a 
-; store a byte 
-cStore_: 
-    sec 
-    jmp isstore 
- 
-;---------------------------------------------------------------------- 
-; store a word 
-store_: 
-    clc 
-    jmp isstore 
- 
-;---------------------------------------------------------------------- 
-isstore: 
-    jsr take2 
-    ; copy the value 
-    ldy NUL
-    lda nos + 0
-    sta (tos), y
-    bcs @cset
-    iny
-    lda nos + 1
-    sta (tos), y
-@cset:    
-    ; next 
-    jmp (vNext) 
- 
+    rts
+
 ;---------------------------------------------------------------------- 
 ; puts a string 
 str_: 
     ldy NUL
 @loop:
-    lda (ips), y
+    lda (ipt), y
     beq @ends       ; NUL
     cmp #'`'        ; ` is the string terminator 
     beq @ends 
@@ -868,11 +805,13 @@ str_:
     bne @loop       ; limit 255
 @ends: 
     ; next 
-    jmp (vNext) 
+    jmp  (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; $00 to $1F, reserved for macros
+; macros could no call macros.
 macro:
+    sty vTIBPtr + 0
     tay
     lda ctlcodeslo, y
     sta tos + 0
@@ -881,6 +820,7 @@ macro:
     jsr spush
     jsr enter
     .asciiz "\\G"
+    ldy vTIBPtr + 0
     jmp interpret2
 
 ;---------------------------------------------------------------------- 
@@ -893,13 +833,12 @@ interpret:
 interpret1:
     lda NUL 
     sta vTIBPtr + 0 
-    sta vTIBPtr + 1 
 
 interpret2:                     
     lda NUL
     sta ns
     tay
-    beq @cast
+    beq @isnest
 
 ; calc nesting (a macro might have changed it) 
 @loop: 
@@ -907,7 +846,7 @@ interpret2:
     iny 
     jsr nesting            ; update nesting value 
 
-@cast: 
+@isnest: 
     cpy NUL 
     bne @loop 
     ; fall throught
@@ -979,9 +918,9 @@ gets_:
     ;sta (tos), y 
 
     lda tos + 0
-    sta ips + 0
+    sta ipt + 0
     lda tos + 1
-    sta ips + 1
+    sta ipt + 1
     ; next 
     jmp next
 
@@ -1138,7 +1077,6 @@ printhex8:
     adc #$06 
 @ends: 
     jmp putchar 
- 
 
 ;---------------------------------------------------------------------- 
 prenum:
@@ -1267,7 +1205,7 @@ comment_:
 @loop:    
     iny
     beq @ends   ; limit 256 
-    lda (ips), y
+    lda (ipt), y
     cmp CR 
     bne @loop 
     ; skip \r ?
@@ -1284,7 +1222,7 @@ depth_:
     ; limit to 255 bytes
     sec
     lda #$FF
-    sbc sps 
+    sbc isp 
     ; words 
     lsr
     sta tos + 0 
@@ -1394,7 +1332,6 @@ compNext:
 ; Execute next opcode
 next: 
 opt_:
-    ; using full jump table 
     jsr ldaps
     tay 
     lda optcodeslo, y 
@@ -1406,7 +1343,6 @@ opt_:
 ;---------------------------------------------------------------------- 
 ; Execute next alt opcode
 alt_: 
-    ; using full jump table 
     jsr ldaps
     tay 
     lda altcodeslo, y 
@@ -1416,20 +1352,20 @@ alt_:
     jmp (wrk) 
  
 ;---------------------------------------------------------------------- 
-; Execute code inline, as asciiz 
+; Parse inline code, must be asciiz 
 enter:                           
 ; pull from system stack
     pla 
-    sta ips + 0 
+    sta ipt + 0 
     pla
-    sta ips + 1 
+    sta ipt + 1 
     ; next 
     jmp (vNext) 
 
 ;---------------------------------------------------------------------- 
 ; char 0, Continue from enter 
 exit_:
-    jmp (ips)
+    jmp (ipt)
 
 ;---------------------------------------------------------------------- 
 ; Execute code from data stack 
@@ -1449,14 +1385,14 @@ ret_:
 go_: 
     jsr pushps
 ; pull ps from data stack 
-    ldx sps
-    lda spz + 0, x 
-    sta ips + 0 
-    lda spz + 1, x 
-    sta ips + 1 
+    ldx isp
+    lda aps + 0, x 
+    sta ipt + 0 
+    lda aps + 1, x 
+    sta ipt + 1 
     inx 
     inx 
-    stx sps
+    stx isp
     ; next 
     jmp (vNext) 
  
@@ -1471,6 +1407,7 @@ call_:
     ; next 
     jmp (vNext)
 
+;---------------------------------------------------------------------- 
 lookupDeft:
     lda ap
     sta vEdited
@@ -1560,22 +1497,6 @@ editDef3:
 writeChar: 
     sta (tos), y
     jmp putchar
-
-;---------------------------------------------------------------------- 
-inctos:
-    inc tos + 0
-    bcc @iscc1
-    inc tos + 1
-@iscc1:
-    rts
-    
-;---------------------------------------------------------------------- 
-tib2tos:
-    lda #<tib
-    sta tos + 0
-    lda #>tib
-    sta tos + 1
-    rts
 
 ;---------------------------------------------------------------------- 
 ; push an user variable 
@@ -1686,14 +1607,14 @@ arrDef:
     sta vByteMode
 
     ; save array start
-    ldx rps
+    ldx isp
     dex
     dex
     lda vHeap + 0
-    sta rpz + 0, x
+    sta apr + 0, x
     lda vHeap + 1
-    sta rpz + 1, x
-    sty rps
+    sta apr + 1, x
+    stx isp
 
     ; array next
     lda #<compNext
@@ -1760,7 +1681,7 @@ def_:
     ; copy to heap  
     ldy NUL
 @loop:
-    lda (ips), y
+    lda (ipt), y
     sta (nos), y
     beq @ends
     iny
@@ -1776,54 +1697,6 @@ def_:
     lda ap
     jmp add2ps
 
-;---------------------------------------------------------------------- 
-break_:
-    jsr spull
-    lda tos + 0
-    bne @isne
-    jmp (vNext)
-@isne:
-    ; drop frame
-    clc
-    lda rps
-    adc #$06
-    sta rps
-    jmp skipnest
-
-;---------------------------------------------------------------------- 
-; Left parentesis ( begins a loop
-begin_:
-
-    ; tos is zero ?
-    jsr spull
-    lda tos + 0
-    beq skipnest
-
-    ; alloc a frame 
-    sec
-    lda rps
-    sbc #6
-    sta rps
-
-    ; make a frame
-    ldy rps
-    ; counter
-    lda NUL
-    sta rpz + 0, y
-    sta rpz + 1, y
-    ; limit
-    lda tos + 0
-    sta rpz + 2, y
-    lda tos + 1
-    sta rpz + 3, y
-    ; pointer
-    lda ips + 0
-    sta rpz + 4, y
-    lda ips + 1
-    sta rpz + 5, y
-    ; next 
-    jmp (vNext) 
-
 ;----------------------------------------------------------------------
 ; skip while nest
 skipnest: 
@@ -1837,14 +1710,62 @@ skipnest:
     ; next 
     jmp (vNext) 
 
+;---------------------------------------------------------------------- 
+break_:
+    jsr spull
+    lda tos + 0
+    bne @isne
+    jmp (vNext)
+@isne:
+    ; drop frame
+    clc
+    lda isp
+    adc #$06
+    sta isp
+    jmp skipnest
+
+;---------------------------------------------------------------------- 
+; Left parentesis ( begins a loop
+begin_:
+
+    ; tos is zero ?
+    jsr spull
+    lda tos + 0
+    beq skipnest
+
+    ; alloc a frame 
+    sec
+    lda isp
+    sbc #6
+    sta isp
+
+    ; make a frame
+    ldy isp
+    ; counter
+    lda NUL
+    sta apr + 0, y
+    sta apr + 1, y
+    ; limit
+    lda tos + 0
+    sta apr + 2, y
+    lda tos + 1
+    sta apr + 3, y
+    ; pointer
+    lda ipt + 0
+    sta apr + 4, y
+    lda ipt + 1
+    sta apr + 5, y
+    ; next 
+    jmp (vNext) 
+
 ;----------------------------------------------------------------------
 ; Right parentesis ) again a loop 
 again_: 
     ; counter
-    ldy rps
-    lda rpz + 0, y
+    ldy isp
+    lda apr + 0, y
     sta wrk + 0
-    lda rpz + 1, y
+    lda apr + 1, y
     sta wrk + 1
 
     ; check if IFTEMode $FFFF
@@ -1865,18 +1786,18 @@ again_:
 
     ; drop IFTEMmode
     clc
-    lda rps
+    lda isp
     adc #2
-    sta rps
+    sta isp
     ; next 
     jmp (vNext)
  
 again1: 
-    ldy rps
+    ldy isp
     ; peek loop limit 
-    lda rpz + 2
+    lda apr + 2
     sta nos + 0                 
-    lda rpz + 3
+    lda apr + 3
     sta nos + 3
 
     ; test end
@@ -1903,18 +1824,18 @@ again1:
     bne @novr
     inc wrk + 1
 @novr:    
-    ldy rpz
+    ldy apr
     ; poke loop var 
     lda wrk + 0
-    sta rpz + 0, y
+    sta apr + 0, y
     lda wrk + 1
-    sta rpz + 1, y
+    sta apr + 1, y
 
     ; return at begin    
-    lda rpz + 4, y
-    sta ips + 0
-    lda rpz + 5, y
-    sta ips + 1
+    lda apr + 4, y
+    sta ipt + 0
+    lda apr + 5, y
+    sta ipt + 1
 
     ; next 
     jmp (vNext) 
@@ -1922,22 +1843,22 @@ again1:
 ;----------------------------------------------------------------------
 j_:
     sec
-    lda rps
+    lda isp
     sbc #6
     tay
     jmp indx
 
 ;----------------------------------------------------------------------
 i_:
-    ldy rps
+    ldx isp
     ; fall through
 
 ;----------------------------------------------------------------------
 indx:
-    lda spz + 0, y
+    lda aps + 0, x
     sta tos + 0
-    iny
-    lda spz + 0, y
+    inx
+    lda aps + 0, x
     sta tos + 1
     jsr spush
     ; next 
@@ -2445,14 +2366,14 @@ altcodeslo:
    .byte  <rot_        ;    R  ( a b c -- b c a ) 
    .byte  <aNop_       ;    S 
    .byte  <aNop_       ;    T 
-   .byte  <R2S_        ;    U  S( -- w ) R( w -- ) 
-   .byte  <S2R_        ;    V  S( w -- ) R( -- w )
+   .byte  <r2s_        ;    U  S( -- w ) R( w -- ) 
+   .byte  <s2r_        ;    V  S( w -- ) R( -- w )
    .byte  <aNop_       ;    W   ; ( b -- ) if false, skip to end of loop 
    .byte  <exec_       ;    X 
    .byte  <aNop_       ;    Y 
    .byte  <editDef_    ;    Z 
    .byte  <cArrDef_    ;    [ 
-   .byte  <comment_    ;    \  comment text, skips reading until end of line 
+   .byte  <comment_    ;    \  comment text, skip reading until end of line 
    .byte  <aNop_       ;    ] 
    .byte  <charCode_   ;    ^ 
    .byte  <aNop_       ;    _ 
@@ -2576,14 +2497,14 @@ altcodeshi:
    .byte  >rot_        ;    R  ( a b c -- b c a ) 
    .byte  >aNop_       ;    S 
    .byte  >aNop_       ;    T 
-   .byte  >R2S_        ;    U  S( -- w ) R( w -- ) 
-   .byte  >S2R_        ;    V  S( w -- ) R( -- w )
+   .byte  >r2s_        ;    U  S( -- w ) R( w -- ) 
+   .byte  >s2r_        ;    V  S( w -- ) R( -- w )
    .byte  >aNop_       ;    W   ; ( b -- ) if false, skip to end of loop 
    .byte  >exec_       ;    X 
    .byte  >aNop_       ;    Y 
    .byte  >editDef_    ;    Z 
    .byte  >cArrDef_    ;    [ 
-   .byte  >comment_    ;    \  comment text, skips reading until end of line 
+   .byte  >comment_    ;    \  comment text, skip reading until end of line 
    .byte  >aNop_       ;    ] 
    .byte  >charCode_   ;    ^ 
    .byte  >aNop_       ;    _ 

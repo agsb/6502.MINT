@@ -1,21 +1,16 @@
-spt: .byte $0
-rpt: .byte $0
-
-vsp: .word $0
-vrp: .word $0
-
-tos: .word $0
-nos: .word $0
-wrk: .word $0
-tmp: .word $0
-
 
 ;------------------------------------------------------------------------------
 ; using indirect address from a reference in zero page
 ; using only (addr), y 
-; pros: could change the stacks pointers
-; cons: all operations needs pull and push, increased overhead
-; multitask and multiuser : just change the base address pointers
+;
+; pros: 
+;   could change the stacks pointers
+;
+; cons: 
+;   all operations needs pull and push, increased overhead
+;
+; multitask and multiuser : 
+;   just change the base address pointers
 ;
 ;------------------------------------------------------------------------------
 
