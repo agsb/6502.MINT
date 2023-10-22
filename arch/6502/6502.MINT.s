@@ -226,7 +226,7 @@ nop_:
 
 ;---------------------------------------------------------------------- 
 ; add a byte offset to instruction pointer
-addps:    
+add2ps:    
 ; update ip
     clc
     adc ips + 0
@@ -264,7 +264,7 @@ add2heap:
     sta vHeapPtr + 0
     bcc @ends
     inc vHeapPtr + 1
-@iends:
+@ends:
     rts 
 
 ;---------------------------------------------------------------------- 
@@ -475,17 +475,17 @@ rot_:
 ; a b c -- a c b 
 swap_: 
     ldx sps
-    ; b -> w 
+    ; c -> t
     lda spz + 0, x 
     sta tos + 0 
     lda spz + 1, x 
     sta tos + 1 
-    ; a -> b 
+    ; b -> c 
     lda spz + 2, x 
     sta spz + 0, x 
     lda spz + 3, x 
     sta spz + 1, x 
-    ; w -> a 
+    ; t -> b 
     lda tos + 0 
     sta spz + 2, x 
     lda tos + 1 
@@ -655,10 +655,12 @@ div_:
     ; countdown
     dey
     bne @loop
+    ; results
     lda tmp + 0
     sta nos + 0
     lda tmp + 1
     sta nos + 1
+    ; ends
     jsr opout
     ; next 
     jmp (vNext)
@@ -692,6 +694,7 @@ mul_:
     ; countdown
     dey
     bne @shift_r
+    ; ends
     jsr opout
     ; next 
     jmp (vNext)
@@ -787,8 +790,8 @@ gt_:
 ; fetch a byte 
 cFetch_: 
     lda NUL 
-    sec
     sta tos + 1 
+    sec
     jmp isfetch 
 
 ;---------------------------------------------------------------------- 
@@ -927,7 +930,9 @@ gets_:
     ; limit 254
     cpy #$FE
     beq @endstr
+
     jsr getchar 
+    
     ; ge space ? 
     cmp #32                 
     bcs @ischar 
@@ -968,9 +973,10 @@ gets_:
     lda ETX 
     sta (tos), y
     iny
+
     ; mark NUL
-    lda NUL 
-    sta (tos), y 
+    ;lda NUL 
+    ;sta (tos), y 
 
     lda tos + 0
     sta ips + 0
@@ -1054,7 +1060,7 @@ putstr:
     beq @ends   ; limit NUL 
     jsr putchar
     iny
-    bne @loop   ; limit 255
+    bne @loop   ; limit 256
 @ends: 
     tya
     rts 
@@ -1217,7 +1223,7 @@ hex_:
     clv
     bvc @uval 
 @ish: 
-    ; to upper
+    ; to upper, clear bit-6
     and #%11011111 
     cmp 'A' 
     bcc @ends 
@@ -1260,7 +1266,7 @@ comment_:
     ldy NUL
 @loop:    
     iny
-    beq @ends   ; limit 255 
+    beq @ends   ; limit 256 
     lda (ips), y
     cmp CR 
     bne @loop 
@@ -1271,15 +1277,13 @@ comment_:
     ; offset
 @ends:
     tya
-    jmp addps
+    jmp add2ps
  
 ;---------------------------------------------------------------------- 
 depth_: 
     ; limit to 255 bytes
-    sec 
-    lda #$FF 
-    sbc sps 
     ; words 
+    lda sps 
     lsr
     sta tos + 0 
     lda NUL 
@@ -1677,7 +1681,7 @@ getRef_:
 ;---------------------------------------------------------------------- 
 arrDef_:
     lda FALSE
-    beq arrDef1
+    beq arrDef
 
 ;---------------------------------------------------------------------- 
 cArrDef_:
@@ -1685,14 +1689,9 @@ cArrDef_:
     ; fall throught
 
 ;---------------------------------------------------------------------- 
-arrDef1:
+arrDef:
+    ; save array mode
     sta vByteMode
-    
-    ; array next
-    lda #<compNext
-    sta vNext + 0
-    lda #>compNext
-    sta vNext + 1
 
     ; save array start
     ldx rps
@@ -1703,6 +1702,12 @@ arrDef1:
     lda vHeapPtr + 1
     sta rpz + 1, x
     sty rps
+
+    ; array next
+    lda #<compNext
+    sta vNext + 0
+    lda #>compNext
+    sta vNext + 1
 
     ; next 
     jmp next
@@ -1732,13 +1737,14 @@ arrEnd_:
     ; size of array
     jsr spush
 
+    ; cummon next
     lda #<next
     sta vNext + 0
     lda #>next
     sta vNext + 1
 
     ; next 
-    jmp (vNext)
+    jmp next
 
 ;---------------------------------------------------------------------- 
 def_:
@@ -1768,11 +1774,12 @@ def_:
     lda nos + 1
     sta (tos), y
 
-    ; copy  
+    ; copy to heap  
     ldy NUL
 @loop:
     lda (ips), y
     sta (nos), y
+    beq @ends
     iny
     beq @ends
     cmp #';'
@@ -1784,7 +1791,7 @@ def_:
     jsr add2heap
 
     lda ap
-    jmp addps
+    jmp add2ps
 
 ;---------------------------------------------------------------------- 
 break_:
@@ -1809,7 +1816,7 @@ begin_:
     lda tos + 0
     beq skipnest
 
-    ; alloc frame 
+    ; alloc a frame 
     sec
     lda rps
     sbc #6
@@ -1850,8 +1857,8 @@ skipnest:
 ;----------------------------------------------------------------------
 ; Right parentesis ) again a loop 
 again_: 
-    ldy rps
     ; counter
+    ldy rps
     lda rpz + 0, y
     sta wrk + 0
     lda rpz + 1, y
@@ -1893,10 +1900,10 @@ again1:
     sec
     lda nos + 0
     sbc wrk + 0
-    bne @noeq
+    bne @noend
     lda nos + 1
     sbc wrk + 1
-    bne @noeq
+    bne @noend
 
     ; end of loop
     ; drop frame
@@ -1907,7 +1914,7 @@ again1:
     ; next 
     jmp (vNext)
 
-@noeq:
+@noend:
     ; increase counter
     inc wrk + 0
     bne @novr
@@ -1958,11 +1965,11 @@ ifte_:
     jsr spull
     lda tos + 0
     ora tos + 1
-    bne @isne
+    bne @istrue
     inc tos + 0
     jsr spush
     jmp skipnest
-@isne:
+@istrue:
     lda #$FF
     sta tos + 0
     sta tos + 1
@@ -2113,7 +2120,7 @@ optcodeslo:
    .byte  <etx_     ;   ETX 
    .byte  <nop_     ;   EOT 
    .byte  <nop_     ;   ENQ 
-   .byte  <nop_     ;   apK 
+   .byte  <nop_     ;   ACK 
    .byte  <nop_     ;   BEL 
    .byte  <nop_     ;   BS 
    .byte  <nop_     ;   TAB 
@@ -2243,7 +2250,7 @@ optcodeshi:
    .byte  >etx_     ;   ETX 
    .byte  >nop_     ;   EOT 
    .byte  >nop_     ;   ENQ 
-   .byte  >nop_     ;   apK 
+   .byte  >nop_     ;   ACK 
    .byte  >nop_     ;   BEL 
    .byte  >nop_     ;   BS 
    .byte  >nop_     ;   TAB 
