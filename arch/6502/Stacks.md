@@ -8,17 +8,40 @@ There are four commom stacks implementations:
 
 ## at hardware stack SP
 
-      - push {LDA PZA; PHA; LDA PZB; PHA;} ; 12 cycles
-      - pull {PLA; STA PZB; PLA; STA PZA;} ; 12 cycles
+      .macro push lsb, msb \n LDA \lsb; PHA; LDA \msb; PHA; \n .endmacro ; 12 cycles
+      .macro pull lsb, msb \n PLA; STA \msb; PLA; STA \lsb; \n .endmacro ; 12 cycles
       
 Uses two bytes of page zero and two bytes at hardware stack.
-      
-      - push {LDX PZI; LDA PZA; STA PZP, X; DECX; LDA PZB; STA PZP, X; DECX; STX PZI} ;  cycles
-      - pull {LDX PZI; INCX; LDA PZP, X; STA PZA; INCX; LDA PZP, X; STA PZB; STX PZI} ; 12 cycles
-      
+
 ## at page zero indexed by X
+      
+      .macro push idz, ptrz, lsb, msb 
+            LDX \idz; DEX; LDA \msb; STA \ptrz, X; DEX; LDA \lsb; STA \ptrz, X; STX \idz
+      .endmacro      ;  cycles
+      
+      .macro pull idz, ptrz, lsb, msb 
+            LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz 
+      .endmacro
+      
 ## indirect at page zero indexed by Y
+
+      .macro push idz, ptrz, lsb, msb 
+            LDY \idz; DEY; LDA \msb; STA (\ptrz), Y; DEY; LDA \lsb; STA (\ptrz), Y; STY \idz} 
+      .endmacro      ;  cycles
+      
+      .macro pull idz, ptrz, lsb, msb 
+            LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idz} 
+      .endmacro
+
 ## absolute address indexed by Y
+      
+      .macro push idz, ptr, lsb, msb 
+            LDY \idz; LDA \msb; STA \ptr - 1, Y; LDA \lsb; STA \ptr - 2, Y; DEY; DEY; STY \idz} 
+      .endmacro      ;  cycles
+      
+      .macro pull idz, ptrz, lsb, msb 
+            LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idx} 
+      .endmacro
 
 
 #### use hardware stack
