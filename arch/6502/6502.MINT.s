@@ -283,6 +283,7 @@ pull2_:
 drop_:  
     ldx isp 
     jsr lose_
+    ; rts
     jmp (vNext)
 
 dup_:
@@ -292,6 +293,7 @@ dup_:
     lda aps + 1, x
     sta aps - 1
     jsr keep_
+    ; rts
     jmp (vNext)
 
 over_:
@@ -301,6 +303,7 @@ over_:
     lda aps + 3, x
     sta aps - 1
     jsr keep_
+    ; rts
     jmp (vNext)
 
 swap_:
@@ -317,6 +320,7 @@ swap_:
     sta aps + 2 
     lda aps - 1, x
     sta aps + 3
+    ; rts
     jmp (vNext)
 
 rot_:
@@ -337,6 +341,7 @@ rot_:
     sta aps + 0 
     lda aps - 1, x
     sta aps + 1
+    ; rts
     jmp (vNext)
 
 and_:
@@ -379,6 +384,7 @@ cpt_:
     tya
     sbc aps + 1, x
     sta aps + 1, x
+    ; rts
     jmp (vNext)
 
 neg_:
@@ -456,12 +462,14 @@ shl_:
     ldx isp
     asl aps + 0, x
     rol aps + 1, x
+    ; rts
     jmp (vNext)
 
 shr_:
     ldx isp
     lsr aps + 0, x
     ror aps + 1, x
+    ; rts
     jmp (vNext)
 
 cto_:
@@ -480,10 +488,12 @@ to_:
 
 cStore_:
     jsr cto_
+    ; rts
     jmp (vNext)
 
 store_:
     jsr to_
+    ; rts
     jmp (vNext)
 
 cat_:
@@ -506,10 +516,12 @@ at_:
 
 cFetch_:
     jsr cat_
+    ; rts
     jmp (vNext)
 
 fetch_:
     jsr at_
+    ; rts
     jmp (vNext)
 
 incr_:
@@ -518,6 +530,7 @@ incr_:
     bne @ends
     inc aps + 1, x 
 @ends:
+    ; rts
     jmp (vNext)
 
 decr_:
@@ -527,6 +540,7 @@ decr_:
     dec aps + 1, x 
 @ends:
     dec aps + 0, x 
+    ; rts
     jmp (vNext)
 
 .if 0
@@ -584,6 +598,7 @@ rpull_:
     stx isp
     rts
 
+.if 0
 rshow_:
     ldx isp
     lda apr + 0, x
@@ -591,16 +606,20 @@ rshow_:
     lda apr + 1, x
     sta tos + 1
     jsr push_
+    ; rts
     jmp (vNext)
+.endif
 
 r2s_:
     jsr rpull_
     jsr push_
+    ; rts
     jmp (vNext)
 
 s2r_:
     jsr pull_
     jsr rpush_
+    ; rts
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
@@ -1412,9 +1431,18 @@ go_:
 ; Execute code from a user function
 call_:
     sta ap
+    
     jsr pushps
-
+    
     jsr lookupDefs
+
+    ; update instruction pointer
+    ldy NUL
+    lda (tos), y
+    sta ipt + 0
+    iny
+    lda (tos), y
+    sta ipt + 1
 
     ; next 
     jmp (vNext)
@@ -1606,7 +1634,7 @@ getRef_:
 ;---------------------------------------------------------------------- 
 arrDef_:
     lda FALSE
-    beq arrDef
+    beq arrDefs
 
 ;---------------------------------------------------------------------- 
 cArrDef_:
@@ -1614,7 +1642,7 @@ cArrDef_:
     ; fall throught
 
 ;---------------------------------------------------------------------- 
-arrDef:
+arrDefs:
     ; save array mode
     sta vByteMode
 
@@ -1662,7 +1690,7 @@ arrEnd_:
     ; size of array
     jsr spush
 
-    ; cummon next
+    ; common next
     lda #<next
     sta vNext + 0
     lda #>next
