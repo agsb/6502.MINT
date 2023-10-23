@@ -34,7 +34,7 @@
 ; uses A, Y, X caller must saves.
 ; needs 2 levels of hardware stack
 ; uses 4 bytes in page zero as temporary
-; uses 4 bytes in memory for internal use
+; uses 6 bytes in memory for internal use
 ;
 
 .segment "ZERO"
@@ -370,27 +370,16 @@ exec_:
 ;   return stack
 ;------------------------------------------------------------------------------
 
-rkeep_: ; to push 
-    ; ldx isp
-    dex
-    dex
-    stx irp
-    rts
-
-rlose_: ; to pull 
-    ; ldx isp
-    inx
-    inx
-    stx isp
-    rts
-
 rpush_:
     ldx irp
     lda tos + 0
     sta apr - 2, x
     lda tos + 1
     sta apr - 1, x
-    jmp rkeep_
+    dex
+    dex
+    stx irp
+    rts
 
 rpull_:
     ldx irp
@@ -398,7 +387,10 @@ rpull_:
     sta tos + 0
     lda apr + 1, x
     sta tos + 1
-    jmp rlose_
+    inx
+    inx
+    stx isp
+    rts
  
 rshow_:
     jsr rpull_
@@ -416,7 +408,8 @@ s2r_:
     jsr rpush_
     rts
 
-rexit_:
+return:
     jsr rpull_
+    ; increase ??
     jmp (tos)
 

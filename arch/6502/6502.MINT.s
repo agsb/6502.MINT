@@ -32,13 +32,13 @@
 
 ; debug
 
-.debuginfo +
+.debuginfo -
 
 ; enable features
 
 .feature c_comments
 
-; .feature string_escapes
+.feature string_escapes
 
 .feature org_per_seg
 
@@ -80,7 +80,7 @@
 * = $00F0
 
 ; instruction pointer
-ipt:    .word $0
+ipt:    .addr $0
 ; index for data stack
 isp:    .byte $0
 ; index for return stack
@@ -146,7 +146,7 @@ vByteMode:
 
 ; heap must be here ! 
 heap:
-    .word $0
+    .addr $0
 
 ;---------------------------------------------------------------------- 
 ; aliases
@@ -174,8 +174,7 @@ DEFS = defs
 
 init:
     jmp mint_
-
-    .asciiz "MINT 6502 MINT"
+    .asciiz "MINT@6502"
 
 ;---------------------------------------------------------------------- 
 ;    depends on hardware
@@ -2529,4 +2528,4 @@ macros:
  
 .include "MINT.macros.asm" 
  
-
+.word $ADDE

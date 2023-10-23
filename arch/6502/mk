@@ -21,7 +21,7 @@ c)
     
     cl65 -C $2.cfg --no-target-lib \
     -l $2.asm -m $2.map -o $2.obj -Ln $2.lbl \
-    --cpu 6502 \
+    --cpu 6502 -t none \
     $2.s 2> err | tee out 
 
     mv ram.bin $2.ram

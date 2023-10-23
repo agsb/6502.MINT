@@ -2,7 +2,7 @@ empty_:
     .asciiz ";"
 
 backsp_:
-    .asciiz "\\c@0=0=(1_\\c\\+`\b \b`);"
+    .asciiz "\\c@0=0=(1_\\c\\+`\\b \\b`);"
 
 reedit_:
     .asciiz "\\e\\@\\Z;"
