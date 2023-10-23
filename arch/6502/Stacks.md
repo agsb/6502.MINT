@@ -27,7 +27,7 @@ These are most commom:
       .endmacro ;  
 
 Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words );
-Minimal cycles ~36 cc when stk, lsb, msb are in zero page. Code uses 20 bytes and could not use JSR/RTS inside;
+Minimal cycles ~36 cc when stk, lsb, msb are in zero page. Each uses 40 bytes and could not use JSR/RTS inside;
 
 ## at page zero indexed by X
       
@@ -40,7 +40,7 @@ Minimal cycles ~36 cc when stk, lsb, msb are in zero page. Code uses 20 bytes an
       .endmacro
 
 Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words );
-Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses 14 bytes of code and 4 bytes at zero page;
+Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses 28 bytes of code and 4 bytes at zero page;
 
 ## indirect by page zero indexed by Y
 
@@ -52,19 +52,19 @@ Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses
             LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idz} 
       .endmacro
 
-Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses 14 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
+Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses 28 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
 
 ## absolute address indexed by Y
       
-      .macro push idz, ptr, lsb, msb 
-            LDY \idz; LDA \msb; STA \ptr - 1, Y; LDA \lsb; STA \ptr - 2, Y; DEY; DEY; STY \idz} 
+      .macro push idz, lsb, msb 
+            LDY \idz; LDA \msb; STA ptr - 1, Y; LDA \lsb; STA ptr - 2, Y; DEY; DEY; STY \idz} 
       .endmacro      ;  cycles
       
-      .macro pull idz, ptrz, lsb, msb 
-            LDY \idz; LDA \ptr + 0, Y; STA \lsb; LDA \ptr + 1, Y; STA \msb; INY; INY; STY \idx} 
+      .macro pull idz, lsb, msb 
+            LDY \idz; LDA ptr + 0, Y; STA \lsb; LDA ptr + 1, Y; STA \msb; INY; INY; STY \idx} 
       .endmacro
 
-_Any operations with values at stack could be at direct offset_
+Uses an absolute pointer (ptr) to memory. Stacks with up to 128 cells. Minimal cycles ~21 cc when idz, lsb, msb are in zero page. Each stack uses 28 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset_
 
 ## split absolute addres indexed by Y
       
@@ -75,6 +75,8 @@ _Any operations with values at stack could be at direct offset_
       .macro pull idz, ptrz, lsb, msb 
             LDY \idz; LDA \ptr_lo + 0, Y; STA \lsb; LDA \ptr_hi + 0, Y; STA \msb; INY; STY \idx} 
       .endmacro
+
+Uses an absolute pointer (ptr) to memory. Stacks with up to 128 cells. Minimal cycles ~21 cc when idz, lsb, msb are in zero page. Each stack uses 28 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset_
 
 Uses 6 bytes at page zero, stack size at idz+1.
 _Any operations with values at stack could be at direct offset_
