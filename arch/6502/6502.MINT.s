@@ -524,8 +524,8 @@ decr_:
     ldx isp
     lda aps + 0, x
     bne @ends
-    lda aps + 1, x 
-    beq @zero   ; do not decrement zero
+    ; lda aps + 1, x 
+    ; beq @zero   ; do not decrement at zero
     dec aps + 1, x 
 @ends:
     dec aps + 0, x 
