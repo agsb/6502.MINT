@@ -1,21 +1,27 @@
-### The Stacks
+# The Stacks
 
 _this is still a stub_
 
-There are four commom stacks implementations: 
-
-1. Use of A,Y as top of data stack, hardware stack SP as data stack, and a indirect indexed access with Y for return stack.
-2. Use SP for data stack and indirect indexed access with Y for return stack.
-3. Use indirect indexed access with Y for data and return stack.
-4. Use absolute indexed access with X for data and return stack.
-
 The 6502 have two peculiar pages, the zero page and stack page, both unique and with 256 bytes. All sub-routines calls (JSR) and returns (RTS) uses the stack page for 16-bit pointers, also do the indirect indexed and indexed indirect modes. Those are valuable resources.
 
-#### use hardware stack
-      - push {LDA?; PHA; LDA?; PHA;} ; 12 cycles
-      - pull {PLA; STA?; PLA; STA?;} ; 12 cycles
+There are four commom stacks implementations: 
+
+## at hardware stack SP
+
+      - push {LDA PZA; PHA; LDA PZB; PHA;} ; 12 cycles
+      - pull {PLA; STA PZB; PLA; STA PZA;} ; 12 cycles
       
-Uses none of page zero and two bytes at hardware stack.
+Uses two bytes of page zero and two bytes at hardware stack.
+      
+      - push {LDX PZI; LDA PZA; STA PZP, X; DECX; LDA PZB; STA PZP, X; DECX; STX PZI} ;  cycles
+      - pull {LDX PZI; INCX; LDA PZP, X; STA PZA; INCX; LDA PZP, X; STA PZB; STX PZI} ; 12 cycles
+      
+## at page zero indexed by X
+## indirect at page zero indexed by Y
+## absolute address indexed by Y
+
+
+#### use hardware stack
 
 #### use indirect access
       prepare {LDY PZBYTE} ; 3 cycles
