@@ -2,25 +2,32 @@
 
 _this is still a stub_
 
-The 6502 have two peculiar pages, the zero page and stack page, both unique and with 256 bytes. 
+_Charles Moore says 22 levels is enough for Forth._
 
-All sub-routines calls (JSR) and returns (RTS) uses the stack page for 16-bit pointers, also do the indirect indexed and indexed indirect modes. Those are valuable resources.
+## Back stack
 
-Almost 6502 indexed stacks implementations are 128 words, Charles Moore says 22 is enough fo Forth. These are most commom: 
+The 6502 have two peculiar pages, the zero page and stack page, both unique and with 256 bytes. All sub-routines calls (JSR) and returns (RTS) uses the stack page for 16-bit pointers, also the indirect indexed and indexed indirect modes uses page zero. Those are valuable resources.
 
-## at hardware stack SP
+Almost 6502 typical stack implementations does: Allow till 128 words deep stack; Any operation with values at stack must do pushs and pulls. A multitask or multiuser system must split or copy the stack.
 
-      .macro push lsb, msb 
+These are most commom: 
+
+### at hardware stack SP
+
+      .macro push stk, lsb, msb 
+            LDA \stk; TSX; STX \stk; TAX; TXS;
             LDA \lsb; PHA; LDA \msb; PHA; 
-      .endmacro ; 12 cycles
+            LDA \stk; TSX; STX \stk; TAX; TXS;
+      .endmacro ; 
       
-      .macro pull lsb, msb 
+      .macro pull stk, lsb, msb
+            LDA \stk; TSX; STX \stk; TAX; TXS;
             PLA; STA \msb; PLA; STA \lsb; 
-      .endmacro ; 12 cycles
-      
-allow 128 words deep at hardware stack.
-_any operations with values at stack must do pushs and pulls_.
-_multitask or multiuser could split or copy the stack_
+            LDA \stk; TSX; STX \stk; TAX; TXS;
+      .endmacro ;  
+
+Uses the hardware stack, and must be split in 3 parts, one for inline code, one for data stack, one for return stack;
+Minimal cycles when stk, lsb, msb are in zero page.
 
 ## at page zero indexed by X
       
@@ -32,10 +39,6 @@ _multitask or multiuser could split or copy the stack_
             LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz 
       .endmacro
 
-allow 124 words deep at page zero, uses 4 bytes at page zero, stack size at idz+1.
-_any operations with values at stack must do pushs and pulls_.
-_multitask or multiuser could split or copy the stack_
-
 ## indirect by page zero indexed by Y
 
       .macro push idz, ptrz, lsb, msb 
@@ -46,9 +49,7 @@ _multitask or multiuser could split or copy the stack_
             LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idz} 
       .endmacro
 
-allow 128 words deep at any address of memory, uses 4 bytes at page zero, stack size at idz+1.
-_any operations with values at stack must do pushs and pulls_.
-_multitask or multiuser could change the reference at ptrz and could split or copy the stack_
+ _Could change the reference at ptrz to any address in memory_ 
 
 ## absolute address indexed by Y
       
@@ -60,9 +61,7 @@ _multitask or multiuser could change the reference at ptrz and could split or co
             LDY \idz; LDA \ptr + 0, Y; STA \lsb; LDA \ptr + 1, Y; STA \msb; INY; INY; STY \idx} 
       .endmacro
 
-allow 128 words deep at any address of memory, uy2ses 4 bytes at page zero, stack size at idz+1.
-_any operations with values at stack could be at direct offset_
-_multitask or multiuser could split or copy the stack_
+_Any operations with values at stack could be at direct offset_
 
 ## split absolute addres indexed by Y
       
@@ -74,10 +73,8 @@ _multitask or multiuser could split or copy the stack_
             LDY \idz; LDA \ptr_lo + 0, Y; STA \lsb; LDA \ptr_hi + 0, Y; STA \msb; INY; STY \idx} 
       .endmacro
 
-allow 256 words deep at any address of memory, uses 6 bytes at page zero, stack size at idz+1.
-_any operations with values at stack could be at direct offset_
-_multitask or multiuser could split or copy the stack_
-_multitask or multiuser need split the stack_
+Uses 6 bytes at page zero, stack size at idz+1.
+_Any operations with values at stack could be at direct offset_
 
 #### what do 
 
