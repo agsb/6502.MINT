@@ -2,16 +2,25 @@
 
 _this is still a stub_
 
-The 6502 have two peculiar pages, the zero page and stack page, both unique and with 256 bytes. All sub-routines calls (JSR) and returns (RTS) uses the stack page for 16-bit pointers, also do the indirect indexed and indexed indirect modes. Those are valuable resources.
+The 6502 have two peculiar pages, the zero page and stack page, both unique and with 256 bytes. 
 
-There are four commom stacks implementations: 
+All sub-routines calls (JSR) and returns (RTS) uses the stack page for 16-bit pointers, also do the indirect indexed and indexed indirect modes. Those are valuable resources.
+
+Almost 6502 indexed stacks implementations are 128 words, Charles Moore says 22 is enough fo Forth. These are most commom: 
 
 ## at hardware stack SP
 
-      .macro push lsb, msb \n LDA \lsb; PHA; LDA \msb; PHA; \n .endmacro ; 12 cycles
-      .macro pull lsb, msb \n PLA; STA \msb; PLA; STA \lsb; \n .endmacro ; 12 cycles
+      .macro push lsb, msb 
+            LDA \lsb; PHA; LDA \msb; PHA; 
+      .endmacro ; 12 cycles
       
-Uses two bytes of page zero and two bytes at hardware stack.
+      .macro pull lsb, msb 
+            PLA; STA \msb; PLA; STA \lsb; 
+      .endmacro ; 12 cycles
+      
+allow 128 words deep at hardware stack.
+_any operations with values at stack must do pushs and pulls_.
+_multitask or multiuser could split or copy the stack_
 
 ## at page zero indexed by X
       
@@ -22,8 +31,12 @@ Uses two bytes of page zero and two bytes at hardware stack.
       .macro pull idz, ptrz, lsb, msb 
             LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz 
       .endmacro
-      
-## indirect at page zero indexed by Y
+
+allow 124 words deep at page zero, uses 4 bytes at page zero, stack size at idz+1.
+_any operations with values at stack must do pushs and pulls_.
+_multitask or multiuser could split or copy the stack_
+
+## indirect by page zero indexed by Y
 
       .macro push idz, ptrz, lsb, msb 
             LDY \idz; DEY; LDA \msb; STA (\ptrz), Y; DEY; LDA \lsb; STA (\ptrz), Y; STY \idz} 
@@ -33,6 +46,10 @@ Uses two bytes of page zero and two bytes at hardware stack.
             LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idz} 
       .endmacro
 
+allow 128 words deep at any address of memory, uses 4 bytes at page zero, stack size at idz+1.
+_any operations with values at stack must do pushs and pulls_.
+_multitask or multiuser could change the reference at ptrz and could split or copy the stack_
+
 ## absolute address indexed by Y
       
       .macro push idz, ptr, lsb, msb 
@@ -40,27 +57,27 @@ Uses two bytes of page zero and two bytes at hardware stack.
       .endmacro      ;  cycles
       
       .macro pull idz, ptrz, lsb, msb 
-            LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idx} 
+            LDY \idz; LDA \ptr + 0, Y; STA \lsb; LDA \ptr + 1, Y; STA \msb; INY; INY; STY \idx} 
       .endmacro
 
+allow 128 words deep at any address of memory, uy2ses 4 bytes at page zero, stack size at idz+1.
+_any operations with values at stack could be at direct offset_
+_multitask or multiuser could split or copy the stack_
 
-#### use hardware stack
-
-#### use indirect access
-      prepare {LDY PZBYTE} ; 3 cycles
-      push {LDA?; STA(PZADDR),Y; INCY; LDA?; STA(PZADDR),Y; INCY;} ; 3 cycles
-      pull {DECY; LDA(PZADDR),Y; STA?; DECY; LDA(PZADDR),Y; STA?}
-      resume {STY PZBYTE}
+## split absolute addres indexed by Y
       
-Uses three bytes of page zero and none bytes at hardware stack.
+      .macro push idz, ptr_lo, ptr_hi, lsb, msb 
+            LDY \idz; LDA \msb; STA \ptr_lo - 1, Y; LDA \lsb; STA \ptr_hi - 1, Y; DEY; STY \idz} 
+      .endmacro      ;  cycles
       
-#### use absolute indexed
-     prepare: {LDY PZBYTE}
-     push: {LDA?; STA [ADDR-2],Y; LDA?; STA[ADDR-1],Y; DECY; DECY;}
-     pull: {LDA [ADDR+0],Y; STA?; LDA [ADDR+1],Y; STA?; INCY; INCY;}
-     resume {STY PZBYTE}
+      .macro pull idz, ptrz, lsb, msb 
+            LDY \idz; LDA \ptr_lo + 0, Y; STA \lsb; LDA \ptr_hi + 0, Y; STA \msb; INY; STY \idx} 
+      .endmacro
 
-Uses one byte of page zero, one address hardcoded inline and none bytes at hardware stack.
+allow 256 words deep at any address of memory, uses 6 bytes at page zero, stack size at idz+1.
+_any operations with values at stack could be at direct offset_
+_multitask or multiuser could split or copy the stack_
+_multitask or multiuser need split the stack_
 
 #### what do 
 
@@ -77,7 +94,6 @@ cons:
    can not change fixed reference
 
 multitask and multiuser :
-   indexed stacks are 128 words, Charles Moore says 22 is enough.
    Then could split 5 stacks for users or tasks, more than must exchange stacks values and include checks for stack limits.
 
   low memory
