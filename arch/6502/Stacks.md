@@ -15,29 +15,32 @@ These are most commom:
 ### at hardware stack SP
 
       .macro push stk, lsb, msb 
-            LDA \stk; TSX; STX \stk; TAX; TXS;
-            LDA \lsb; PHA; LDA \msb; PHA; 
-            LDA \stk; TSX; STX \stk; TAX; TXS;
+            LDA \stk; TSX; STX \stk; TAX; TXS;      ; 12 cc, 7 bytes
+            LDA \lsb; PHA; LDA \msb; PHA;           ; 14 cc, 6 bytes
+            LDA \stk; TSX; STX \stk; TAX; TXS;      ; 12 cc, 7 bytes
       .endmacro ; 
       
       .macro pull stk, lsb, msb
-            LDA \stk; TSX; STX \stk; TAX; TXS;
-            PLA; STA \msb; PLA; STA \lsb; 
-            LDA \stk; TSX; STX \stk; TAX; TXS;
+            LDA \stk; TSX; STX \stk; TAX; TXS;      ; 12 cc, 7 bytes
+            PLA; STA \msb; PLA; STA \lsb;           ; 12 cc, 6 bytes
+            LDA \stk; TSX; STX \stk; TAX; TXS;      ; 12 cc, 7 byytes
       .endmacro ;  
 
-Uses the hardware stack, and must be split in 3 parts, one for inline code, one for data stack, one for return stack;
-Minimal cycles when stk, lsb, msb are in zero page.
+Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words );
+Minimal cycles ~36 cc when stk, lsb, msb are in zero page. Code uses 20 bytes and could not use JSR/RTS inside;
 
 ## at page zero indexed by X
       
       .macro push idz, ptrz, lsb, msb 
-            LDX \idz; DEX; LDA \msb; STA \ptrz, X; DEX; LDA \lsb; STA \ptrz, X; STX \idz
+            LDX \idz; DEX; LDA \msb; STA \ptrz, X; DEX; LDA \lsb; STA \ptrz, X; STX \idz   ; 22 cc
       .endmacro      ;  cycles
       
       .macro pull idz, ptrz, lsb, msb 
-            LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz 
+            LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz   ; 22 cc
       .endmacro
+
+Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words );
+Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses 14 bytes of code and 4 bytes at zero page;
 
 ## indirect by page zero indexed by Y
 
@@ -49,7 +52,7 @@ Minimal cycles when stk, lsb, msb are in zero page.
             LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idz} 
       .endmacro
 
- _Could change the reference at ptrz to any address in memory_ 
+Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses 14 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
 
 ## absolute address indexed by Y
       
