@@ -1,4 +1,4 @@
-;vim: filetype=asm sw=4 ts=4 autoindent expandtab shiftwidth=4 et
+; vim: filetype=asm sw=4 ts=4 autoindent expandtab shiftwidth=4 et:
 
 ; ********************************************************************* 
 ; 
@@ -19,7 +19,7 @@
 
 ;--------------------------------------------------------
 ;
-;	specifc for ca65 assembler 
+;   specifc for ca65 assembler 
 ;
 ;--------------------------------------------------------
 ; enable listing
@@ -52,8 +52,10 @@
 
  
 ;--------------------------------------------------------
-; constants, must be.
 ;
+;   constants, must be.
+;
+;--------------------------------------------------------
 
     TRUE        = 1 
     FALSE       = 0 
@@ -74,7 +76,6 @@
     NUMGRPS = 5 
 
 ;---------------------------------------------------------------------- 
-; page 0, reserved cells 
 .segment "ZERO"
 ; offset
 * = $00F0
@@ -218,8 +219,7 @@ keyq_:
     bvc keyk
 
 ;------------------------------------------------------------------------------
-;   data stack
-;------------------------------------------------------------------------------
+;   data stack stuff
 
 keep_: ; to push 
     ; ldx isp
@@ -558,8 +558,7 @@ subto_:
 .endif
 
 ;------------------------------------------------------------------------------
-;   return stack
-;------------------------------------------------------------------------------
+;   return stack stuff
 
 rpush:
 rpush_:
@@ -641,7 +640,7 @@ opout:
     sta aps + 2, x
     lda tos + 1
     sta aps + 3, x
-    rts
+    jmp (vNext)
 
 ;---------------------------------------------------------------------- 
 ; Divide the top 2 cell of the stack 
@@ -679,9 +678,7 @@ div_:
     lda tmp + 1
     sta nos + 1
     ; ends
-    jsr opout
-    ; next 
-    jmp (vNext)
+    jmp opout
 
 ;---------------------------------------------------------------------- 
 ; 16-bit multiply 16x16, 32 result
@@ -713,12 +710,10 @@ mul_:
     dey
     bne @shift_r
     ; ends
-    jsr opout
-    ; next 
-    jmp (vNext)
+    jmp opout
  
 ;---------------------------------------------------------------------- 
-; MINT
+;   MINT
 ;---------------------------------------------------------------------- 
 ; NOOP
 aNop_:
@@ -733,9 +728,9 @@ add2ps:
     clc
     adc ipt + 0
     sta ipt + 0
-    bcc @iscc
+    bcc @ends
     inc ipt + 1
-@iscc:
+@ends:
     ; next 
     jmp (vNext)
 
@@ -764,13 +759,13 @@ pullps:
     rts
 
 ;---------------------------------------------------------------------- 
-ldaps: 
+seekps: 
     ldy NUL 
     lda (ipt), y 
     inc ipt + 0 
-    bne @noeq 
+    bne @ends 
     inc ipt + 1 
-@noeq: 
+@ends: 
     rts 
  
 ;---------------------------------------------------------------------- 
@@ -923,7 +918,7 @@ gets_:
     cmp NUL 
     beq @loop 
 
-; mark with etx, 
+; mark end with etx, 
 @endstr: 
     ; mark ETX 
     lda ETX 
@@ -1088,7 +1083,7 @@ printhex8:
 @conv: 
     and #$0F 
     clc 
-    adc #$30 
+    ora #$30 
     cmp #$3A 
     bcc @ends 
     adc #$06 
@@ -1107,7 +1102,7 @@ prenum:
 num_: 
     jsr prenum
 @loop: 
-    jsr ldaps
+    jsr seekps
     cmp #'0' + 0 
     bcc @ends 
     cmp #'9' + 1 
@@ -1166,7 +1161,7 @@ mul10:
 hex_: 
     jsr prenum
 @loop: 
-    jsr ldaps
+    jsr seekps
 @isd: 
     cmp #'0' 
     bcc @ends 
@@ -1310,7 +1305,7 @@ outPort_:
 ;---------------------------------------------------------------------- 
 ; ascii code
 charCode_:
-    jsr ldaps
+    jsr seekps
     sta tos + 0
     lda NUL
     sta tos + 1
@@ -1349,7 +1344,7 @@ compNext:
 ; Execute next opcode
 next: 
 opt_:
-    jsr ldaps
+    jsr seekps
     tay 
     lda optcodeslo, y 
     sta wrk + 0 
@@ -1360,7 +1355,7 @@ opt_:
 ;---------------------------------------------------------------------- 
 ; Execute next alt opcode
 alt_: 
-    jsr ldaps
+    jsr seekps
     tay 
     lda altcodeslo, y 
     sta wrk + 0 
@@ -1554,7 +1549,7 @@ a2z:
 ;---------------------------------------------------------------------- 
 ; skip spaces
 nosp:
-    jsr ldaps
+    jsr seekps
     cmp #' '
     beq nosp
     rts
@@ -1720,7 +1715,7 @@ skipnest:
     lda #$01
     sta ns
 @loop: 
-    jsr ldaps
+    jsr seekps
     jsr nesting 
     lda ns
     bne @loop
