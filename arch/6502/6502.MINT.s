@@ -513,6 +513,26 @@ fetch_:
     jmp (vNext)
 
 incr_:
+    ldx isp
+    inc aps + 0, x
+    bne @ends
+    inc aps + 1, x 
+@ends:
+    jmp (vNext)
+
+decr_:
+    ldx isp
+    lda aps + 0, x
+    bne @ends
+    lda aps + 1, x 
+    beq @zero   ; do not decrement zero
+    dec aps + 1, x 
+@ends:
+    dec aps + 0, x 
+@zero:
+    jmp (vNext)
+
+.if 0
 addto_:
     jsr pull2_
     ldy NUL
@@ -526,7 +546,6 @@ addto_:
     sta (tos), y
 	jmp (vNext)
 
-decr_:
 subto_:
     jsr pull2_
     ldy NUL
@@ -539,6 +558,7 @@ subto_:
     sbc nos + 1
     sta (tos), y
 	jmp (vNext)
+.endif
 
 ;------------------------------------------------------------------------------
 ;   return stack
@@ -2303,9 +2323,9 @@ altcodeslo:
    .byte  <ifte_       ;    (  ( b -- ) 
    .byte  <aNop_       ;    ) 
    .byte  <aNop_       ;    *  
-   .byte  <incr_       ;    +  ( adr -- ) decrements variable at address 
+   .byte  <incr_       ;    +  ( adr -- ) increments variable at address 
    .byte  <aNop_       ;    , 
-   .byte  <aNop_       ;    - 
+   .byte  <decr_       ;    -  ( adr -- ) decrements variable at address
    .byte  <aNop_       ;    . 
    .byte  <aNop_       ;    /  
    .byte  <aNop_       ;    0 
@@ -2434,9 +2454,9 @@ altcodeshi:
    .byte  >ifte_       ;    (  ( b -- ) 
    .byte  >aNop_       ;    ) 
    .byte  >aNop_       ;    * 
-   .byte  >incr_       ;    +  ( adr -- ) decrements variable at address 
+   .byte  >incr_       ;    +  ( adr -- ) increments variable at address 
    .byte  >aNop_       ;    , 
-   .byte  >aNop_       ;    - 
+   .byte  >decr_       ;    -  ( adr -- ) decrements veriable at address
    .byte  >aNop_       ;    . 
    .byte  >aNop_       ;    / 
    .byte  >aNop_       ;    0 
