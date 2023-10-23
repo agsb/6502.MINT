@@ -180,17 +180,84 @@ init:
 ;---------------------------------------------------------------------- 
 ;    depends on hardware
 ;---------------------------------------------------------------------- 
-putchar:
-    clc
+    CIA       =  $A000   ; The base address of the 6551 ACIA.
+    CIA_DATA  =  CIA+0   ; Its data I/O register
+    CIA_RX    =  CIA+0   ; Its data I/O register
+    CIA_TX    =  CIA+0   ; Its data I/O register
+    CIA_STAT  =  CIA+1   ; Its  status  register
+    CIA_COMM  =  CIA+2   ; Its command  register
+    CIA_CTRL  =  CIA+3   ; Its control  register
+
+pcia_init:
+    ; reset CIA
+    lda #0
+    sta CIA_STAT
+    ; %0001 1110 =  9600 baud, external receiver, 8 bit , 1 stop bit
+    ; %0001 1111 = 19200 baud, external receiver, 8 bit , 1 stop bit
+    lda #$1F
+    sta CIA_CTRL
+    ; %0000 1011 = no parity, normal mode, RTS low, INT disable, DTR low
+    lda #$0B
+    sta CIA_COMM
     rts
 
-getchar:
-    clc
-    rts
-
+;----------------------------------------------------------------
+;   verify thru 6551, no waits
+;
 hitchar:
+@acia_ht:
+; verify
+    lda CIA_STAT
+    and #8
+    beq _nak
+_ack:
+    lda #$01
+    rts
+_nak:
+    lda #$00
+    rts
+;----------------------------------------------------------------
+;   receive a byte thru 6551, waits
+;
+getchar:
+@acia_rx:
+; verify
+    lda CIA_STAT
+    and #8
+    ; beq @ends
+    beq @acia_rx
+; receive
+    lda CIA_RX
     clc
     rts
+
+;----------------------------------------------------------------
+;   transmit a byte thru 6551, waits
+;
+putchar:
+@acia_tx:
+; verify
+    pha
+    lda CIA_STAT
+    and #16
+    ; beq @ends
+    beq @acia_tx
+; transmit
+    pla
+    sta CIA_TX
+    clc
+    rts
+
+.IF 0
+delay:
+    ldx #$FF
+@delay:
+    nop
+    nop
+    dex
+    bne @delay
+    rts
+.ENDIF
 
 ;---------------------------------------------------------------------- 
 ; get a char
@@ -253,6 +320,7 @@ pull_:
     sta tos + 1
     jmp lose_
 
+.if 0
 push2_:
     ldx isp
     lda nos + 0
@@ -265,7 +333,8 @@ push2_:
     sta aps - 1, x
     jsr keep_
     jmp keep_
- 
+.endif
+
 take2:
 pull2_:
     ldx isp
@@ -807,13 +876,15 @@ add2heap:
     rts 
 
 ;---------------------------------------------------------------------- 
-inctos:
-    inc tos + 0
+add2tos:
+    clc
+    adc tos + 0 
+    sta tos + 0 
     bcc @ends
     inc tos + 1
 @ends:
     rts
-    
+
 ;---------------------------------------------------------------------- 
 tib2tos:
     lda #<tib
@@ -896,6 +967,7 @@ gets_:
     ; already 
     ldy NUL
     jsr spull
+
 @loop:
     ; limit 254
     cpy #$FE
@@ -928,14 +1000,14 @@ gets_:
     bcc @loop            
 
 @iscrlf: 
+    ; just for easy
     lda CR 
     jsr @echo 
     lda LF 
     jsr @echo 
     ; pending nest ? 
     lda ns 
-    cmp NUL 
-    beq @loop 
+    bne @loop 
 
 ; mark end with etx, 
 @endstr: 
@@ -948,10 +1020,12 @@ gets_:
     ;lda NUL 
     ;sta (tos), y 
 
+    ; update instruction pointer
     lda tos + 0
     sta ipt + 0
     lda tos + 1
     sta ipt + 1
+
     ; next 
     jmp next
 
@@ -965,7 +1039,7 @@ gets_:
     rts 
  
 ;---------------------------------------------------------------------- 
-; calculate nesting value 
+; nesting deep 
 nesting: 
     cmp #'`' 
     bne @nests 
@@ -1006,6 +1080,7 @@ printStr:
     sta tos + 1 
     pla 
     sta tos + 0 
+    ; asciiz
     jsr putstr 
     ; offset
     clc
@@ -1061,6 +1136,7 @@ printdec:
 @nums: 
     ldy #'0'-1 
 @loop: 
+    ; subtract
     iny 
     sec 
     lda tos + 0 
@@ -1070,6 +1146,7 @@ printdec:
     sbc nos + 1 
     sta tos + 1 
     bcc @loop 
+    ; restore 
     clc 
     lda tos + 0 
     adc nos + 0 
@@ -1130,11 +1207,7 @@ num_:
     sec 
     sbc #'0' 
 @uval: 
-    clc
-    adc tos + 0 
-    sta tos + 0 
-    lda NUL
-    adc tos + 1
+    jsr add2tos
     sta tos + 1
     jsr mul10 
     clc
@@ -1201,12 +1274,7 @@ hex_:
     sec 
     sbc #'A' - 10 
 @uval: 
-    clc
-    adc tos + 0 
-    sta tos + 0 
-    lda NUL
-    adc tos + 1
-    sta tos + 1
+    jsr add2tos
     jsr mul16 
     clv
     bvc @loop 
@@ -1506,11 +1574,13 @@ editDef_:
 
     lda #':'
     jsr writeChar
-    jsr inctos
+    lda #1
+    jsr add2tos
 
     lda ap
     jsr writeChar
-    jsr inctos
+    lda #1
+    jsr add2tos
     
     clv
     bvc editDef2
@@ -1565,11 +1635,7 @@ a2z:
     lda ap 
     sbc #'a' 
     asl 
-    clc 
-    adc tos + 0 
-    bcc @iscc 
-    inc tos + 1 
-@iscc:
+    jsr add2tos
     jsr spush 
     ; next 
     jmp (vNext) 
@@ -2568,4 +2634,3 @@ macros:
  
 .include "MINT.macros.asm" 
  
-.word $ADDE
