@@ -524,12 +524,9 @@ decr_:
     ldx isp
     lda aps + 0, x
     bne @ends
-    ; lda aps + 1, x 
-    ; beq @zero   ; do not decrement at zero
     dec aps + 1, x 
 @ends:
     dec aps + 0, x 
-@zero:
     jmp (vNext)
 
 .if 0
@@ -798,9 +795,9 @@ add2heap:
 ;---------------------------------------------------------------------- 
 inctos:
     inc tos + 0
-    bcc @iscc1
+    bcc @ends
     inc tos + 1
-@iscc1:
+@ends:
     rts
     
 ;---------------------------------------------------------------------- 
@@ -913,8 +910,8 @@ gets_:
     ; nest ? 
     jsr nesting 
     ; wait for next character 
-    clv
-    bvc @loop            
+    clc
+    bcc @loop            
 
 @iscrlf: 
     lda CR 
@@ -1126,8 +1123,8 @@ num_:
     adc tos + 1
     sta tos + 1
     jsr mul10 
-    clv
-    bvc @loop 
+    clc
+    bcc @loop 
 @ends: 
     jsr spush 
     ; next 
@@ -1178,8 +1175,7 @@ hex_:
 @cv10: 
     sec 
     sbc #'0' 
-    clv
-    bvc @uval 
+    bcc @uval 
 @ish: 
     ; to upper, clear bit-6
     and #%11011111 
@@ -1293,10 +1289,11 @@ prompt:
     rts 
  
 ;---------------------------------------------------------------------- 
+; how many ? 14
 printStk_:  
     jsr enter
     ;.asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'" 
-    .asciiz  "\\a@2-\\D1-(34@\\b@\\(,)(.)2-)'" 
+    .asciiz  "\\a@2-\\D1-(14@\\b@\\(,)(.)2-)'" 
     ; next 
     jmp (vNext) 
  
