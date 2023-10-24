@@ -8,6 +8,8 @@ _Charles Moore says 22 levels is enough for Forth._
 
 The 6502 have two peculiar pages, the zero page and stack page, both unique and with 256 bytes. All sub-routines calls (JSR) and returns (RTS) uses the stack page for 16-bit pointers, also the indirect indexed and indexed indirect modes uses page zero. Those are valuable resources.
 
+An good revew of 6502 addressing modes at [emulators](http://www.emulator101.com/6502-addressing-modes.html).
+
 In 6502 code, to pass a byte between memory, always need use LDA and STA, there are exotic alternatives, but all uses the accumulator.
 
 Almost 6502 typical stack implementations does as standart: 
