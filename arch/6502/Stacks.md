@@ -147,5 +147,5 @@ All operations DROP, DUP, OVER, SWAP, ROT, AND, OR, XOR, NEG, INV, ADD, SUB, INC
       - Odd address are always MSB, even address are always LSB
       - TOS, top in stack; NOS, next in stack; 
       - MOS, POS, next in sequence, BOS, COS back in sequence, for easy macros 
-      - The MOS and POS are used by mult and divd
+     
      
