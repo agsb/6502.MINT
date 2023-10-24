@@ -29,7 +29,7 @@ These are most commom:
 Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words ). 
 When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and could not use JSR/RTS inside;
 
-## at page zero indexed by X
+### at page zero indexed by X
       
       .macro push idz, ptrz, lsb, msb 
             LDX \idz; DEX; LDA \msb; STA \ptrz, X; DEX; LDA \lsb; STA \ptrz, X; STX \idz;
@@ -42,7 +42,7 @@ When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and
 Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words ).
 When idz, ptrz, lsb, msb are in zero page, each stack uses cycles ~48 cc, uses 28 bytes of code and 4 bytes at zero page;
 
-## indirect by page zero indexed by Y
+### indirect by page zero indexed by Y
 
       .macro push idz, ptrz, lsb, msb 
             LDY \idz; DEY; LDA \msb; STA (\ptrz), Y; DEY; LDA \lsb; STA (\ptrz), Y; STY \idz; 
@@ -54,7 +54,7 @@ When idz, ptrz, lsb, msb are in zero page, each stack uses cycles ~48 cc, uses 2
 
 Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. When idz, ptrz, lsb, msb are in zero page, each stack uses ~50 cc, 28 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
 
-## absolute address indexed by Y
+### absolute address indexed by Y
       
       .macro push idz, lsb, msb 
             LDY \idz; LDA \msb; STA ptr - 1, Y; LDA \lsb; STA ptr - 2, Y; DEY; DEY; STY \idz; 
@@ -66,7 +66,7 @@ Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cel
 
 Uses one absolute pointer (ptr) to memory. Stacks with up to 128 cells. when idz, lsb, msb are in zero page, each stack uses ~52 cc, 32 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need use pulls and pushs_
 
-## split absolute addres indexed by Y
+### split absolute addres indexed by Y
       
       .macro push idz, lsb, msb 
             LDY \idz; LDA \msb; STA ptr_lo - 1, Y; LDA \lsb; STA ptr_hi - 1, Y; DEY; STY \idz;
@@ -78,7 +78,7 @@ Uses one absolute pointer (ptr) to memory. Stacks with up to 128 cells. when idz
 
 Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 cells, splited in two parts. When idz, lsb, msb are in zero page, each stack uses ~48 cc, 30 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need pulls and pushs_
 
-## direct address with indirect access
+### direct address with indirect access
 
       .macro push ptr, lsb, msb 
             LDY #0; 
@@ -98,6 +98,14 @@ Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 
 
 Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. When ptr, lsb, msb are in zero page, each stack uses ~48 cc, 58 bytes of code and 2 bytes at page zero. 
 
+| type | code size | cycles | notes |
+| -- | -- | -- | -- |
+| at hardware stack SP | 40 | | 
+| at page zero indexed by X | 28 |  |
+| indirect by page zero indexed by Y | 28  | |
+| absolute address indexed by Y | 32 | 32 | |
+| split absolute addres indexed by Y | 30 | | 
+| direct address with indirect access | 58 | |
 
 #### what do 
 
