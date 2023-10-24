@@ -127,7 +127,7 @@ pull_ZX:
 
 ;## indirect by page zero indexed by Y
 
-push_ZY:
+push_IY:
   LDY ind
   DEY
   LDA msb
@@ -137,7 +137,7 @@ push_ZY:
   STA (ptz), Y
   STY ind
 
-pull_ZY:
+pull_IY:
   LDY ind
   LDA (ptz), Y
   STA msb
@@ -149,7 +149,7 @@ pull_ZY:
 
 ;## absolute address indexed by Y
 
-push_IY:
+push_AY:
   LDY ind
   LDA msb
   STA ptr - 1, Y
@@ -159,7 +159,7 @@ push_IY:
   DEY
   STY ind
 
-pull_IY:
+pull_AY:
   LDY ind
   LDA ptr + 0, Y
   STA lsb
@@ -171,7 +171,7 @@ pull_IY:
 
 ;## split absolute addres indexed by Y
 
-push_IY2: 
+push_AYS: 
   LDY ind
   LDA msb
   STA ptr_lo - 1, Y
@@ -180,7 +180,7 @@ push_IY2:
   DEY
   STY ind
 
-pull_IY2: 
+pull_AYS: 
   LDY ind
   LDA ptr_lo + 0, Y
   STA lsb

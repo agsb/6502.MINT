@@ -103,10 +103,32 @@
     NUMGRPS = 5 
 
 ;---------------------------------------------------------------------- 
+
+    ; stacks at zero page, 24 word deep
+    ZERO_PAGE_STACK = 1
+
+    ; include extra functions
+    FULL_STACK_CODES = 1
+
+;---------------------------------------------------------------------- 
 .segment "ZERO"
 ; offset
-* = $00F0
 
+.ifdef ZERO_PAGE_STACK
+
+* = $00F0 - $60
+
+; return stack with 24 words
+.res  $30, $0
+aps:
+
+; data stack with 24 words
+.res  $30, $0
+apr:
+
+.endif
+
+* = $00F0
 ; instruction pointer
 ipt:    .addr $0
 ; index for data stack
@@ -124,6 +146,7 @@ nos:    .word $0
 wrk:    .word $0
 tmp:    .word $0
 
+; 
 ;---------------------------------------------------------------------- 
 .segment "VECTORS"
 
@@ -140,13 +163,17 @@ tmp:    .word $0
 
 VOID:
 
-; data stack
-    .res PAGE, $00
-aps:
+.ifndef ZERO_PAGE_STACK 
 
-; return stack
+ data stack
     .res PAGE, $00
-apr:
+ aps:
+
+ return stack
+    .res PAGE, $00
+ apr:
+
+.endif
 
 ; terminal input buffer
 tib:    
@@ -215,6 +242,9 @@ init:
     CIA_COMM  =  CIA+2   ; Its command  register
     CIA_CTRL  =  CIA+3   ; Its control  register
 
+;----------------------------------------------------------------
+; setup thru 6551
+setchar:
 pcia_init:
     ; reset CIA
     lda #0
@@ -230,7 +260,6 @@ pcia_init:
 
 ;----------------------------------------------------------------
 ;   verify thru 6551, no waits
-;
 hitchar:
 @acia_ht:
 ; verify
@@ -243,9 +272,9 @@ _ack:
 _nak:
     lda #$00
     rts
+
 ;----------------------------------------------------------------
 ;   receive a byte thru 6551, waits
-;
 getchar:
 @acia_rx:
 ; verify
@@ -255,12 +284,10 @@ getchar:
     beq @acia_rx
 ; receive
     lda CIA_RX
-    clc
     rts
 
 ;----------------------------------------------------------------
 ;   transmit a byte thru 6551, waits
-;
 putchar:
 @acia_tx:
 ; verify
@@ -272,7 +299,6 @@ putchar:
 ; transmit
     pla
     sta CIA_TX
-    clc
     rts
 
 .IF 0
@@ -356,7 +382,7 @@ pull_:
     sta tos + 1
     jmp lose_
 
-.if 0
+.ifdef FULL_STACK_CODES
 push2_:
     ldx isp
     lda nos + 0
@@ -648,7 +674,7 @@ decr_:
     ; rts
     jmp (vNext)
 
-.if 0
+.ifdef FULL_STACK_CODES
 addto_:
     jsr pull2_
     ldy NUL
@@ -703,7 +729,7 @@ rpull_:
     stx isp
     rts
 
-.if 0
+.ifdef FULL_STACK_CODES
 rshow_:
     ldx isp
     lda apr + 0, x
