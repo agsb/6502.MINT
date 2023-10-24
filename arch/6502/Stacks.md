@@ -100,12 +100,12 @@ Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. When ptr
 
 | type | code size | cycles | cells  | notes |
 | -- | -- | -- | -- | -- | 
-| at hardware stack SP | 40 | 66 | 128 | must split in 3 parts | 
-| at page zero indexed by X | 28 | 48 | must split in 3 parts |
-| indirect by page zero indexed by Y | 28 | 50 | must split in 3 parts |
-| absolute address indexed by Y | 32 | 32 | 52 | 128 |
-| split absolute addres indexed by Y | 30 | 48 | 256 |
-| direct address with indirect access | 58 | 96 | any size | 
+| hardware stack SP | 40 | 66 | 128 | must split in 3 parts, must use pushs and pulls | 
+| page zero indexed by X | 28 | 48 | 128 | must split in 3 parts, must use pushs and pulls |
+| indirect page zero indexed by Y | 28 | 50 | 128 | must split in 3 parts, must use pushs and pulls |
+| absolute address indexed by Y | 32 | 52 | 128 | any operations at direct offset, no need pulls and pushs |
+| split absolute addres indexed by Y | 30 | 48 | 256 | any operations at direct offset, no need pulls and pushs |
+| direct address with indirect access | 58 | 96 | any size | must use pushs and pulls | 
 
 #### what do 
 
