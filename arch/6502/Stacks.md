@@ -15,68 +15,68 @@ These are most commom:
 ### at hardware stack SP
 
       .macro push stk, lsb, msb 
-            LDA \stk; TSX; STX \stk; TAX; TXS;      ; 12 cc, 7 bytes
-            LDA \lsb; PHA; LDA \msb; PHA;           ; 14 cc, 6 bytes
-            LDA \stk; TSX; STX \stk; TAX; TXS;      ; 12 cc, 7 bytes
+            LDA \stk; TSX; STX \stk; TAX; TXS;      
+            LDA \lsb; PHA; LDA \msb; PHA;          
+            LDA \stk; TSX; STX \stk; TAX; TXS;      
       .endmacro ; 
       
       .macro pull stk, lsb, msb
-            LDA \stk; TSX; STX \stk; TAX; TXS;      ; 12 cc, 7 bytes
-            PLA; STA \msb; PLA; STA \lsb;           ; 12 cc, 6 bytes
-            LDA \stk; TSX; STX \stk; TAX; TXS;      ; 12 cc, 7 byytes
+            LDA \stk; TSX; STX \stk; TAX; TXS;     
+            PLA; STA \msb; PLA; STA \lsb;           
+            LDA \stk; TSX; STX \stk; TAX; TXS;     
       .endmacro ;  
 
-Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words );
-Minimal cycles ~36 cc when stk, lsb, msb are in zero page. Each uses 40 bytes and could not use JSR/RTS inside;
+Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words ). 
+When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and could not use JSR/RTS inside;
 
 ## at page zero indexed by X
       
       .macro push idz, ptrz, lsb, msb 
-            LDX \idz; DEX; LDA \msb; STA \ptrz, X; DEX; LDA \lsb; STA \ptrz, X; STX \idz;   ; 22 cc
+            LDX \idz; DEX; LDA \msb; STA \ptrz, X; DEX; LDA \lsb; STA \ptrz, X; STX \idz;
       .endmacro     
       
       .macro pull idz, ptrz, lsb, msb 
-            LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz;   ; 22 cc
+            LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz;
       .endmacro
 
-Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words );
-Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses 28 bytes of code and 4 bytes at zero page;
+Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words ).
+When idz, ptrz, lsb, msb are in zero page, each stack uses cycles ~48 cc, uses 28 bytes of code and 4 bytes at zero page;
 
 ## indirect by page zero indexed by Y
 
       .macro push idz, ptrz, lsb, msb 
-            LDY \idz; DEY; LDA \msb; STA (\ptrz), Y; DEY; LDA \lsb; STA (\ptrz), Y; STY \idz;  ; 22 cc
+            LDY \idz; DEY; LDA \msb; STA (\ptrz), Y; DEY; LDA \lsb; STA (\ptrz), Y; STY \idz; 
       .endmacro      
       
       .macro pull idz, ptrz, lsb, msb 
-            LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idz;  ; 22 cc
+            LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idz; 
       .endmacro
 
-Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. Minimal cycles ~22 cc when idz, ptrz, lsb, msb are in zero page. Each stack uses 28 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
+Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. When idz, ptrz, lsb, msb are in zero page, each stack uses ~50 cc, 28 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
 
 ## absolute address indexed by Y
       
       .macro push idz, lsb, msb 
-            LDY \idz; LDA \msb; STA ptr - 1, Y; LDA \lsb; STA ptr - 2, Y; DEY; DEY; STY \idz;  ; 24 cc
+            LDY \idz; LDA \msb; STA ptr - 1, Y; LDA \lsb; STA ptr - 2, Y; DEY; DEY; STY \idz; 
       .endmacro    
       
       .macro pull idz, lsb, msb 
-            LDY \idz; LDA ptr + 0, Y; STA \lsb; LDA ptr + 1, Y; STA \msb; INY; INY; STY \idz;  ; 24 cc
+            LDY \idz; LDA ptr + 0, Y; STA \lsb; LDA ptr + 1, Y; STA \msb; INY; INY; STY \idz; 
       .endmacro
 
-Uses one absolute pointer (ptr) to memory. Stacks with up to 128 cells. Minimal cycles ~24 cc when idz, lsb, msb are in zero page. Each stack uses 32 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need use pulls and pushs_
+Uses one absolute pointer (ptr) to memory. Stacks with up to 128 cells. when idz, lsb, msb are in zero page, each stack uses ~52 cc, 32 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need use pulls and pushs_
 
 ## split absolute addres indexed by Y
       
       .macro push idz, lsb, msb 
-            LDY \idz; LDA \msb; STA ptr_lo - 1, Y; LDA \lsb; STA ptr_hi - 1, Y; DEY; STY \idz;  ; 19 cc
+            LDY \idz; LDA \msb; STA ptr_lo - 1, Y; LDA \lsb; STA ptr_hi - 1, Y; DEY; STY \idz;
       .endmacro    
       
       .macro pull idz, lsb, msb 
-            LDY \idz; LDA ptr_lo + 0, Y; STA \lsb; LDA ptr_hi + 0, Y; STA \msb; INY; STY \idz;  ; 19 cc
+            LDY \idz; LDA ptr_lo + 0, Y; STA \lsb; LDA ptr_hi + 0, Y; STA \msb; INY; STY \idz;
       .endmacro
 
-Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 cells, splited in two parts. Minimal cycles ~21 cc when idz, lsb, msb are in zero page. Each stack uses 24 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need pulls and pushs_
+Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 cells, splited in two parts. When idz, lsb, msb are in zero page, each stack uses ~48 cc, 30 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need pulls and pushs_
 
 ## direct address with indirect access
 
@@ -96,8 +96,8 @@ Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 
             LDA (ptr), Y; STA \lsb;
       .endmacro
 
-Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. Minimal cycles ~48 cc when ptr, lsb, msb are in zero page. 
-Each stack uses 24 bytes of code and 2 bytes at zero page.  
+Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. When ptr, lsb, msb are in zero page, each stack uses ~48 cc, 58 bytes of code and 2 bytes at page zero. 
+
 
 #### what do 
 
