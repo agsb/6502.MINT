@@ -8,11 +8,17 @@ _Charles Moore says 22 levels is enough for Forth._
 
 The 6502 have two peculiar pages, the zero page and stack page, both unique and with 256 bytes. All sub-routines calls (JSR) and returns (RTS) uses the stack page for 16-bit pointers, also the indirect indexed and indexed indirect modes uses page zero. Those are valuable resources.
 
-Almost 6502 typical stack implementations does: Allow till 128 words deep stack; Any operation with values at stack must do pushs and pulls. A multitask or multiuser system must split or copy the stack.
+In 6502 code, to pass a byte between memory, always need use LDA and STA, there are exotic alternatives, but all uses the accumulator.
+
+Almost 6502 typical stack implementations does as standart: 
+      
+      1. Allow till 128 words deep stack; 
+      2. Any operation with values at stack must do pushs and pulls. 
+      3. Any multitask or multiuser system must split or copy the stack.
 
 These are most commom: 
 
-### at hardware stack SP
+### hardware stack SP
 
       .macro push stk, lsb, msb 
             LDA \stk; TSX; STX \stk; TAX; TXS;      
@@ -26,8 +32,7 @@ These are most commom:
             LDA \stk; TSX; STX \stk; TAX; TXS;     
       .endmacro ;  
 
-Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words ). 
-When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and could not use JSR/RTS inside;
+Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ), one for return stack ( > 22 words ). When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and could not use JSR/RTS inside;
 
 ### page zero indexed by X
       
@@ -39,10 +44,9 @@ When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and
             LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz;
       .endmacro
 
-Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words ).
-When idz, ptrz, lsb, msb are in zero page, each stack uses cycles ~48 cc, uses 28 bytes of code and 4 bytes at zero page;
+Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ), one for return stack ( > 22 words ). When idz, ptrz, lsb, msb are in zero page, each stack uses cycles ~48 cc, uses 28 bytes of code and 4 bytes at zero page;
 
-### indirect page zero indexed by Y
+### page zero indirect indexed by Y
 
       .macro push idz, ptrz, lsb, msb 
             LDY \idz; DEY; LDA \msb; STA (\ptrz), Y; DEY; LDA \lsb; STA (\ptrz), Y; STY \idz; 
@@ -54,7 +58,7 @@ When idz, ptrz, lsb, msb are in zero page, each stack uses cycles ~48 cc, uses 2
 
 Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. When idz, ptrz, lsb, msb are in zero page, each stack uses ~50 cc, 28 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
 
-### absolute address indexed by Y
+### absolute address indexed by Y or X
       
       .macro push idz, lsb, msb 
             LDY \idz; LDA \msb; STA ptr - 1, Y; LDA \lsb; STA ptr - 2, Y; DEY; DEY; STY \idz; 
@@ -64,9 +68,9 @@ Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cel
             LDY \idz; LDA ptr + 0, Y; STA \lsb; LDA ptr + 1, Y; STA \msb; INY; INY; STY \idz; 
       .endmacro
 
-Uses one absolute pointer (ptr) to memory. Stacks with up to 128 cells. when idz, lsb, msb are in zero page, each stack uses ~52 cc, 32 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need use pulls and pushs_
+Uses one absolute pointer (ptr) to memory. Stacks with up to 128 cells. when idz, lsb, msb are in zero page, each stack uses ~52 cc, 32 bytes of code and 2 bytes at zero page. _Any operation with values at stack could be at direct offset, no need use pulls and pushs_
 
-### split absolute addres indexed by Y
+### split absolute addres indexed by Y or X
       
       .macro push idz, lsb, msb 
             LDY \idz; LDA \msb; STA ptr_lo - 1, Y; LDA \lsb; STA ptr_hi - 1, Y; DEY; STY \idz;
@@ -109,29 +113,18 @@ Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. When ptr
 | split absolute addres indexed by Y | 30 | 48 | 256 | any operation at direct offset, no need pull and push |
 | direct address with indirect access | 58 | 96 | any size | must use push and pull | 
 
-* a least 22 cells of each stack and more for inline code
-
+\* a least 22 cells of each stack and rest for inline code
   
-#### what do 
+### What Do 
 
-In 6502 code, to pass a byte between memory, need use LDA and STA (there are exotic alternatives, but all uses Accumulator)
+Using absolute address indexed access for stacks. 
 
-Using absolute address indirect access for stacks. It provides the most fast overall implementation.
+It provides the most fast overall implementation because does not need use push and pull for operations as DROP, DUP, OVER, SWAP, ROT, AND, OR, XOR, NEG, INV, 
+ADD, SUB, INC, DEC, EQ, LT, GT, SHL, SHR, Fetch, Store. 
 
-pros:
-   offsets inline from a fixed reference
-   direct memory access and exchange
-   128 deep stack in round-robin
-
-cons:
-   can not change fixed reference
-
-multitask and multiuser :
-   Then could split 5 stacks for users or tasks, more than must exchange stacks values and include checks for stack limits.
-
-  | memory uses | |
+  | memory | |
   | -- | -- |
-  |low | |
+  | low | |
   | -4  | LSB |
   | -3  | MSB |
   | -2  | LSB |
@@ -142,14 +135,23 @@ multitask and multiuser :
   | +3  | MSB |
   | +4  | LSB |
   | +5  | MSB |
- |high | |
+  | +6  | LSB |
+  | +7  | MSB |
+  | high | |
 
-; to keep code safe do not using "fall throught".
-; uses A, Y, X caller must saves.
-; needs 2 levels of hardware stack
-; uses 4 bytes in page zero as temporary
-; uses 6 bytes in memory for internal use
-;
+#### pros:
+   offsets inline from a fixed reference
+   direct memory access and exchange
+   128 deep stack in round-robin
+
+#### cons:
+   can not change fixed reference
+
+#### multitask and multiuser
+
+   Could split 5 stacks of 22 cells for users or tasks, more than must exchange stacks values and include checks for stack limits.
+
+
 
 
     
