@@ -130,6 +130,7 @@ multitask and multiuser :
    Then could split 5 stacks for users or tasks, more than must exchange stacks values and include checks for stack limits.
 
   | memory uses | |
+  | -- | -- |
   |low | |
   | -4  | LSB |
   | -3  | MSB |
