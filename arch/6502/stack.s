@@ -37,16 +37,35 @@
 
 .segment "ZERO"
 
-ptr:    .word $0
+* = $0000
 
-ptr_lo: .word $0
-ptr_hi: .word $0
+ptz:    .byte $0
+ivi:    .byte $0
 
 lsb:    .byte $0
 msb:    .byte $0
 
 ind:    .byte $0
 lmt:    .byte $0
+
+;--------------------------------------------------------
+
+.segment "CODE"
+
+ptr:    .word $0
+
+ptr_lo: .word $0
+
+ptr_hi: .word $0
+
+;--------------------------------------------------------
+.segment "VECTORS"
+
+.word init
+.word init
+.word init
+
+;--------------------------------------------------------
 
 .segment "ONCE"
 
@@ -90,18 +109,18 @@ push_ZX:
   LDX ind
   DEX
   LDA msb
-  STA ptr, X
+  STA ptz, X
   DEX
   LDA lsb
-  STA ptr, X
+  STA ptz, X
   STX ind
 
 pull_ZX:
   LDX ind
-  LDA ptr, X
+  LDA ptz, X
   STA msb
   INX
-  LDA ptr, X
+  LDA ptz, X
   STA lsb
   INX
   STX ind
@@ -112,18 +131,18 @@ push_ZY:
   LDY ind
   DEY
   LDA msb
-  STA (ptr), Y
+  STA (ptz), Y
   DEY
   LDA lsb
-  STA (ptr), Y
+  STA (ptz), Y
   STY ind
 
 pull_ZY:
   LDY ind
-  LDA (ptr), Y
+  LDA (ptz), Y
   STA msb
   INY
-  LDA (ptr), Y
+  LDA (ptz), Y
   STA lsb
   INY
   STY ind
@@ -175,13 +194,13 @@ pull_IY2:
 push_DI:
   LDY #0
   LDA msb
-  STA (ptr), Y
+  STA (ptz), Y
   INC ptr + 0
   BNE :+ 
   INC ptr + 1
 : 
   LDA lsb
-  STA (ptr), Y
+  STA (ptz), Y
   INC ptr + 0
   BNE :+ 
   INC ptr + 1
@@ -193,14 +212,15 @@ pull_DI:
   DEC ptr + 1
 : 
   DEC ptr + 0
-  LDA (ptr), Y
+  LDA (ptz), Y
   STA msb
   LDA ptr + 0
   BNE :+ 
   DEC ptr + 1
 : 
   DEC ptr + 0
-  LDA (ptr), Y
+  LDA (ptz), Y
   STA lsb
 
-
+init:
+    jmp init

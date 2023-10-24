@@ -19,7 +19,6 @@ a)
 c) 
     
     cl65 -C $2.cfg --no-target-lib \
-    --debug-info \
     -l $2.lst -m $2.map -o $2.obj \
     -Ln $2.lbl -v \
     --cpu 6502 -t none --add-source \

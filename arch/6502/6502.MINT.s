@@ -17,6 +17,33 @@
 ;  star(tm) date 10/10/2023 
 ; ********************************************************************* 
 
+;---------------------------------------------------------------------
+; /*
+;  *  DISCLAIMER"
+;  *
+;  *  Copyright © 2023, Alvaro Gomes Sobral Barcellos,
+;  *
+;  *  Permission is hereby granted, free of charge, to any person obtaining
+;  *  a copy of this software and associated documentation files (the
+;  *  "Software"), to deal in the Software without restriction, including
+;  *  without limitation the rights to use, copy, modify, merge, publish,
+;  *  distribute, sublicense, and/or sell copies of the Software, and to
+;  *  permit per0ons to whom the Software is furnished to do so, subject to
+;  *  the following conditions"
+;  *
+;  *  The above copyright notice and this permission notice shall be
+;  *  included in all copies or substantial portions of the Software.
+;  *
+;  *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+;  *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+;  *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE and
+;  *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+;  *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+;  *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+;  *
+;  */
+;---------------------------------------------------------------------
+
 ;--------------------------------------------------------
 ;
 ;   specifc for ca65 assembler 
@@ -53,7 +80,7 @@
  
 ;--------------------------------------------------------
 ;
-;   constants, must be.
+;   constants, as must be.
 ;
 ;--------------------------------------------------------
 
@@ -285,7 +312,16 @@ keyq_:
     clv
     bvc keyk
 
-;------------------------------------------------------------------------------
+; ---------------------------------------------------------------------
+; Forth like functions
+; to keep code safe by not using "fall throught".
+; uses A, Y, X caller must saves.
+; needs 2 levels of hardware stack
+; uses 4 bytes in page zero as temporary
+; uses 6 bytes in memory for internal use
+; ---------------------------------------------------------------------
+
+; ---------------------------------------------------------------------
 ;   data stack stuff
 
 keep_: ; to push 
@@ -640,7 +676,7 @@ subto_:
 	jmp (vNext)
 .endif
 
-;------------------------------------------------------------------------------
+;----------------------------------------------------------------------
 ;   return stack stuff
 
 rpush:
@@ -1317,7 +1353,7 @@ comment_:
  
 ;---------------------------------------------------------------------- 
 depth_: 
-    ; limit to 255 bytes
+    ; stacks are 128 words
     sec
     lda #$FF
     sbc isp 
