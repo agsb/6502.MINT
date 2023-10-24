@@ -15,6 +15,7 @@ Almost 6502 typical stack implementations does as standart:
       1. Allow till 128 words deep stack; 
       2. Any operation with values at stack must do pushs and pulls. 
       3. Any multitask or multiuser system must split or copy the stack.
+      4. Stack of 128 words are round-robin, else could need check limits.
       
 If using page zero or stack page, the 128 words must be split in 3 parts: One for generic code use ( < 84 words ); One for data stack ( > 22 words ); One for return stack ( > 22 words ). For multitask or multiuser, could be 2 tasks with 2 stacks of 24 words and a generic stack of 32.
       
@@ -119,9 +120,9 @@ Uses an absolute pointer _ptr_ to memory. _Stacks with up to any size_. Each sta
   
 ### What Do 
 
-Considering for no multitask, no multiuser, just 128 deep stacks, reduce overhead, direct memoy access and good timing, then
+Consider for no multitask, no multiuser, just 128 deep stacks, reduce overhead, direct memoy access and good timing, then
 
-_Using absolute address indexed access for stacks_. 
+_Using absolute address indexed access for stacks_ 
 
 It provides the most fast overall implementation because does not need use push and pull. 
 
@@ -147,5 +148,8 @@ All operations DROP, DUP, OVER, SWAP, ROT, AND, OR, XOR, NEG, INV, ADD, SUB, INC
       - Odd address are always MSB, even address are always LSB
       - TOS, top in stack; NOS, next in stack; 
       - MOS, POS, next in sequence, BOS, COS back in sequence, for easy macros 
+
+**For common "alone" applications _zero page indexed by X_ with 24 words per stack and 32 words shared could be faster.** 
+
      
      
