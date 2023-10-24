@@ -98,14 +98,14 @@ Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 
 
 Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. When ptr, lsb, msb are in zero page, each stack uses ~48 cc, 58 bytes of code and 2 bytes at page zero. 
 
-| type | code size | cycles | notes |
-| -- | -- | -- | -- |
-| at hardware stack SP | 40 | | 
-| at page zero indexed by X | 28 |  |
-| indirect by page zero indexed by Y | 28  | |
-| absolute address indexed by Y | 32 | 32 | |
-| split absolute addres indexed by Y | 30 | | 
-| direct address with indirect access | 58 | |
+| type | code size | cycles | cells  | notes |
+| -- | -- | -- | -- | -- | 
+| at hardware stack SP | 40 | 66 | 128 | must split in 3 parts | 
+| at page zero indexed by X | 28 | 48 | must split in 3 parts |
+| indirect by page zero indexed by Y | 28 | 50 | must split in 3 parts |
+| absolute address indexed by Y | 32 | 32 | 52 | 128 |
+| split absolute addres indexed by Y | 30 | 48 | 256 |
+| direct address with indirect access | 58 | 96 | any size | 
 
 #### what do 
 
