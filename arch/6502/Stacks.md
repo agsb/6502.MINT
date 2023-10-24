@@ -119,41 +119,33 @@ Uses an absolute pointer _ptr_ to memory. _Stacks with up to any size_. Each sta
   
 ### What Do 
 
-Using absolute address indexed access for stacks. 
+Considering for no multitask, no multiuser, just 128 deep stacks, reduce overhead, direct memoy access and good timing, then
 
-It provides the most fast overall implementation because does not need use push and pull for operations as DROP, DUP, OVER, SWAP, ROT, AND, OR, XOR, NEG, INV, 
-ADD, SUB, INC, DEC, EQ, LT, GT, SHL, SHR, Fetch, Store. 
+_Using absolute address indexed access for stacks_. 
 
-  | memory | |
-  | -- | -- |
-  | low | |
-  | -4  | LSB |
+It provides the most fast overall implementation because does not need use push and pull. 
+
+All operations DROP, DUP, OVER, SWAP, ROT, AND, OR, XOR, NEG, INV, ADD, SUB, INC, DEC, EQ, LT, GT, SHL, SHR, AT (Fetch), TO (Store), are done using offsets (table 2).
+  
+  | _table 2_ | memory layout|
+  | --- | --- | 
+  | low | address |
+  | -4  | LSB *COS*|
   | -3  | MSB |
-  | -2  | LSB |
+  | -2  | LSB *BOS*|
   | -1  | MSB |
-  |  0  | LSB TOS |
+  |  0  | LSB **TOS** |
   | +1  | MSB |
-  | +2  | LSB NOS |
+  | +2  | LSB *NOS* |
   | +3  | MSB |
-  | +4  | LSB |
+  | +4  | LSB *MOS* |
   | +5  | MSB |
-  | +6  | LSB |
+  | +6  | LSB *POS* |
   | +7  | MSB |
-  | high | |
+  | high | address |
 
-#### pros:
-   offsets inline from a fixed reference
-   direct memory access and exchange
-   128 deep stack in round-robin
-
-#### cons:
-   can not change fixed reference
-
-#### multitask and multiuser
-
-   Could split 5 stacks of 22 cells for users or tasks, more than must exchange stacks values and include checks for stack limits.
-
-
-
-
-    
+      - Odd address are always MSB, even address are always LSB
+      - TOS, top in stack; NOS, next in stack; 
+      - MOS, POS, next in sequence, BOS, COS back in sequence, for easy macros 
+      - The MOS and POS are used by mult and divd
+     
