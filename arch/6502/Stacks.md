@@ -102,13 +102,16 @@ Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. When ptr
 
 | type | code size | cycles | cells  | notes |
 | -- | -- | -- | -- | -- | 
-| hardware stack SP | 40 | 66 | 128 | must split in 3 parts, must use pushs and pulls | 
-| page zero indexed by X | 28 | 48 | 128 | must split in 3 parts, must use pushs and pulls |
-| indirect page zero indexed by Y | 28 | 50 | 128 | must split in 3 parts, must use pushs and pulls |
-| absolute address indexed by Y | 32 | 52 | 128 | any operations at direct offset, no need pulls and pushs |
-| split absolute addres indexed by Y | 30 | 48 | 256 | any operations at direct offset, no need pulls and pushs |
-| direct address with indirect access | 58 | 96 | any size | must use pushs and pulls | 
+| hardware stack SP | 40 | 66 | 128 | must split in 3 parts*, must use push and pull | 
+| page zero indexed by X | 28 | 48 | 128 | must split in 3 parts*, must use push and pull |
+| indirect page zero indexed by Y | 28 | 50 | 128 | must split in 3 parts*, must use push and pull |
+| absolute address indexed by Y | 32 | 52 | 128 | any operation at direct offset, no need pull and push |
+| split absolute addres indexed by Y | 30 | 48 | 256 | any operation at direct offset, no need pull and push |
+| direct address with indirect access | 58 | 96 | any size | must use push and pull | 
 
+* a least 22 cells of each stack and more for inline code
+
+  
 #### what do 
 
 In 6502 code, to pass a byte between memory, need use LDA and STA (there are exotic alternatives, but all uses Accumulator)
