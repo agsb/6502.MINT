@@ -70,7 +70,7 @@ Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cel
 
 Uses one absolute pointer (ptr) to memory. Stacks with up to 128 cells. when idz, lsb, msb are in zero page, each stack uses ~52 cc, 32 bytes of code and 2 bytes at zero page. _Any operation with values at stack could be at direct offset, no need use pulls and pushs_
 
-### split absolute addres indexed by Y or X
+### split absolute address indexed by Y or X
       
       .macro push idz, lsb, msb 
             LDY \idz; LDA \msb; STA ptr_lo - 1, Y; LDA \lsb; STA ptr_hi - 1, Y; DEY; STY \idz;
