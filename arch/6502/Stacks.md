@@ -15,76 +15,78 @@ Almost 6502 typical stack implementations does as standart:
       1. Allow till 128 words deep stack; 
       2. Any operation with values at stack must do pushs and pulls. 
       3. Any multitask or multiuser system must split or copy the stack.
-
-These are most commom: 
+      
+If using page zero or stack page, the 128 words must be split in 3 parts: One for generic code use ( < 84 words ); One for data stack ( > 22 words ); One for return stack ( > 22 words ). For multitask or multiuser, could be 2 tasks with 2 stacks of 24 words and a generic stack of 32.
+      
+These are most commom, using idz, ptz, lsb, msb in zero page: 
 
 ### hardware stack SP
 
-      .macro push stk, lsb, msb 
-            LDA \stk; TSX; STX \stk; TAX; TXS;      
+      .macro push_sp idz, lsb, msb 
+            LDA \idz; TSX; STX \idz; TAX; TXS;      
             LDA \lsb; PHA; LDA \msb; PHA;          
-            LDA \stk; TSX; STX \stk; TAX; TXS;      
+            LDA \idz; TSX; STX \idz; TAX; TXS;      
       .endmacro ; 
       
-      .macro pull stk, lsb, msb
-            LDA \stk; TSX; STX \stk; TAX; TXS;     
+      .macro pull_sp idz, lsb, msb
+            LDA \idz; TSX; STX \idz; TAX; TXS;     
             PLA; STA \msb; PLA; STA \lsb;           
-            LDA \stk; TSX; STX \stk; TAX; TXS;     
+            LDA \idz; TSX; STX \idz; TAX; TXS;     
       .endmacro ;  
 
-Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ), one for return stack ( > 22 words ). When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and could not use JSR/RTS inside;
+Uses the hardware stack, must split. Each stack uses cycles ~66 cc, 40 bytes of code and 4 bytes. _Could not use JSR/RTS inside_.
 
 ### page zero indexed by X
       
-      .macro push idz, ptrz, lsb, msb 
-            LDX \idz; DEX; LDA \msb; STA \ptrz, X; DEX; LDA \lsb; STA \ptrz, X; STX \idz;
+      .macro push_xz idz, ptz, lsb, msb 
+            LDX \idz; DEX; LDA \msb; STA \ptz, X; DEX; LDA \lsb; STA \ptz, X; STX \idz;
       .endmacro     
       
-      .macro pull idz, ptrz, lsb, msb 
-            LDX \idz; LDA \ptrz, X; STA \msb; INX; LDA \ptrz, X; STA \lsb; INX; STX \idz;
+      .macro pull_xz idz, ptz, lsb, msb 
+            LDX \idz; LDA \ptz, X; STA \msb; INX; LDA \ptz, X; STA \lsb; INX; STX \idz;
       .endmacro
 
-Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ), one for return stack ( > 22 words ). When idz, ptrz, lsb, msb are in zero page, each stack uses cycles ~48 cc, uses 28 bytes of code and 4 bytes at zero page;
+Uses the page zero as stack, must be split. Each stack uses cycles ~48 cc, 28 bytes of code and 4 bytes at zero page;
 
 ### page zero indirect indexed by Y
 
-      .macro push idz, ptrz, lsb, msb 
-            LDY \idz; DEY; LDA \msb; STA (\ptrz), Y; DEY; LDA \lsb; STA (\ptrz), Y; STY \idz; 
+      .macro push_iy idz, ptz, lsb, msb 
+            LDY \idz; DEY; LDA \msb; STA (\ptz), Y; DEY; LDA \lsb; STA (\ptz), Y; STY \idz; 
       .endmacro      
       
-      .macro pull idz, ptrz, lsb, msb 
-            LDY \idz; LDA (\ptrz), Y; STA \msb; INY; LDA (\ptrz), Y; STA \lsb; INY; STY \idz; 
+      .macro pull_iy idz, ptz, lsb, msb 
+            LDY \idz; LDA (\ptz), Y; STA \msb; INY; LDA (\ptz), Y; STA \lsb; INY; STY \idz; 
       .endmacro
 
-Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. When idz, ptrz, lsb, msb are in zero page, each stack uses ~50 cc, 28 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
+Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. Each stack uses ~50 cc, 28 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
 
 ### absolute address indexed by Y or X
       
-      .macro push idz, lsb, msb 
+      .macro push_ay idz, lsb, msb 
             LDY \idz; LDA \msb; STA ptr - 1, Y; LDA \lsb; STA ptr - 2, Y; DEY; DEY; STY \idz; 
       .endmacro    
       
-      .macro pull idz, lsb, msb 
+      .macro pull_ay idz, lsb, msb 
             LDY \idz; LDA ptr + 0, Y; STA \lsb; LDA ptr + 1, Y; STA \msb; INY; INY; STY \idz; 
       .endmacro
 
-Uses one absolute pointer (ptr) to memory. Stacks with up to 128 cells. when idz, lsb, msb are in zero page, each stack uses ~52 cc, 32 bytes of code and 2 bytes at zero page. _Any operation with values at stack could be at direct offset, no need use pulls and pushs_
+Uses one absolute pointer _ptr_ to memory. Stacks with up to 128 cells. Each stack uses ~52 cc, 32 bytes of code and 2 bytes at zero page. _Any operation with values at stack could be at direct offset, no need use pulls and pushs_
 
 ### split absolute address indexed by Y or X
       
-      .macro push idz, lsb, msb 
+      .macro push_ays idz, lsb, msb 
             LDY \idz; LDA \msb; STA ptr_lo - 1, Y; LDA \lsb; STA ptr_hi - 1, Y; DEY; STY \idz;
       .endmacro    
       
-      .macro pull idz, lsb, msb 
+      .macro pull_ays idz, lsb, msb 
             LDY \idz; LDA ptr_lo + 0, Y; STA \lsb; LDA ptr_hi + 0, Y; STA \msb; INY; STY \idz;
       .endmacro
 
-Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 cells, splited in two parts. When idz, lsb, msb are in zero page, each stack uses ~48 cc, 30 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need pulls and pushs_
+Uses two absolute pointers _ptr_lo_ and _ptr_hi_ to memory. Stacks with up to 256 cells, splited in two parts. Each stack uses ~48 cc, 30 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need pulls and pushs_
 
 ### direct address with indirect access
 
-      .macro push ptr, lsb, msb 
+      .macro push_di ptr, lsb, msb 
             LDY #0; 
             LDA \msb; STA (ptr), Y; 
             INC ptr + 0; BNE :+ ; INC ptr + 1; : ;
@@ -92,7 +94,7 @@ Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 
             INC ptr + 0; BNE :+ ; INC ptr + 1; : ;
        .endmacro    
       
-      .macro pull ptr, lsb, msb 
+      .macro pull_di ptr, lsb, msb 
             LDY #0; 
             LDA ptr + 0; BNE :+ ; DEC ptr + 1; : DEC ptr + 0; 
             LDA (ptr), Y; STA \msb; 
@@ -100,17 +102,17 @@ Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 
             LDA (ptr), Y; STA \lsb;
       .endmacro
 
-Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. When ptr, lsb, msb are in zero page, each stack uses ~48 cc, 58 bytes of code and 2 bytes at page zero. 
+Uses an absolute pointer _ptr_ to memory. _Stacks with up to any size_. Each stack uses ~96 cc, 58 bytes of code and 2 bytes at page zero. 
 
 ### Comparasion
 
 | type | code size | cycles | cells  | notes |
 | -- | -- | -- | -- | -- | 
-| hardware stack SP | 40 | 66 | 128 | must split in 3 parts*, must use push and pull | 
-| page zero indexed by X | 28 | 48 | 128 | must split in 3 parts*, must use push and pull |
-| indirect page zero indexed by Y | 28 | 50 | 128 | must split in 3 parts*, must use push and pull |
-| absolute address indexed by Y | 32 | 52 | 128 | any operation at direct offset, no need pull and push |
-| split absolute addres indexed by Y | 30 | 48 | 256 | any operation at direct offset, no need pull and push |
+| hardware stack SP | 40 | 66 | 128 | must split*, must use push and pull | 
+| page zero indexed by X | 28 | 48 | 128 | must split*, must use push and pull |
+| indirect indexed by Y | 28 | 50 | 128 | must split*, must use push and pull |
+| absolute address indexed | 32 | 52 | 128 | any operation at direct offset, no need pull and push |
+| split absolute addres indexed | 30 | 48 | 256 | any operation at direct offset, no need pull and push |
 | direct address with indirect access | 58 | 96 | any size | must use push and pull | 
 
 \* a least 22 cells of each stack and rest for inline code
