@@ -38,11 +38,11 @@ Uses the hardware stack, must split. Each stack uses cycles ~66 cc, 40 bytes of 
 
 ### page zero indexed by X
       
-      .macro push_xz idz, ptz, lsb, msb 
+      .macro push_zx idz, ptz, lsb, msb 
             LDX \idz; DEX; LDA \msb; STA \ptz, X; DEX; LDA \lsb; STA \ptz, X; STX \idz;
       .endmacro     
       
-      .macro pull_xz idz, ptz, lsb, msb 
+      .macro pull_zx idz, ptz, lsb, msb 
             LDX \idz; LDA \ptz, X; STA \msb; INX; LDA \ptz, X; STA \lsb; INX; STX \idz;
       .endmacro
 
