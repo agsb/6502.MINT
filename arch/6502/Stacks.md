@@ -129,18 +129,19 @@ cons:
 multitask and multiuser :
    Then could split 5 stacks for users or tasks, more than must exchange stacks values and include checks for stack limits.
 
-  low memory
-   -4  LSB
-   -3  MSB
-   -2  LSB
-   -1  MSB
-    0  LSB TOS
-   +1  MSB
-   +2  LSB NOS
-   +3  MSB
-   +4  LSB
-   +5  MSB
- high memory
+  | memory uses | |
+  |low | |
+  | -4  | LSB |
+  | -3  | MSB |
+  | -2  | LSB |
+  | -1  | MSB |
+  |  0  | LSB TOS |
+  | +1  | MSB |
+  | +2  | LSB NOS |
+  | +3  | MSB |
+  | +4  | LSB |
+  | +5  | MSB |
+ |high | |
 
 ; to keep code safe do not using "fall throught".
 ; uses A, Y, X caller must saves.
