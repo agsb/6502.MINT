@@ -85,7 +85,7 @@ Uses one absolute pointer _ptr_ to memory. Stacks with up to 128 cells. Each sta
 
 Uses two absolute pointers _ptr_lo_ and _ptr_hi_ to memory. Stacks with up to 256 cells, splited in two parts. Each stack uses ~48 cc, 30 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need pulls and pushs_
 
-### direct address with indirect access
+### direct address with indirect access by Y
 
       .macro push_di ptr, lsb, msb 
             LDY #0; 
@@ -148,6 +148,8 @@ All operations DROP, DUP, OVER, SWAP, ROT, AND, OR, XOR, NEG, INV, ADD, SUB, INC
       - Odd address are always MSB, even address are always LSB
       - TOS, top in stack; NOS, next in stack; 
       - MOS, POS, next in sequence, BOS, COS back in sequence, for easy macros 
+
+### Best
 
 **For common "alone" applications _zero page indexed by X_ with 24 words per stack and 32 words shared could be faster.** 
 
