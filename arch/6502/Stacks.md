@@ -4,7 +4,7 @@ _this is still a stub_
 
 _Charles Moore says 22 levels is enough for Forth._
 
-## Back stack
+## Back Stacks
 
 The 6502 have two peculiar pages, the zero page and stack page, both unique and with 256 bytes. All sub-routines calls (JSR) and returns (RTS) uses the stack page for 16-bit pointers, also the indirect indexed and indexed indirect modes uses page zero. Those are valuable resources.
 
@@ -29,7 +29,7 @@ These are most commom:
 Uses the hardware stack, and it must be split in 3 parts, one for inline code ( < 84 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words ). 
 When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and could not use JSR/RTS inside;
 
-### at page zero indexed by X
+### page zero indexed by X
       
       .macro push idz, ptrz, lsb, msb 
             LDX \idz; DEX; LDA \msb; STA \ptrz, X; DEX; LDA \lsb; STA \ptrz, X; STX \idz;
@@ -42,7 +42,7 @@ When stk, lsb, msb are in zero page, each stack uses cycles ~66 cc, 40 bytes and
 Uses the page zero as stack, and it must be split in 3 parts, one for inline code ( < 81 words ), one for data stack ( > 22 words ) , one for return stack ( > 22 words ).
 When idz, ptrz, lsb, msb are in zero page, each stack uses cycles ~48 cc, uses 28 bytes of code and 4 bytes at zero page;
 
-### indirect by page zero indexed by Y
+### indirect page zero indexed by Y
 
       .macro push idz, ptrz, lsb, msb 
             LDY \idz; DEY; LDA \msb; STA (\ptrz), Y; DEY; LDA \lsb; STA (\ptrz), Y; STY \idz; 
@@ -97,6 +97,8 @@ Uses two absolute pointers (ptr_lo and ptr_hi) to memory. Stacks with up to 256 
       .endmacro
 
 Uses an absolute pointer (ptr) to memory. _Stacks with up to any size_. When ptr, lsb, msb are in zero page, each stack uses ~48 cc, 58 bytes of code and 2 bytes at page zero. 
+
+### Comparasion
 
 | type | code size | cycles | cells  | notes |
 | -- | -- | -- | -- | -- | 
