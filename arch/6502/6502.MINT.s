@@ -102,6 +102,9 @@
     ; include extra functions
     FULL_STACK_CODES = 1
 
+    ; define emulator mode
+    EMULATOR = 1
+
 ;---------------------------------------------------------------------- 
 .segment "ZERO"
 
@@ -225,7 +228,24 @@ init:
     .asciiz "MINT@6502"
 
 ;---------------------------------------------------------------------- 
-;    depends on hardware
+.ifdef EMULATOR
+
+hitchar:
+
+getchar:
+    jsr $E010
+    rts
+
+putchar:
+    jsr $E020
+    rts
+
+.endif
+
+.ifndef EMULATOR
+
+;---------------------------------------------------------------------- 
+;    depends on hardware, ACIA 6551 common
 ;---------------------------------------------------------------------- 
     CIA       =  $A000   ; The base address of the 6551 ACIA.
     CIA_DATA  =  CIA+0   ; Its data I/O register
@@ -241,14 +261,14 @@ setchar:
 pcia_init:
     ; reset CIA
     lda #0
-    sta CIA_STAT
+    sta #CIA_STAT
     ; %0001 1110 =  9600 baud, external receiver, 8 bit , 1 stop bit
     ; %0001 1111 = 19200 baud, external receiver, 8 bit , 1 stop bit
     lda #$1F
-    sta CIA_CTRL
+    sta #CIA_CTRL
     ; %0000 1011 = no parity, normal mode, RTS low, INT disable, DTR low
     lda #$0B
-    sta CIA_COMM
+    sta #CIA_COMM
     rts
 
 ;----------------------------------------------------------------
@@ -256,7 +276,7 @@ pcia_init:
 hitchar:
 @acia_ht:
 ; verify
-    lda CIA_STAT
+    lda #CIA_STAT
     and #8
     beq _nak
 _ack:
@@ -271,12 +291,12 @@ _nak:
 getchar:
 @acia_rx:
 ; verify
-    lda CIA_STAT
+    lda #CIA_STAT
     and #8
     ; beq @ends
     beq @acia_rx
 ; receive
-    lda CIA_RX
+    lda #CIA_RX
     rts
 
 ;----------------------------------------------------------------
@@ -285,25 +305,16 @@ putchar:
 @acia_tx:
 ; verify
     pha
-    lda CIA_STAT
+    lda #CIA_STAT
     and #16
     ; beq @ends
     beq @acia_tx
 ; transmit
     pla
-    sta CIA_TX
+    sta #CIA_TX
     rts
 
-.IF 0
-delay:
-    ldx #$FF
-@delay:
-    nop
-    nop
-    dex
-    bne @delay
-    rts
-.ENDIF
+.endif
 
 ;---------------------------------------------------------------------- 
 ; get a char
@@ -670,7 +681,7 @@ decr_:
 .ifdef FULL_STACK_CODES
 addto_:
     jsr pull2_
-    ldy NUL
+    ldy #NUL
     clc
     lda (tos), y
     adc nos + 0
@@ -683,7 +694,7 @@ addto_:
 
 subto_:
     jsr pull2_
-    ldy NUL
+    ldy #NUL
     sec
     lda (tos), y
     sbc nos + 0
@@ -761,7 +772,7 @@ opin:
     lda aps + 3, x
     sta tmp + 1
     ; clear results
-    lda NUL
+    lda #NUL
     sta tos + 0
     sta tos + 1
     sta nos + 0 
@@ -852,6 +863,12 @@ mul_:
     ; ends
     jmp opout
  
+; set overflow bit 
+slv:
+    bit @ends
+@ends: 
+    rts
+
 ;---------------------------------------------------------------------- 
 ;   MINT
 ;---------------------------------------------------------------------- 
@@ -900,7 +917,7 @@ pullps:
 
 ;---------------------------------------------------------------------- 
 seekps: 
-    ldy NUL 
+    ldy #NUL 
     lda (ipt), y 
     inc ipt + 0 
     bne @ends 
@@ -948,7 +965,7 @@ add2tos:
 ;---------------------------------------------------------------------- 
 ; puts a string 
 str_: 
-    ldy NUL
+    ldy #NUL
 @loop:
     lda (ipt), y
     beq @ends       ; NUL
@@ -985,11 +1002,11 @@ interpret:
 
 ; used by tests 
 interpret1:
-    lda NUL 
+    lda #NUL 
     sta vTIBPtr + 0 
 
 interpret2:                     
-    lda NUL
+    lda #NUL
     sta ns
     tay
     beq @isnest
@@ -1001,7 +1018,7 @@ interpret2:
     jsr nesting            ; update nesting value 
 
 @isnest: 
-    cpy NUL 
+    cpy #NUL 
     bne @loop 
     ; fall throught
 
@@ -1017,7 +1034,7 @@ waitchar:
 ; get a line into buffer pointer by TOS
 gets_:
     ; already 
-    ldy NUL
+    ldy #NUL
     jsr spull
 
 @loop:
@@ -1053,9 +1070,9 @@ gets_:
 
 @iscrlf: 
     ; just for easy
-    lda CR 
+    lda #CR 
     jsr @echo 
-    lda LF 
+    lda #LF 
     jsr @echo 
     ; pending nest ? 
     lda ns 
@@ -1064,13 +1081,9 @@ gets_:
 ; mark end with etx, 
 @endstr: 
     ; mark ETX 
-    lda ETX 
+    lda #ETX 
     sta (tos), y
     iny
-
-    ; mark NUL
-    ;lda NUL 
-    ;sta (tos), y 
 
     ; update instruction pointer
     lda tos + 0
@@ -1151,7 +1164,7 @@ puts_:
 ;---------------------------------------------------------------------- 
 ; prints a asciiz 
 putstr: 
-    ldy NUL 
+    ldy #NUL 
 @loop: 
     lda (tos), y 
     beq @ends   ; limit NUL 
@@ -1240,7 +1253,7 @@ printhex8:
 
 ;---------------------------------------------------------------------- 
 nul2tos:
-    lda NUL 
+    lda #NUL 
     sta tos + 0 
     sta tos + 1 
     rts
@@ -1359,7 +1372,7 @@ mul16:
 ;---------------------------------------------------------------------- 
 ; skip to eol
 comment_: 
-    ldy NUL
+    ldy #NUL
 @loop:    
     iny
     beq @ends   ; limit 256 
@@ -1384,7 +1397,7 @@ depth_:
     ; words 
     lsr
     sta tos + 0 
-    lda NUL 
+    lda #NUL 
     sta tos + 1 
     jsr spush 
     ; next 
@@ -1454,7 +1467,7 @@ outPort_:
 charCode_:
     jsr seekps
     sta tos + 0
-    lda NUL
+    lda #NUL
     sta tos + 1
     jsr spush
     ; next 
@@ -1471,7 +1484,7 @@ compNext:
     jsr spull
 
     ; byte
-    ldy NUL
+    ldy #NUL
     lda tos + 0
     sta (nos), y
     iny
@@ -1567,7 +1580,7 @@ call_:
     jsr lookupDefs
 
     ; update instruction pointer
-    ldy NUL
+    ldy #NUL
     lda (tos), y
     sta ipt + 0
     iny
@@ -1594,7 +1607,7 @@ lookupDefs:
     clc
     adc vDefs + 0
     sta tos + 0
-    lda NUL
+    lda #NUL
     adc vDefs + 1
     sta tos + 1
     rts 
@@ -1622,7 +1635,7 @@ editDef_:
     lda (tos), y
     sta nos + 1
 
-    ldy NUL
+    ldy #NUL
     ; empty ?
     lda (nos), y
     beq @editDef3    ; is NUL ?
@@ -1718,7 +1731,7 @@ group_:
     ; swap byte
     lda tos + 0
     sta nos + 1
-    lda NUL
+    lda #NUL
     sta nos + 0
     ; group is 64 bytes
     lsr nos + 1
@@ -1771,12 +1784,12 @@ getRef_:
 
 ;---------------------------------------------------------------------- 
 arrDef_:
-    lda FALSE
+    lda #FALSE
     beq arrDefs
 
 ;---------------------------------------------------------------------- 
 cArrDef_:
-    lda TRUE
+    lda #TRUE
     ; fall throught
 
 ;---------------------------------------------------------------------- 
@@ -1859,7 +1872,7 @@ def_:
     sta (tos), y
 
     ; copy to heap
-    ldy NUL
+    ldy #NUL
 @loop:
     lda (ipt), y
     sta (nos), y
@@ -1937,7 +1950,7 @@ begin_:
     ; a frame
     ldx ipr
     ; counter
-    lda NUL
+    lda #NUL
     sta apr + 0, x
     sta apr + 1, x 
     ; limit
@@ -1964,7 +1977,7 @@ again_:
     bne again1
     
     ; push FALSE
-    lda FALSE
+    lda #FALSE
     sta tos + 0
     sta tos + 1
     jsr spush
@@ -2101,6 +2114,7 @@ mint_:
 ;---------------------------------------------------------------------- 
 initialize:
 
+.if 0
 ; defaults values
     lda #<vars
     sta tos + 0
@@ -2110,8 +2124,8 @@ initialize:
     sta nos + 0
     lda #>vsys
     sta nos + 1
-    ldy GRPSIZE
-    lda NUL
+    ldy #GRPSIZE
+    lda #NUL
 @loop1:
     sta (tos), y
     sta (nos), y
@@ -2120,9 +2134,9 @@ initialize:
     sta (nos), y
     dey
     bne @loop1
+.endif
 
 ; default system values 
-    ldy dysys
     lda #<iSysVars
     sta tos + 0
     lda #>iSysVars
@@ -2131,6 +2145,7 @@ initialize:
     sta tos + 0
     lda #>vsys
     sta tos + 1
+    ldy #dysys
 @loop:
     lda (tos), y    
     sta (nos), y
@@ -2138,46 +2153,36 @@ initialize:
     bne @loop
 
 ; default function
-    lda #<(GRPSIZE * NUMGRPS)
-    sta nos + 0
-    lda #>(GRPSIZE * NUMGRPS)
-    sta nos + 1
     lda #<defs
     sta tos + 0
     lda #>defs
     sta tos + 1
-
+    ldx #NUMGRPS
 @loop2:
+    ldy #GRPSIZE
+@loop3:
     ; default
-    ldy NUL
-    lda #<empty_
-    sta (tos), y
-    iny
+    dey
     lda #>empty_
     sta (tos), y
-
+    dey
+    lda #<empty_
+    sta (tos), y
+    bne @loop3
+    dex
+    bne @loop2
     ; increment 
     clc
     lda tos + 0
-    adc #2
+    adc #GRPSIZE
     sta tos + 0
-    lda tos + 1
-    adc #0
-    sta tos + 1
+    bcc @next 
+    inc tos + 1
+@next:    
+    clc 
+    bcc @loop2
 
-    ; decrement
-    sec
-    lda nos + 0
-    sbc #2
-    sta nos + 0
-    lda nos + 1
-    sbc #0
-    sta nos + 1
-
-    ; ends ?
-    ora nos + 0
-    bne @loop2
-
+    ; all done
     rts
 
 
