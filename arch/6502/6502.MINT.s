@@ -1711,8 +1711,10 @@ nosp:
 
 ;---------------------------------------------------------------------- 
 group_:
+
     jsr spull
-    ; multiply by GROUP (64)
+    ;-----------------------
+    ; multiply by GROUP of 64
     ; swap byte
     lda tos + 0
     sta nos + 1
@@ -1723,12 +1725,16 @@ group_:
     ror nos + 0
     lsr nos + 1
     ror nos + 0
+    ;-----------------------
     ; save last group
+    ldx ipr
     lda vDefs + 0
-    sta tos + 0
+    sta apr - 2, x
     lda vDefs + 1
-    sta tos + 1
-    jsr rpush
+    sta apr - 1, x
+    dex
+    dex
+    stx ipr
     ; update group
     lda defs + 0
     clc
@@ -1737,17 +1743,22 @@ group_:
     lda defs + 1
     adc nos + 1
     sta vDefs + 1
+
     ; next 
     jmp (vNext)
 
 ;---------------------------------------------------------------------- 
 endGroup_:
     ; load last group
-    jsr rpull
-    lda tos + 0
+    ldx ipr
+    lda apr + 0, x
     sta vDefs + 0
-    lda tos + 1
+    lda apr + 1, x
     sta vDefs + 1
+    inx
+    inx
+    stx ipr
+
     ; next 
     jmp (vNext)
 
@@ -1775,12 +1786,12 @@ arrDefs:
 
     ; save array start
     ldx isp
-    dex
-    dex
     lda vHeap + 0
-    sta apr + 0, x
+    sta apr - 2, x
     lda vHeap + 1
-    sta apr + 1, x
+    sta apr - 1, x
+    dex
+    dex
     stx isp
 
     ; array next
@@ -1797,6 +1808,8 @@ arrEnd_:
 
     ; start of array
     jsr rpull
+
+    ; save start
     jsr spush 
 
     ; bytes
@@ -1814,7 +1827,7 @@ arrEnd_:
     lsr tos + 0
     ror tos + 1
 @isne:    
-    ; size of array
+    ; save size 
     jsr spush
 
     ; common next
@@ -1828,7 +1841,7 @@ arrEnd_:
 
 ;---------------------------------------------------------------------- 
 def_:
-    ; must be a A-Z 
+    ; must be a A-Z, can't be space 
     jsr nosp
 
     ; get slot at list
@@ -1877,6 +1890,26 @@ skipnest:
     ; next 
     jmp (vNext) 
 
+;----------------------------------------------------------------------
+; make a frame
+mkframe:
+    ; alloc a frame 
+    sec
+    lda irp
+    sbc #6
+    sta irp
+    rts
+
+;----------------------------------------------------------------------
+; skip a frame
+skframe:
+    ; alloc a frame 
+    sec
+    lda irp
+    adc #6
+    sta irp
+    rts
+
 ;---------------------------------------------------------------------- 
 break_:
     jsr spull
@@ -1885,11 +1918,7 @@ break_:
     ; parse frame
     jmp (vNext)
 @isne:
-    ; skip frame
-    clc
-    lda irp
-    adc #6
-    sta irp
+    jsr skframe
 @iscc:
     jmp skipnest
 
@@ -1903,12 +1932,9 @@ begin_:
     beq skipnest
 
     ; alloc a frame 
-    sec
-    lda irp
-    sbc #6
-    sta irp
+    jsk mkframe
 
-    ; make a frame
+    ; a frame
     ldx irp
     ; counter
     lda NUL
@@ -1924,6 +1950,7 @@ begin_:
     sta apr + 4, x
     lda ipt + 1
     sta apr + 5, x
+
     ; next 
     jmp (vNext) 
 
@@ -1943,10 +1970,9 @@ again_:
     jsr spush
 
     ; drop IFTEMmode
-    clc
-    lda irp
-    adc #2
-    sta irp
+    inc irp
+    inc irp
+
     ; next 
     jmp (vNext)
  
@@ -1961,11 +1987,8 @@ again1:
     bne @noend
 
     ; end of loop
-    ; drop frame
-    clc
-    lda irp
-    adc #6
-    sta irp
+    jsr skframe
+
     ; next 
     jmp (vNext)
 
@@ -1974,6 +1997,7 @@ again1:
     inc apr + 0, x
     bne @novr
     inc apr + 1, x
+
 @novr:    
 
     ; return at begin    
@@ -2000,9 +2024,9 @@ i_:
 
 ;----------------------------------------------------------------------
 indx:
-    lda aps + 0, x
+    lda apr + 0, x
     sta tos + 0
-    lda aps + 1, x
+    lda apr + 1, x
     sta tos + 1
     jsr spush
     ; next 
@@ -2051,24 +2075,15 @@ mint_:
 ; wise
 
     sei
-    lda #$FF
-    tay
-    tax
-    txs
-    lda NUL
-    sta ns
     cld
+    ldx #$FF
+    txs
+    inx
+    txa
+    tay
     cli
 
     jsr initialize
-
-; default system values 
-    ldy dysys
-@loop:
-    lda iSysVars, y    
-    sta vsys, y
-    dey
-    bne @loop
 
 ; safe
     lda #<next
@@ -2079,7 +2094,7 @@ mint_:
     jsr printStr
     .asciiz "MINT 6502 V1.0\r\n"
 
-    ; auto reset if stack overflows
+    ; auto reset
     jsr interpret
     jmp mint_
 
@@ -2105,6 +2120,22 @@ initialize:
     sta (nos), y
     dey
     bne @loop1
+
+; default system values 
+    ldy dysys
+    lda #<iSysVars
+    sta tos + 0
+    lda #>iSysVars
+    sta tos + 1
+    lda #<vsys
+    sta tos + 0
+    lda #>vsys
+    sta tos + 1
+@loop:
+    lda (tos), y    
+    sta (nos), y
+    dey
+    bne @loop
 
 ; default function
     lda #<(GRPSIZE * NUMGRPS)
@@ -2149,7 +2180,6 @@ initialize:
 
     rts
 
-.word $DEAD
 
 ;---------------------------------------------------------------------- 
 ;optcodes: parsed by opt_ (next)
@@ -2695,3 +2725,4 @@ macros:
  
 .include "MINT.macros.asm" 
  
+.word $DEAD
