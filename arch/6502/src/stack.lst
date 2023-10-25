@@ -9,17 +9,9 @@ Current file: stack.s
 000000r 1               ;
 000000r 1               ;--------------------------------------------------------
 000000r 1               
-000000r 1               ; enable listing
-000000r 1               
-000000r 1               .list on
-000000r 1               
 000000r 1               ; identifiers
 000000r 1               
 000000r 1               .case +
-000000r 1               
-000000r 1               ; debug
-000000r 1               
-000000r 1               .debuginfo -
 000000r 1               
 000000r 1               ; enable features
 000000r 1               
@@ -52,9 +44,15 @@ Current file: stack.s
 000004  1  00           ind:    .byte $0
 000005  1  00           lmt:    .byte $0
 000006  1               
-000006  1               ;--------------------------------------------------------
-000006  1               
-000006  1               .segment "CODE"
+000006  1               ; for stack in page zero
+000006  1  00 00 00 00  .res    $20, $0
+00000A  1  00 00 00 00  
+00000E  1  00 00 00 00  
+000026  1               pts:
+000026  1               
+000026  1               ;--------------------------------------------------------
+000026  1               
+000026  1               .segment "CODE"
 000000r 1               
 000000r 1  00 00        ptr:    .word $0
 000002r 1               
@@ -90,142 +88,154 @@ Current file: stack.s
 000010r 1  86 04          STX ind
 000012r 1  AA             TAX
 000013r 1  9A             TXS
-000014r 1               
-000014r 1               pull_SP:
-000014r 1  A5 04          LDA ind
-000016r 1  BA             TSX
-000017r 1  86 04          STX ind
-000019r 1  AA             TAX
-00001Ar 1  9A             TXS
-00001Br 1  68             PLA
-00001Cr 1  85 03          STA msb
-00001Er 1  68             PLA
-00001Fr 1  85 02          STA lsb
-000021r 1  A5 04          LDA ind
-000023r 1  BA             TSX
-000024r 1  86 04          STX ind
-000026r 1  AA             TAX
-000027r 1  9A             TXS
-000028r 1               
-000028r 1               ;## at page zero indexed by X
-000028r 1               
-000028r 1               push_ZX:
-000028r 1  A6 04          LDX ind
-00002Ar 1  CA             DEX
-00002Br 1  A5 03          LDA msb
-00002Dr 1  95 00          STA ptz, X
-00002Fr 1  CA             DEX
+000014r 1  60             RTS
+000015r 1               
+000015r 1               pull_SP:
+000015r 1  A5 04          LDA ind
+000017r 1  BA             TSX
+000018r 1  86 04          STX ind
+00001Ar 1  AA             TAX
+00001Br 1  9A             TXS
+00001Cr 1  68             PLA
+00001Dr 1  85 03          STA msb
+00001Fr 1  68             PLA
+000020r 1  85 02          STA lsb
+000022r 1  A5 04          LDA ind
+000024r 1  BA             TSX
+000025r 1  86 04          STX ind
+000027r 1  AA             TAX
+000028r 1  9A             TXS
+000029r 1  60             RTS
+00002Ar 1               
+00002Ar 1               ;## at page zero indexed by X
+00002Ar 1               
+00002Ar 1               push_ZX:
+00002Ar 1  A6 04          LDX ind
+00002Cr 1  A5 03          LDA msb
+00002Er 1  95 24          STA pts - 2, X
 000030r 1  A5 02          LDA lsb
-000032r 1  95 00          STA ptz, X
-000034r 1  86 04          STX ind
-000036r 1               
-000036r 1               pull_ZX:
-000036r 1  A6 04          LDX ind
-000038r 1  B5 00          LDA ptz, X
-00003Ar 1  85 03          STA msb
-00003Cr 1  E8             INX
-00003Dr 1  B5 00          LDA ptz, X
-00003Fr 1  85 02          STA lsb
-000041r 1  E8             INX
-000042r 1  86 04          STX ind
-000044r 1               
-000044r 1               ;## indirect by page zero indexed by Y
-000044r 1               
-000044r 1               push_IY:
-000044r 1  A4 04          LDY ind
-000046r 1  88             DEY
-000047r 1  A5 03          LDA msb
-000049r 1  91 00          STA (ptz), Y
-00004Br 1  88             DEY
-00004Cr 1  A5 02          LDA lsb
-00004Er 1  91 00          STA (ptz), Y
-000050r 1  84 04          STY ind
-000052r 1               
-000052r 1               pull_IY:
-000052r 1  A4 04          LDY ind
-000054r 1  B1 00          LDA (ptz), Y
-000056r 1  85 03          STA msb
-000058r 1  C8             INY
+000032r 1  95 25          STA pts - 1, X
+000034r 1  CA             DEX
+000035r 1  CA             DEX
+000036r 1  86 04          STX ind
+000038r 1  60             RTS
+000039r 1               
+000039r 1               pull_ZX:
+000039r 1  A6 04          LDX ind
+00003Br 1  B5 00          LDA ptz + 0, X
+00003Dr 1  85 03          STA msb
+00003Fr 1  B5 01          LDA ptz + 1, X
+000041r 1  85 02          STA lsb
+000043r 1  E8             INX
+000044r 1  E8             INX
+000045r 1  86 04          STX ind
+000047r 1  60             RTS
+000048r 1               
+000048r 1               ;## indirect by page zero indexed by Y
+000048r 1               
+000048r 1               push_IY:
+000048r 1  A4 04          LDY ind
+00004Ar 1  88             DEY
+00004Br 1  A5 03          LDA msb
+00004Dr 1  91 00          STA (ptz), Y
+00004Fr 1  88             DEY
+000050r 1  A5 02          LDA lsb
+000052r 1  91 00          STA (ptz), Y
+000054r 1  84 04          STY ind
+000056r 1  60             RTS
+000057r 1               
+000057r 1               pull_IY:
+000057r 1  A4 04          LDY ind
 000059r 1  B1 00          LDA (ptz), Y
-00005Br 1  85 02          STA lsb
+00005Br 1  85 03          STA msb
 00005Dr 1  C8             INY
-00005Er 1  84 04          STY ind
-000060r 1               
-000060r 1               ;## absolute address indexed by Y
-000060r 1               
-000060r 1               push_AY:
-000060r 1  A4 04          LDY ind
-000062r 1  A5 03          LDA msb
-000064r 1  99 rr rr       STA ptr - 1, Y
-000067r 1  A5 02          LDA lsb
-000069r 1  99 rr rr       STA ptr - 2, Y
-00006Cr 1  88             DEY
-00006Dr 1  88             DEY
-00006Er 1  84 04          STY ind
-000070r 1               
-000070r 1               pull_AY:
-000070r 1  A4 04          LDY ind
-000072r 1  B9 rr rr       LDA ptr + 0, Y
-000075r 1  85 02          STA lsb
-000077r 1  B9 rr rr       LDA ptr + 1, Y
-00007Ar 1  85 03          STA msb
-00007Cr 1  C8             INY
-00007Dr 1  C8             INY
-00007Er 1  84 04          STY ind
-000080r 1               
-000080r 1               ;## split absolute addres indexed by Y
-000080r 1               
-000080r 1               push_AYS:
-000080r 1  A4 04          LDY ind
-000082r 1  A5 03          LDA msb
-000084r 1  99 rr rr       STA ptr_lo - 1, Y
-000087r 1  A5 02          LDA lsb
-000089r 1  99 rr rr       STA ptr_hi - 1, Y
-00008Cr 1  88             DEY
-00008Dr 1  84 04          STY ind
-00008Fr 1               
-00008Fr 1               pull_AYS:
-00008Fr 1  A4 04          LDY ind
-000091r 1  B9 rr rr       LDA ptr_lo + 0, Y
-000094r 1  85 02          STA lsb
-000096r 1  B9 rr rr       LDA ptr_hi + 0, Y
-000099r 1  85 03          STA msb
-00009Br 1  C8             INY
-00009Cr 1  84 04          STY ind
-00009Er 1               
-00009Er 1               ;## direct address with indirect access
-00009Er 1               
-00009Er 1               push_DI:
-00009Er 1  A0 00          LDY #0
-0000A0r 1  A5 03          LDA msb
-0000A2r 1  91 00          STA (ptz), Y
-0000A4r 1  EE rr rr       INC ptr + 0
-0000A7r 1  D0 03          BNE :+
-0000A9r 1  EE rr rr       INC ptr + 1
-0000ACr 1               :
-0000ACr 1  A5 02          LDA lsb
-0000AEr 1  91 00          STA (ptz), Y
-0000B0r 1  EE rr rr       INC ptr + 0
-0000B3r 1  D0 0D          BNE :+
-0000B5r 1  EE rr rr       INC ptr + 1
-0000B8r 1               
-0000B8r 1               pull_DI:
-0000B8r 1  A0 00          LDY #0
-0000BAr 1  AD rr rr       LDA ptr + 0
-0000BDr 1  D0 03          BNE :+
-0000BFr 1  CE rr rr       DEC ptr + 1
-0000C2r 1               :
-0000C2r 1  CE rr rr       DEC ptr + 0
-0000C5r 1  B1 00          LDA (ptz), Y
-0000C7r 1  85 03          STA msb
-0000C9r 1  AD rr rr       LDA ptr + 0
-0000CCr 1  D0 03          BNE :+
-0000CEr 1  CE rr rr       DEC ptr + 1
-0000D1r 1               :
-0000D1r 1  CE rr rr       DEC ptr + 0
-0000D4r 1  B1 00          LDA (ptz), Y
-0000D6r 1  85 02          STA lsb
-0000D8r 1               
-0000D8r 1               init:
-0000D8r 1  4C rr rr         jmp init
-0000D8r 1               
+00005Er 1  B1 00          LDA (ptz), Y
+000060r 1  85 02          STA lsb
+000062r 1  C8             INY
+000063r 1  84 04          STY ind
+000065r 1  60             RTS
+000066r 1               
+000066r 1               ;## absolute address indexed by X or Y
+000066r 1               
+000066r 1               push_AX:
+000066r 1  A6 04          LDX ind
+000068r 1  A5 03          LDA msb
+00006Ar 1  9D rr rr       STA ptr - 1, X
+00006Dr 1  A5 02          LDA lsb
+00006Fr 1  9D rr rr       STA ptr - 2, X
+000072r 1  CA             DEX
+000073r 1  CA             DEX
+000074r 1  86 04          STX ind
+000076r 1  60             RTS
+000077r 1               
+000077r 1               pull_AX:
+000077r 1  A6 04          LDX ind
+000079r 1  BD rr rr       LDA ptr + 0, X
+00007Cr 1  85 02          STA lsb
+00007Er 1  BD rr rr       LDA ptr + 1, X
+000081r 1  85 03          STA msb
+000083r 1  E8             INX
+000084r 1  E8             INX
+000085r 1  86 04          STX ind
+000087r 1  60             RTS
+000088r 1               
+000088r 1               ;## split absolute addres indexed by X or Y
+000088r 1               
+000088r 1               push_AXS:
+000088r 1  A4 04          LDY ind
+00008Ar 1  A5 03          LDA msb
+00008Cr 1  9D rr rr       STA ptr_lo - 1, X
+00008Fr 1  A5 02          LDA lsb
+000091r 1  9D rr rr       STA ptr_hi - 1, X
+000094r 1  CA             DEX
+000095r 1  86 04          STX ind
+000097r 1  60             RTS
+000098r 1               
+000098r 1               pull_AXS:
+000098r 1  A6 04          LDX ind
+00009Ar 1  BD rr rr       LDA ptr_lo + 0, X
+00009Dr 1  85 02          STA lsb
+00009Fr 1  BD rr rr       LDA ptr_hi + 0, X
+0000A2r 1  85 03          STA msb
+0000A4r 1  E8             INX
+0000A5r 1  86 04          STX ind
+0000A7r 1  60             RTS
+0000A8r 1               
+0000A8r 1               ;## direct address with indirect access
+0000A8r 1               
+0000A8r 1               push_DI:
+0000A8r 1  A0 00          LDY #0
+0000AAr 1  A5 03          LDA msb
+0000ACr 1  91 00          STA (ptz), Y
+0000AEr 1  E6 00          INC ptz + 0
+0000B0r 1  D0 02          BNE :+
+0000B2r 1  E6 01          INC ptz + 1
+0000B4r 1               :
+0000B4r 1  A5 02          LDA lsb
+0000B6r 1  91 00          STA (ptz), Y
+0000B8r 1  E6 00          INC ptz + 0
+0000BAr 1  D0 0B          BNE :+
+0000BCr 1  E6 01          INC ptz + 1
+0000BEr 1  60             RTS
+0000BFr 1               
+0000BFr 1               pull_DI:
+0000BFr 1  A0 00          LDY #0
+0000C1r 1  A5 00          LDA ptz + 0
+0000C3r 1  D0 02          BNE :+
+0000C5r 1  C6 01          DEC ptz + 1
+0000C7r 1               :
+0000C7r 1  C6 00          DEC ptz + 0
+0000C9r 1  B1 00          LDA (ptz), Y
+0000CBr 1  85 03          STA msb
+0000CDr 1  A5 00          LDA ptz + 0
+0000CFr 1  D0 02          BNE :+
+0000D1r 1  C6 01          DEC ptz + 1
+0000D3r 1               :
+0000D3r 1  C6 00          DEC ptz + 0
+0000D5r 1  B1 00          LDA (ptz), Y
+0000D7r 1  85 02          STA lsb
+0000D9r 1  60             RTS
+0000DAr 1               
+0000DAr 1               init:
+0000DAr 1  4C rr rr         jmp init
+0000DAr 1               

@@ -1,0 +1,45 @@
+Modules list:
+-------------
+stack.o:
+    CODE              Offs=000000  Size=000006  Align=00001  Fill=0000
+    RODATA            Offs=000000  Size=000000  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000000  Size=000000  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZERO              Offs=000000  Size=000026  Align=00001  Fill=0000
+    VECTORS           Offs=000000  Size=000006  Align=00001  Fill=0000
+    ONCE              Offs=000000  Size=0000DD  Align=00001  Fill=0000
+
+
+Segment list:
+-------------
+Name                   Start     End    Size  Align
+----------------------------------------------------
+BSS                   000000  000000  000000  00001
+DATA                  000000  000000  000000  00001
+NULL                  000000  000000  000000  00001
+RODATA                000000  000000  000000  00001
+ZERO                  000000  000025  000026  00001
+ZEROPAGE              000000  000000  000000  00001
+CODE                  000200  000205  000006  00001
+ONCE                  00F000  00F0DC  0000DD  00001
+VECTORS               00FFFA  00FFFF  000006  00001
+
+
+Exports list by name:
+---------------------
+__ROM__                   00F000 REA    
+
+
+Exports list by value:
+----------------------
+__ROM__                   00F000 REA    
+
+
+Imports list:
+-------------
+__ROM__ ([linker generated]):
+    [linker generated]        stack.cfg:20
+    [linker generated]        stack.cfg:18
+
