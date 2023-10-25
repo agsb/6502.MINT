@@ -19,13 +19,13 @@ a)
 c) 
     
     cl65 -C $2.cfg --no-target-lib \
-    -v --debug-info -T \
+    --debug-info \
     --add-source \
-    -m $2.map  -Ln $2.lbl \
+    -vm -m $2.map  -l $2.lst -Ln $2.lbl \
     --cpu 6502 -t none \
     $2.s 2> err | tee out 
 
-    mv ram.bin $2.ram
+    # mv ram.bin $2.ram
     mv rom.bin $2.rom
 
 
