@@ -127,7 +127,7 @@ ipt:    .addr $0
 ; index for data stack
 isp:    .byte $0
 ; index for return stack
-irp:    .byte $0
+ipr:    .byte $0
 ; copycat for registers
 yp: 	.byte $0
 xp: 	.byte $0
@@ -876,26 +876,26 @@ add2ps:
 
 ;---------------------------------------------------------------------- 
 pushps:
-    ldx irp
+    ldx ipr
     lda ipt + 0
     sta apr - 2, x
     lda ipt + 1
     sta apr - 1, x
     dex
     dex
-    stx irp
+    stx ipr
     rts
 
 ;---------------------------------------------------------------------- 
 pullps:
-    ldx irp
+    ldx ipr
     lda apr + 0, x
     sta ipt + 0
     lda apr + 1, x
     sta ipt + 1
     inx
     inx
-    stx irp
+    stx ipr
     rts
 
 ;---------------------------------------------------------------------- 
@@ -1253,7 +1253,7 @@ isdec:
     bcs nak 
     sec 
     sbc #'0' 
-ack_:    
+ack:    
     clc
     rts
 nak:
@@ -1267,7 +1267,7 @@ ishex:
     cmp 'A' 
     bcc nak 
     cmp 'F' + 1 
-    bcs nak 
+    bcs nak
     sec 
     sbc #'A' - 10 
     bcc ack
@@ -1895,9 +1895,9 @@ skipnest:
 mkframe:
     ; alloc a frame 
     sec
-    lda irp
+    lda ipr
     sbc #6
-    sta irp
+    sta ipr
     rts
 
 ;----------------------------------------------------------------------
@@ -1905,9 +1905,9 @@ mkframe:
 skframe:
     ; alloc a frame 
     sec
-    lda irp
+    lda ipr
     adc #6
-    sta irp
+    sta ipr
     rts
 
 ;---------------------------------------------------------------------- 
@@ -1932,10 +1932,10 @@ begin_:
     beq skipnest
 
     ; alloc a frame 
-    jsk mkframe
+    jsr mkframe
 
     ; a frame
-    ldx irp
+    ldx ipr
     ; counter
     lda NUL
     sta apr + 0, x
@@ -1970,15 +1970,15 @@ again_:
     jsr spush
 
     ; drop IFTEMmode
-    inc irp
-    inc irp
+    inc ipr
+    inc ipr
 
     ; next 
     jmp (vNext)
  
 again1: 
     ; test end
-    ldx irp
+    ldx ipr
     lda apr + 2, x
     cmp apr + 0, x
     bne @noend
@@ -2012,14 +2012,14 @@ again1:
 ;----------------------------------------------------------------------
 j_:
     sec
-    lda irp
+    lda ipr
     sbc #6
     tax
     jmp indx
 
 ;----------------------------------------------------------------------
 i_:
-    ldx irp
+    ldx ipr
     ; fall through
 
 ;----------------------------------------------------------------------
