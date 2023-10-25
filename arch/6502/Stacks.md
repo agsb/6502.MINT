@@ -63,26 +63,26 @@ Uses the page zero as stack, must be split. Each stack uses cycles ~48 cc, 28 by
 
 Uses the a pointer in page zero to anywhere in memory. Stacks with up to 128 cells. Each stack uses ~50 cc, 28 bytes of code and 4 bytes at zero page. _Multiuser and Multitask systems can change the pointers anytime._ 
 
-### absolute address indexed by Y or X
+### absolute address indexed by X or Y
       
-      .macro push_ay idz, lsb, msb 
-            LDY \idz; LDA \msb; STA ptr - 1, Y; LDA \lsb; STA ptr - 2, Y; DEY; DEY; STY \idz; 
+      .macro push_ax idz, lsb, msb 
+            LDX \idz; LDA \msb; STA ptr - 1, X; LDA \lsb; STA ptr - 2, X; DEX; DEX; STX \idz; 
       .endmacro    
       
-      .macro pull_ay idz, lsb, msb 
-            LDY \idz; LDA ptr + 0, Y; STA \lsb; LDA ptr + 1, Y; STA \msb; INY; INY; STY \idz; 
+      .macro pull_ax idz, lsb, msb 
+            LDX \idz; LDA ptr + 0, X; STA \lsb; LDA ptr + 1, X; STA \msb; INX; INX; STX \idz; 
       .endmacro
 
 Uses one absolute pointer _ptr_ to memory. Stacks with up to 128 cells. Each stack uses ~52 cc, 32 bytes of code and 2 bytes at zero page. _Any operation with values at stack could be at direct offset, no need use pulls and pushs_
 
-### split absolute address indexed by Y or X
+### split absolute address indexed by X or Y
       
-      .macro push_ays idz, lsb, msb 
-            LDY \idz; LDA \msb; STA ptr_lo - 1, Y; LDA \lsb; STA ptr_hi - 1, Y; DEY; STY \idz;
+      .macro push_axs idz, lsb, msb 
+            LDX \idz; LDA \msb; STA ptr_lo - 1, X; LDA \lsb; STA ptr_hi - 1, X; DEX; STX \idz;
       .endmacro    
       
-      .macro pull_ays idz, lsb, msb 
-            LDY \idz; LDA ptr_lo + 0, Y; STA \lsb; LDA ptr_hi + 0, Y; STA \msb; INY; STY \idz;
+      .macro pull_axs idz, lsb, msb 
+            LDY \idz; LDA ptr_lo + 0, X; STA \lsb; LDA ptr_hi + 0, X; STA \msb; INX; STX \idz;
       .endmacro
 
 Uses two absolute pointers _ptr_lo_ and _ptr_hi_ to memory. Stacks with up to 256 cells, splited in two parts. Each stack uses ~48 cc, 30 bytes of code and 2 bytes at zero page.  _Any operations with values at stack could be at direct offset, no need pulls and pushs_

@@ -86,6 +86,7 @@ push_SP:
   STX ind
   TAX
   TXS
+  RTS
 
 pull_SP:
   LDA ind
@@ -102,28 +103,31 @@ pull_SP:
   STX ind
   TAX
   TXS
+  RTS
 
 ;## at page zero indexed by X
 
 push_ZX:
   LDX ind
-  DEX
   LDA msb
-  STA ptz, X
-  DEX
+  STA ptz - 2, X
   LDA lsb
-  STA ptz, X
+  STA ptz - 1, X
+  DEX
+  DEX
   STX ind
+  RTS
 
 pull_ZX:
   LDX ind
-  LDA ptz, X
+  LDA ptz + 0, X
   STA msb
-  INX
-  LDA ptz, X
+  LDA ptz + 1, X
   STA lsb
   INX
+  INX
   STX ind
+  RTS
 
 ;## indirect by page zero indexed by Y
 
@@ -136,6 +140,7 @@ push_IY:
   LDA lsb
   STA (ptz), Y
   STY ind
+  RTS
 
 pull_IY:
   LDY ind
@@ -146,48 +151,53 @@ pull_IY:
   STA lsb
   INY
   STY ind
+  RTS
 
-;## absolute address indexed by Y
+;## absolute address indexed by X or Y
 
-push_AY:
+push_AX:
+  LDX ind
+  LDA msb
+  STA ptr - 1, X
+  LDA lsb
+  STA ptr - 2, X
+  DEX
+  DEX
+  STX ind
+  RTS
+
+pull_AX:
+  LDX ind
+  LDA ptr + 0, X
+  STA lsb
+  LDA ptr + 1, X
+  STA msb
+  INX
+  INX
+  STX ind
+  RTS
+
+;## split absolute addres indexed by X or Y
+
+push_AXS: 
   LDY ind
   LDA msb
-  STA ptr - 1, Y
+  STA ptr_lo - 1, X
   LDA lsb
-  STA ptr - 2, Y
-  DEY
-  DEY
-  STY ind
+  STA ptr_hi - 1, X
+  DEX
+  STX ind
+  RTS
 
-pull_AY:
-  LDY ind
-  LDA ptr + 0, Y
+pull_AXS: 
+  LDX ind
+  LDA ptr_lo + 0, X
   STA lsb
-  LDA ptr + 1, Y
+  LDA ptr_hi + 0, X
   STA msb
-  INY
-  INY
-  STY ind
-
-;## split absolute addres indexed by Y
-
-push_AYS: 
-  LDY ind
-  LDA msb
-  STA ptr_lo - 1, Y
-  LDA lsb
-  STA ptr_hi - 1, Y
-  DEY
-  STY ind
-
-pull_AYS: 
-  LDY ind
-  LDA ptr_lo + 0, Y
-  STA lsb
-  LDA ptr_hi + 0, Y
-  STA msb
-  INY
-  STY ind
+  INX
+  STX ind
+  RTS
 
 ;## direct address with indirect access
 
@@ -204,6 +214,7 @@ push_DI:
   INC ptr + 0
   BNE :+ 
   INC ptr + 1
+  RTS
 
 pull_DI:
   LDY #0
@@ -221,6 +232,7 @@ pull_DI:
   DEC ptr + 0
   LDA (ptz), Y
   STA lsb
+  RTS
 
 init:
     jmp init

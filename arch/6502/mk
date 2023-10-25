@@ -4,48 +4,45 @@ echo " start compiling "
 
 case $1 in
 
-a) 
 
-    ca65 -W 1 -l $2.lst -o $2.obj -mm near \
+a)   
+    cl65 -C $2.cfg \
+    -Ln $2.lbl \
+    -l $2.lst -m $2.map \
+    --cpu 6502 \
+    -vm -t none --no-target-lib \
+    -o $2.obj $2.s 2> err | tee out
+
+    mv rom.bin $2.rom
+
+    ;;
+
+    # --debug-info \
+    # -mm \
+    # --pagelength 34 \
+    # --list-bytes 72 \
+    # --create-full-dep $2.dep \
+c) 
+    ca65 -W 1 \
+    -l $2.lst -o $2.obj \
+    -mm near \
     -v --debug-info \
-    --list-bytes 80 \
-    --pagelength 36 \
-    --create-full-dep $2.dep \
+    --list-bytes 72 \
+    --pagelength 34 \
     --cpu 6502 -t none \
     $2.s 2> err | tee out
 
-    ;;
-
-c) 
+ 
+    ld65 -v -vm -S 4096 \
+    -m $2.map -Ln $2.lbl -C $2.cfg -o $2.bin $2.obj
     
-    cl65 -C $2.cfg --no-target-lib \
-    --debug-info \
-    --add-source \
-    -vm -m $2.map  -l $2.lst -Ln $2.lbl \
-    --cpu 6502 -t none \
-    $2.s 2> err | tee out 
-
-    # mv ram.bin $2.ram
-    mv rom.bin $2.rom
-
-
-# cl65 -t atari -Ln $2.lbl --listing $2.lst --add-source -o $2.xex $2.s
-# --add-source --create-dep $2.dep \
-# -vm -v \
-# -O0 -W1 -c -T -S \
-
     ;;
 
 o)
-    od --endian=big -x < $2.ram.bin > $2.ram.hx
+#    od --endian=big -x < $2.ram.bin > $2.ram.hx
 
     od --endian=big -x < $2.rom.bin > $2.rom.hx
 
-    ;;
-
-l)
-    ld65 -o $2.bin -m $2.map -Ln $2.lbl -C $2.cfg $2.obj
-    
     ;;
 
 x)
