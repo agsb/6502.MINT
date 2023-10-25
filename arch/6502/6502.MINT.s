@@ -793,24 +793,20 @@ opout:
 div_:
     jsr opin
 @loop:
-    asl tmp + 0
+    asl tmp + 0     
     rol tmp + 1
-    rol tos + 0
+    rol tos + 0     
     rol tos + 1
-    
     sec
     lda tos + 0
     sbc wrk + 0
-    sta nos + 0
+    tax
     lda tos + 1
     sbc wrk + 1
     bcc @skip
-
     sta tos + 1
-    lda nos + 0
-    sta tos + 0
+    stx tos + 0
     inc tmp + 0
-
 @skip:
     ; countdown
     dey
@@ -836,22 +832,23 @@ mul_:
     ror wrk + 0
     bcc @rotate_r
     ; add multiplicand to upper half product
+    tax
     clc
-    lda tos + 0
-    adc tmp + 0
+    lda tmp + 0
+    adc tos + 0
     sta tos + 0
-    lda tmp + 1
-    adc tos + 1
+    txa
+    adc tmp + 1
 @rotate_r:    
     ; rotate partial product upper to low
     ror
-    sta tos + 1
-    ror tos + 0
+    ror tos + 1
     ror nos + 1
     ror nos + 0
     ; countdown
     dey
     bne @shift_r
+    sta tos + 0 
     ; ends
     jmp opout
  
@@ -1242,31 +1239,74 @@ printhex8:
     jmp putchar 
 
 ;---------------------------------------------------------------------- 
-prenum:
+nul2tos:
     lda NUL 
     sta tos + 0 
     sta tos + 1 
     rts
 
-;---------------------------------------------------------------------- 
-; convert a decimal value to binary 
-num_: 
-    jsr prenum
-@loop: 
-    jsr seekps
+;---------------------------------------------------------------------
+isdec:
     cmp #'0' + 0 
-    bcc @ends 
+    bcc nak 
     cmp #'9' + 1 
-    bcs @ends 
-@cv10: 
+    bcs nak 
     sec 
     sbc #'0' 
+ack_:    
+    clc
+    rts
+nak:
+    sec
+    rts
+
+;---------------------------------------------------------------------
+ishex:
+    ; to upper, clear bit-6
+    and #%11011111 
+    cmp 'A' 
+    bcc nak 
+    cmp 'F' + 1 
+    bcs nak 
+    sec 
+    sbc #'A' - 10 
+    bcc ack
+
+;---------------------------------------------------------------------- 
+; convert a decimal value to binary 
+dec_:
+    jsr nul2tos
+@loop: 
+    jsr seekps
+    jsr isdec
+    bcs @ends
 @uval: 
     jsr add2tos
     sta tos + 1
     jsr mul10 
     clc
     bcc @loop 
+@ends: 
+    jsr spush 
+    ; next 
+    jmp (vNext)
+ 
+;---------------------------------------------------------------------- 
+; convert a hexadecimal value to binary 
+hex_: 
+    jsr nul2tos
+@loop: 
+    jsr seekps
+    jsr isdec
+    bcc @uval
+    jsr ishex
+    bcc @uval
+    bcs @ends
+@uval: 
+    jsr add2tos
+    jsr mul16 
+    clv
+    bvc @loop 
 @ends: 
     jsr spush 
     ; next 
@@ -1302,41 +1342,6 @@ mul10:
     adc nos + 1 
     sta tos + 1 
     rts 
- 
-;---------------------------------------------------------------------- 
-; convert a hexadecimal value to binary 
-hex_: 
-    jsr prenum
-@loop: 
-    jsr seekps
-@isd: 
-    cmp #'0' 
-    bcc @ends 
-    cmp #'9' + 1 
-    bcs @ish 
-@cv10: 
-    sec 
-    sbc #'0' 
-    bcc @uval 
-@ish: 
-    ; to upper, clear bit-6
-    and #%11011111 
-    cmp 'A' 
-    bcc @ends 
-    cmp 'F' + 1 
-    bcs @ends 
-@cv16: 
-    sec 
-    sbc #'A' - 10 
-@uval: 
-    jsr add2tos
-    jsr mul16 
-    clv
-    bvc @loop 
-@ends: 
-    jsr spush 
-    ; next 
-    jmp (vNext)
  
 ;---------------------------------------------------------------------- 
 ; multiply by sixteen 
@@ -1458,9 +1463,11 @@ charCode_:
 ;---------------------------------------------------------------------- 
 ; copy and update 
 compNext:
-    ; array start
+
+    ; pull heap
     jsr heap2nos
 
+    ; pull value
     jsr spull
 
     ; byte
@@ -1538,7 +1545,7 @@ ret_:
 ; Interpret code from data stack
 go_: 
     jsr pushps
-; pull ps from data stack 
+    ; pull ps from data stack 
     ldx isp
     lda aps + 0, x 
     sta ipt + 0 
@@ -1576,6 +1583,7 @@ lookupDeft:
     sta vEdited
     ; fall throught
 
+;---------------------------------------------------------------------- 
 lookupDefs:
     sec
     lda ap
@@ -1617,14 +1625,12 @@ editDef_:
     ldy NUL
     ; empty ?
     lda (nos), y
-    beq editDef3    ; is NUL ?
+    beq @editDef3    ; is NUL ?
     cmp #';'        ; is end ?
-    beq editDef3
+    beq @editDef3
 
-    ; else
-    ; ldy NUL
+    ; copy 
 
-    ; destiny
     jsr tib2tos
 
     lda #':'
@@ -1637,20 +1643,20 @@ editDef_:
     lda #1
     jsr add2tos
     
-    clv
-    bvc editDef2
+    clc
+    bcc @editDef2
 
-editDef1:
+@editDef1:
     iny
-    beq editDef3
+    beq @editDef3
 
-editDef2:
+@editDef2:
     lda (nos), y
     jsr writeChar
     cmp #';'
-    bne editDef1
+    bne @editDef1
 
-editDef3:
+@editDef3:
     lda #<tib
     sta vTIBPtr + 0
     lda #>tib
@@ -2206,16 +2212,16 @@ optcodeslo:
    .byte  <sub_     ;    - 
    .byte  <dot_     ;    . 
    .byte  <div_     ;    / divide 16x16
-   .byte  <num_     ;    0 
-   .byte  <num_     ;    1 
-   .byte  <num_     ;    2 
-   .byte  <num_     ;    3 
-   .byte  <num_     ;    4 
-   .byte  <num_     ;    5 
-   .byte  <num_     ;    6 
-   .byte  <num_     ;    7 
-   .byte  <num_     ;    8 
-   .byte  <num_     ;    9 
+   .byte  <dec_     ;    0 
+   .byte  <dec_     ;    1 
+   .byte  <dec_     ;    2 
+   .byte  <dec_     ;    3 
+   .byte  <dec_     ;    4 
+   .byte  <dec_     ;    5 
+   .byte  <dec_     ;    6 
+   .byte  <dec_     ;    7 
+   .byte  <dec_     ;    8 
+   .byte  <dec_     ;    9 
    .byte  <def_     ;    : 
    .byte  <ret_     ;    ; 
    .byte  <lt_      ;    < 
@@ -2330,22 +2336,22 @@ optcodeshi:
    .byte  >drop_    ;    ' 
    .byte  >begin_   ;    ( 
    .byte  >again_   ;    ) 
-   .byte  >mul_     ;    *  multiply 16x16
+   .byte  >mul_     ;    *  multiply 16x16, (multpd multpr -- LSW MSW) 
    .byte  >add_     ;    +
    .byte  >hdot_    ;    , 
    .byte  >sub_     ;    - 
    .byte  >dot_     ;    . 
-   .byte  >div_     ;    /  divide 16x16
-   .byte  >num_     ;    0 
-   .byte  >num_     ;    1 
-   .byte  >num_     ;    2 
-   .byte  >num_     ;    3 
-   .byte  >num_     ;    4 
-   .byte  >num_     ;    5 
-   .byte  >num_     ;    6 
-   .byte  >num_     ;    7 
-   .byte  >num_     ;    8 
-   .byte  >num_     ;    9 
+   .byte  >div_     ;    /  divide 16x16, (divd divs -- quo rem)
+   .byte  >dec_     ;    0 
+   .byte  >dec_     ;    1 
+   .byte  >dec_     ;    2 
+   .byte  >dec_     ;    3 
+   .byte  >dec_     ;    4 
+   .byte  >dec_     ;    5 
+   .byte  >dec_     ;    6 
+   .byte  >dec_     ;    7 
+   .byte  >dec_     ;    8 
+   .byte  >dec_     ;    9 
    .byte  >def_     ;    : 
    .byte  >ret_     ;    ; 
    .byte  >lt_      ;    < 
