@@ -7,7 +7,11 @@ case $1 in
 
 a)   
     cl65 -C $2.cfg -Ln $2.lbl -l $2.lst -m $2.map \
-    --debug-info --cpu 6502 -t none --no-target-lib \
+    --cpu 6502 -t none --no-target-lib \
+    --debug --debug-info \
+    --memory-model near \
+    --target none \
+    -o $2.out \
     $2.s 2> err | tee out
 
     #mv $2.bin $2.rom

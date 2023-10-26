@@ -209,7 +209,7 @@ vDefs    =  vsys + $08     ;    d  ; reference for group user functions
 ;        =  vsys + $0a     ;    e  ; 
 vR0      =  vsys + $0c     ;    f  ; start of return stack 
 vNext    =  vsys + $0e     ;    g  ; next routine dispatcher
-vHeap =  vsys + $10     ;    h  ; heap ptr variable
+vHeap    =  vsys + $10     ;    h  ; heap ptr variable
 
 ; the address of stacks are hardcoded, any change do no apply
 dStack = vS0
@@ -976,7 +976,7 @@ str_:
     bne @loop       ; limit 255
 @ends: 
     ; next 
-    jmp  (vNext) 
+    jmp (vNext) 
  
 ;---------------------------------------------------------------------- 
 ; $00 to $1F, reserved for macros
@@ -1100,8 +1100,6 @@ gets_:
     jsr putchar 
     ; store
     sta (tos), y 
-    lda #'>'
-    jsr putchar
     iny 
     rts 
  
@@ -2135,12 +2133,6 @@ initialize:
     sta (tos), y
     sta (nos), y
     dey
-    
-    pha
-    lda #'>'
-    jsr putchar
-    pla
-
     bne @loop1
 .endif
 
