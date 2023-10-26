@@ -14,8 +14,12 @@ a)
     -o $2.out \
     $2.s 2> err | tee out
 
-    #mv $2.bin $2.rom
-    #od --endian=big -x < $2.rom > $2.bhx
+    cp $2.s $2.asm
+
+    mv rom.bin $2.rom
+    mv ram.bin $2.ram
+    od --endian=big -x < $2.ram > $2.bhx
+    od --endian=big -x < $2.rom > $2.bhx
 
     # -o $2.rom \
 
@@ -23,8 +27,8 @@ a)
 
 
 x)
-    rm $2.obj $2.dep $2.asm $2.map $2.lbl $2.lst $2.ram $2.rom
-    rm out err $2.*.bin $2.*.bhx $2.o
+    rm $2.obj $2.dep $2.map $2.lbl $2.lst 
+    rm $2.ram $2.rom $2.out $2.bhx
     
     ;;
 
