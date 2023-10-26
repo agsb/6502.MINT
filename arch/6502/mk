@@ -29,6 +29,7 @@ a)
 x)
     rm $2.obj $2.dep $2.map $2.lbl $2.lst 
     rm $2.ram $2.rom $2.out $2.bhx
+    rm out err lst 
     
     ;;
 

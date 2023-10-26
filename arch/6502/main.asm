@@ -137,11 +137,9 @@ ins_ptr:    .addr $0
 dat_indx:    .byte $0
 ; index for return stack
 ret_indx:    .byte $0
-; copycat for registers
-yp: 	.byte $0
-xp: 	.byte $0
-ap: 	.byte $0
-ns: 	.byte $0
+; copycat
+nest: 	.byte $0
+echo:   .byte $0
 ; pseudo registers
 tos:    .word $0
 nos:    .word $0
@@ -1032,7 +1030,7 @@ interpret1:
 
 interpret2:
     lda #NUL
-    sta ns
+    sta nest
     tay
     beq @isnest
 
@@ -1102,7 +1100,7 @@ gets_:
     lda #LF
     jsr @echo
     ; pending nest ?
-    lda ns
+    lda nest
     bne @loop
 
 ; mark end with etx,
@@ -1143,11 +1141,11 @@ nesting:
     bne @nests
     ; clear bit 7
     lda #$80
-    eor ns
-    sta ns
+    eor nest
+    sta nest
     rts
 @nests:
-    bit ns
+    bit nest
     bmi @nonest
     cmp #':'
     beq @nestinc
@@ -1164,10 +1162,10 @@ nesting:
 @nonest:
     rts
 @nestinc:
-    inc ns
+    inc nest
     rts
 @nestdec:
-    dec ns
+    dec nest
     rts
 
 ;----------------------------------------------------------------------
@@ -1274,13 +1272,13 @@ printhex:
 ;----------------------------------------------------------------------
 ; print a 8-bit HEX
 printhex8:
-    sta ap
+    tax
     lsr
     ror
     ror
     ror
     jsr @conv
-    lda ap
+    txa
 @conv:
     and #$0F
     clc
@@ -1646,6 +1644,7 @@ editDef_:
     clc
     lda #'A'
     adc tos + 0
+    tax
     jsr lookupDeft
 
     ; origin
@@ -1671,7 +1670,7 @@ editDef_:
     lda #1
     jsr add2tos
 
-    lda ap
+    txa
     jsr writeChar
     lda #1
     jsr add2tos
@@ -1900,21 +1899,21 @@ def_:
 @ends:
     ; update heap
     tya
-    sta ap
+    tax
     jsr add2heap
     ; update instruction pointer
-    lda ap
+    txa
     jmp add2ps
 
 ;----------------------------------------------------------------------
 ; skip while nest
 skipnest:
     lda #$01
-    sta ns
+    sta nest
 @loop:
     jsr seekps
     jsr nesting
-    lda ns
+    lda nest
     bne @loop
     ; next
     jmp (vNext)
