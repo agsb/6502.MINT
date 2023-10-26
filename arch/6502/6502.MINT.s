@@ -232,16 +232,19 @@ init:
     .asciiz "MINT@6502"
 
 ;----------------------------------------------------------------------
+; 25/10/2023, using lib6502, -M E000
 .ifdef EMULATOR
 
 hitchar:
 
 getchar:
-    jsr $E010
+    ;jsr $E010
+    lda $E000
     rts
 
 putchar:
-    jsr $E020
+    ;jsr $E020
+    sta $E000
     rts
 
 .endif
@@ -343,8 +346,8 @@ emit_:
 ; hit a char ?
 keyq_:
     jsr hitchar
-    clv
-    bvc keyk
+    clc
+    bcc keyk
 
 ; ---------------------------------------------------------------------
 ; Forth like functions
@@ -1125,12 +1128,6 @@ gets_:
     jsr putchar
     ; store
     sta (tos), y
-
-.ifdef test
-    lda #'>'
-    jsr putchar
-.endif
-
     iny
     rts
 
@@ -1356,8 +1353,8 @@ hex_:
 @uval:
     jsr add2tos
     jsr mul16
-    clv
-    bvc @loop
+    clc
+    bcc @loop
 @ends:
     jsr spush
     ; next
@@ -2150,14 +2147,6 @@ initialize:
     sta (tos), y
     sta (nos), y
     dey
-
-.ifdef test
-    pha
-    lda #'>'
-    jsr putchar
-    pla
-.endif
-
     bne @loop1
 .endif
 
