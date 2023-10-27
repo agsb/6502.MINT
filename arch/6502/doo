@@ -1,0 +1,4 @@
+
+sh mk x main
+sh mk a main
+sh run65.sh main.rom | tee a

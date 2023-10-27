@@ -1102,7 +1102,7 @@ gets_:
     jmp macro
 
 @ischar:
-    jsr @echo
+    jsr @toTib
     ; nest ?
     jsr nesting
     ; wait for next character
@@ -1112,9 +1112,9 @@ gets_:
 @iscrlf:
     ; just for easy
     lda #CR
-    jsr @echo
+    jsr @toTib
     lda #LF
-    jsr @echo
+    jsr @toTib
     ; pending nest ?
     lda nest
     bne @loop
@@ -1136,7 +1136,7 @@ gets_:
     jmp next
 
 ; maximum 254 chars
-@echo:
+@toTib:
     ; echo
     jsr putchar
     ; store
@@ -1190,10 +1190,10 @@ printStr:
     ldx #NUL
     jsr putstr
     ; offset
-    clc
-    adc tos + 1
+    jsr add2tos
+    lda tos + 1
     pha
-    adc tos + 0
+    lda tos + 0
     pha
     rts
 
@@ -1564,6 +1564,10 @@ enter:
     sta ins_ptr + 0
     pla
     sta ins_ptr + 1
+    inc ins_ptr + 0
+    bcc @nock
+    inc ins_ptr + 1
+@nock:
     ; next
     jmp (vNext)
 
