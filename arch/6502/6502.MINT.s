@@ -10,39 +10,13 @@
 ;
 ;  original for the Z80, by Ken Boak, John Hardy and Craig Jones.
 ;
-;  adapted for the 6502, by Alvaro G. S. Barcellos, 10/2023
-;  (some code from 6502.org forum and FIG_Forth)
-;  (some code from https://www.nesdev.org/wiki/Programming_guide)
-
-;  star(tm) date 10/10/2023
+;  original for the 6502, by Alvaro G. S. Barcellos, 2023
+;
+;  agsb@ see the disclaimer file in this repo for more information.
+;
+;  agsb@ star(tm) date 10/10/2023
+;
 ; *********************************************************************
-
-;---------------------------------------------------------------------
-; /*
-;  *  DISCLAIMER"
-;  *
-;  *  Copyright © 2023, Alvaro Gomes Sobral Barcellos,
-;  *
-;  *  Permission is hereby granted, free of charge, to any person obtaining
-;  *  a copy of this software and associated documentation files (the
-;  *  "Software"), to deal in the Software without restriction, including
-;  *  without limitation the rights to use, copy, modify, merge, publish,
-;  *  distribute, sublicense, and/or sell copies of the Software, and to
-;  *  permit per0ons to whom the Software is furnished to do so, subject to
-;  *  the following conditions"
-;  *
-;  *  The above copyright notice and this permission notice shall be
-;  *  included in all copies or substantial portions of the Software.
-;  *
-;  *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-;  *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-;  *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE and
-;  *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-;  *  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-;  *  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-;  *
-;  */
-;---------------------------------------------------------------------
 
 ;--------------------------------------------------------
 ;
@@ -85,8 +59,8 @@
     ETX = 3
     NUL = 0
 
-    ; stack size in words
-    STKSIZE = $18
+    ; stack size 
+    STKSIZE = $30
 
     ; size page
     PAGE = $100
@@ -121,11 +95,11 @@
 * = $00F0 - $60
 
 ; return stack with 24 words
-.res  STKSIZE*2, $0
+.res  STKSIZE, $0
 dat_zero:
 
 ; data stack with 24 words
-.res  STKSIZE*2, $0
+.res  STKSIZE, $0
 ret_zero:
 
 .endif
@@ -166,11 +140,11 @@ VOID:
 .ifndef ZERO_PAGE_STACK
 
  data stack
-    .res PAGE, $00
+    .res STKSIZE, $00
  dat_zero:
 
  return stack
-    .res PAGE, $00
+    .res STKSIZE, $00
  ret_zero:
 
 .endif
@@ -254,7 +228,7 @@ putchar:
 ;----------------------------------------------------------------------
 ;    depends on hardware, ACIA 6551 common
 ;----------------------------------------------------------------------
-    CIA       =  $A000   ; The base address of the 6551 ACIA.
+    CIA       =  $E000   ; The base address of the 6551 ACIA.
     CIA_DATA  =  CIA+0   ; Its data I/O register
     CIA_RX    =  CIA+0   ; Its data I/O register
     CIA_TX    =  CIA+0   ; Its data I/O register
@@ -981,6 +955,14 @@ add2tos:
     rts
 
 ;----------------------------------------------------------------------
+inc2tos:
+    inc tos + 0
+    bcc @ends
+    inc tos + 1
+@ends:
+    rts
+
+;----------------------------------------------------------------------
 ; sub
 subn2t:
     sec
@@ -1017,7 +999,7 @@ addt2t:
 ; $00 to $1F, reserved for macros
 ; macros could not call macros.
 macro:
-    sty vTIBPtr + 0
+    sty vTIBPtr + 0 ; maybe spush 
     tay
     lda ctlcodeslo, y
     sta tos + 0
@@ -1030,7 +1012,7 @@ macro:
     jsr spush
     jsr enter
     .asciiz "\\G"
-    ldy vTIBPtr + 0
+    ldy vTIBPtr + 0 ; maybe spull
     jmp interpret2
 
 ;----------------------------------------------------------------------
@@ -1584,12 +1566,6 @@ exec_:
     jmp (tos)
 
 ;----------------------------------------------------------------------
-ret_:
-    jsr pullps
-    ; next
-    jmp (vNext)
-
-;----------------------------------------------------------------------
 ; Interpret code from data stack
 go_:
     jsr pushps
@@ -1602,6 +1578,12 @@ go_:
     inx
     inx
     stx dat_indx
+    ; next
+    jmp (vNext)
+
+;----------------------------------------------------------------------
+ret_:
+    jsr pullps
     ; next
     jmp (vNext)
 
@@ -1810,7 +1792,7 @@ endGroup_:
 
 ;----------------------------------------------------------------------
 getRef_:
-    jsr nosp
+    jsr seekps
     jsr lookupDefs
     jmp fetch_
 
@@ -1887,7 +1869,7 @@ arrEnd_:
 ;----------------------------------------------------------------------
 def_:
     ; must be a A-Z, can't be space
-    jsr nosp
+    jsr seekps
     jsr lookupDefs
 
     ; get heap
