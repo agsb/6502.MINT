@@ -26,23 +26,23 @@
 
 ; identifiers
 
-.case +
+;.case +
 
 ; enable features
 
-.feature c_comments
+;.feature c_comments
 
-.feature string_escapes
+;.feature string_escapes
 
-.feature org_per_seg
+;.feature org_per_seg
 
-.feature dollar_is_pc
+;.feature dollar_is_pc
 
-.feature pc_assignment
+;.feature pc_assignment
 
 ; enable 6502 mode
 
-.p02
+;.p02
 
 ;--------------------------------------------------------
 ;
@@ -86,96 +86,74 @@
     test = 1
 
 ;----------------------------------------------------------------------
-.segment "ZERO"
-
-; offset
-
-.ifdef ZERO_PAGE_STACK
-
-* = $00F0 - $60
+;.segment "ZERO"
+org  0
 
 ; return stack with 24 words
-.res  STKSIZE, $0
+ds STKSIZE, $0
 dat_zero:
 
 ; data stack with 24 words
-.res  STKSIZE, $0
+ds  STKSIZE, $0
 ret_zero:
 
-.endif
-
-* = $00F0
 ; instruction pointer
-ins_ptr:    .addr $0
+ins_ptr:    dw $0
 ; index for data stack
-dat_indx:    .byte $0
+dat_indx:    db $0
 ; index for return stack
-ret_indx:    .byte $0
+ret_indx:    db $0
 ; copycat
-nest: 	.byte $0
-echo:   .byte $0
+nest: 	db $0
+echo:   db $0
 ; pseudo registers
-tos:    .word $0
-nos:    .word $0
-wrk:    .word $0
-tmp:    .word $0
+tos:    dw $0
+nos:    dw $0
+wrk:    dw $0
+tmp:    dw $0
 
 ;
 ;----------------------------------------------------------------------
-.segment "VECTORS"
+;.segment "VECTORS"
 
-.word init
-.word init
-.word init
+org $FFFA
+
+dw init
+dw init
+dw init
 
 ;----------------------------------------------------------------------
-.segment "CODE"
+;.segment "CODE"
 
 ; start of RAM
+org $200
 
-;.align $100
-
-VOID:
-
-.ifndef ZERO_PAGE_STACK
-
- data stack
-    .res STKSIZE, $00
- dat_zero:
-
- return stack
-    .res STKSIZE, $00
- ret_zero:
-
-.endif
-
-; terminal input buffer
 tib:
-    .res PAGE, $00
+    ds PAGE, $00
 
 ; mint variables, 26 plus 6 from z
 vsys:
-    .res GRPSIZE, $00
+    ds GRPSIZE, $00
 
 ; user variable, 26 plus 6 from z
 vars:
-    .res GRPSIZE, $00
+    ds GRPSIZE, $00
 
 ; user function groups, each with 26 plus 6 from Z
 defs:
-    .res GRPSIZE * NUMGRPS, $00
+    ds GRPSIZE * NUMGRPS, $00
 
 ; internals
 
 vEdited:
-    .byte $0
+    db $0
 
 vByteMode:
-    .byte $0
+    db $0
 
 ; heap must be here !
 heap:
-    .addr $0
+    dw $0
 
 ;----------------------------------------------------------------------
 ; aliases
@@ -187,27 +165,28 @@ vDefs    =  vsys + $08     ;    d  ; reference for group user functions
 ;        =  vsys + $0a     ;    e  ;
 vR0      =  vsys + $0c     ;    f  ; start of return stack
 vNext    =  vsys + $0e     ;    g  ; next routine dispatcher
-vHeap =  vsys + $10     ;    h  ; heap ptr variable
+vHeap    =  vsys + $10     ;    h  ; heap ptr variable
 
 ; the address of stacks are hardcoded, any change do no apply
 dStack = vS0
 rStack = vR0
 ; any change will cause unexpected behavior
-HEAP = heap
-DEFS = defs
+;HEAP = heap
+;DEFS = defs
 
 ;----------------------------------------------------------------------
-.segment "ONCE"
+;.segment "ONCE"
 
 ; start of ROM
+org $F000
 
 init:
     jmp mint_
-    .asciiz "MINT@6502"
+    db 'M','I','N','T','@','6','5','0','2',0
 
 ;----------------------------------------------------------------------
 ; 25/10/2023, using lib6502, -M E000
-.ifdef EMULATOR
+.if EMULATOR
 
 hitchar:
 
@@ -223,7 +202,7 @@ putchar:
 
 .endif
 
-.ifndef EMULATOR
+.ifn EMULATOR
 
 ;----------------------------------------------------------------------
 ;    depends on hardware, ACIA 6551 common
@@ -242,57 +221,57 @@ setchar:
 pcia_init:
     ; reset CIA
     lda #0
-    sta #CIA_STAT
+    sta CIA_STAT
     ; %0001 1110 =  9600 baud, external receiver, 8 bit , 1 stop bit
     ; %0001 1111 = 19200 baud, external receiver, 8 bit , 1 stop bit
     lda #$1F
-    sta #CIA_CTRL
+    sta CIA_CTRL
     ; %0000 1011 = no parity, normal mode, RTS low, INT disable, DTR low
     lda #$0B
-    sta #CIA_COMM
+    sta CIA_COMM
     rts
 
 ;----------------------------------------------------------------
 ;   verify thru 6551, no waits
 hitchar:
-@acia_ht:
+acia_ht:
 ; verify
-    lda #CIA_STAT
+    lda CIA_STAT
     and #8
-    beq _nak
-_ack:
+    beq i_nak
+i_ack:
     lda #$01
     rts
-_nak:
+i_nak:
     lda #$00
     rts
 
 ;----------------------------------------------------------------
 ;   receive a byte thru 6551, waits
 getchar:
-@acia_rx:
+acia_rx:
 ; verify
-    lda #CIA_STAT
+    lda CIA_STAT
     and #8
     ; beq @ends
-    beq @acia_rx
+    beq acia_rx
 ; receive
-    lda #CIA_RX
+    lda CIA_RX
     rts
 
 ;----------------------------------------------------------------
 ;   transmit a byte thru 6551, waits
 putchar:
-@acia_tx:
+acia_tx:
 ; verify
     pha
-    lda #CIA_STAT
+    lda CIA_STAT
     and #16
     ; beq @ends
-    beq @acia_tx
+    beq acia_tx
 ; transmit
     pla
-    sta #CIA_TX
+    sta CIA_TX
     rts
 
 .endif
@@ -367,7 +346,7 @@ pull_:
     sta tos + 1
     jmp lose_
 
-.ifdef FULL_STACK_CODES
+.if FULL_STACK_CODES
 push2_:
     ldx dat_indx
     lda nos + 0
@@ -571,7 +550,7 @@ false2_:
     beq same2_
 
 true2_:
-    lda #(!FALSE)
+    lda #(FALSE - 1)
     bne same2_
 
 shl_:
@@ -643,23 +622,23 @@ fetch_:
 incr_:
     ldx dat_indx
     inc dat_zero + 0, x
-    bne @ends
+    bne ends0
     inc dat_zero + 1, x
-@ends:
+ends0:
     ; rts
     jmp (vNext)
 
 decr_:
     ldx dat_indx
     lda dat_zero + 0, x
-    bne @ends
+    bne ends1
     dec dat_zero + 1, x
-@ends:
+ends1:
     dec dat_zero + 0, x
     ; rts
     jmp (vNext)
 
-.ifdef FULL_STACK_CODES
+.if FULL_STACK_CODES
 jump_:
     ldx dat_indx
     lda dat_zero + 1,x
@@ -725,7 +704,7 @@ rpull_:
     stx dat_indx
     rts
 
-.ifdef FULL_STACK_CODES
+.if FULL_STACK_CODES
 rshow_:
     ldx dat_indx
     lda ret_zero + 0, x
@@ -796,7 +775,7 @@ opout:
 ; ( tmp wrk -- nos tos )
 div_:
     jsr opin
-@loop:
+div1:
     asl tmp + 0
     rol tmp + 1
     rol tos + 0
@@ -807,14 +786,14 @@ div_:
     tax
     lda tos + 1
     sbc wrk + 1
-    bcc @skip
+    bcc div2
     sta tos + 1
     stx tos + 0
     inc tmp + 0
-@skip:
+div2:
     ; countdown
     dey
-    bne @loop
+    bne div1
     ; results
     lda tmp + 0
     sta nos + 0
@@ -830,11 +809,11 @@ div_:
 ; ( tmp wrk -- nos tos )
 mul_:
     jsr opin
-@shift_r:
+mul1:   ;   shift_r:
     ; divide by 2
     lsr wrk + 1
     ror wrk + 0
-    bcc @rotate_r
+    bcc mul2
     ; add multiplicand to upper half product
     tax
     clc
@@ -843,7 +822,7 @@ mul_:
     sta tos + 0
     txa
     adc tmp + 1
-@rotate_r:
+mul2:   ;   rotate_r:
     ; rotate partial product upper to low
     ror
     ror tos + 1
@@ -851,15 +830,15 @@ mul_:
     ror nos + 0
     ; countdown
     dey
-    bne @shift_r
+    bne mul1
     sta tos + 0
     ; ends
     jmp opout
 
 ; set overflow bit
 slv:
-    bit @ends
-@ends:
+    bit slv1
+slv1:
     rts
 
 ;----------------------------------------------------------------------
@@ -878,9 +857,9 @@ add2ps:
     clc
     adc ins_ptr + 0
     sta ins_ptr + 0
-    bcc @ends
+    bcc add2ps1
     inc ins_ptr + 1
-@ends:
+add2ps1:
     ; next
     jmp (vNext)
 
@@ -913,9 +892,9 @@ seekps:
     ldy #NUL
     lda (ins_ptr), y
     inc ins_ptr + 0
-    bne @ends
+    bne seekps1
     inc ins_ptr + 1
-@ends:
+seekps1:
     rts
 
 ;----------------------------------------------------------------------
@@ -931,9 +910,9 @@ add2heap:
     clc
     adc vHeap + 0
     sta vHeap + 0
-    bcc @ends
+    bcc add2heap1
     inc vHeap + 1
-@ends:
+add2heap1:
     rts
 
 ;----------------------------------------------------------------------
@@ -949,17 +928,17 @@ add2tos:
     clc
     adc tos + 0
     sta tos + 0
-    bcc @ends
+    bcc add2tos1
     inc tos + 1
-@ends:
+add2tos1:
     rts
 
 ;----------------------------------------------------------------------
 inc2tos:
     inc tos + 0
-    bcc @ends
+    bcc inc2tos1
     inc tos + 1
-@ends:
+inc2tos1:
     rts
 
 ;----------------------------------------------------------------------
@@ -1011,14 +990,14 @@ macro:
     ;
     jsr spush
     jsr enter
-    .asciiz "\\G"
+    db 92,'G',0
     ldy vTIBPtr + 0 ; maybe spull
     jmp interpret2
 
 ;----------------------------------------------------------------------
 interpret:
     jsr enter
-    .asciiz "\\N`> `"
+    db 92,'N',0
     ; fall throught
 
 ; used by tests
@@ -1030,17 +1009,17 @@ interpret2:
     lda #NUL
     sta nest
     tay
-    beq @isnest
+    beq interpret4
 
 ; calc nesting (a macro might have changed it)
-@loop:
+interpret3:
     lda tib, y
     iny
     jsr nesting            ; update nesting value
 
-@isnest:
+interpret4:
     cpy #NUL
-    bne @loop
+    bne interpret3
     ; fall throught
 
 ;----------------------------------------------------------------------
@@ -1058,51 +1037,50 @@ gets_:
     ldy #NUL
     jsr spull
 
-@loop:
+gets_loop:
     ; limit 254
     cpy #$FE
-    beq @endstr
-
+    beq endstr
     jsr getchar
 
     ; ge space ?
     cmp #32
-    bcs @ischar
+    bcs ischar
     ; is it end of string ?
     cmp #$0
-    beq @endstr
+    beq endstr
     ; windows CRLF, linux CR, Mac LF
     cmp CR                 ; carriage return ?
-    beq @iscrlf
+    beq iscrlf
     cmp LF                 ; line feed ?
-    beq @iscrlf
+    beq iscrlf
 
-@ismacro:
+ismacro:
     ; $00 to $1F
     ; y is the position in tib
     ; a is the code
     jmp macro
 
-@ischar:
-    jsr @toTib
+ischar:
+    jsr toTib
     ; nest ?
     jsr nesting
     ; wait for next character
     clc
-    bcc @loop
+    bcc gets_loop
 
-@iscrlf:
+iscrlf:
     ; just for easy
     lda #CR
-    jsr @toTib
+    jsr toTib
     lda #LF
-    jsr @toTib
+    jsr toTib
     ; pending nest ?
     lda nest
-    bne @loop
+    bne gets_loop
 
 ; mark end with etx,
-@endstr:
+endstr:
     ; mark ETX
     lda #ETX
     sta (tos), y
@@ -1118,7 +1096,7 @@ gets_:
     jmp next
 
 ; maximum 254 chars
-@toTib:
+toTib:
     ; echo
     jsr putchar
     ; store
@@ -1130,33 +1108,33 @@ gets_:
 ; nesting deep
 nesting:
     cmp #'`'
-    bne @nests
+    bne nests
     ; clear bit 7
     lda #$80
     eor nest
     sta nest
     rts
-@nests:
+nests:
     bit nest
-    bmi @nonest
+    bmi nonest
     cmp #':'
-    beq @nestinc
+    beq nestinc
     cmp #'['
-    beq @nestinc
+    beq nestinc
     cmp #'('
-    beq @nestinc
+    beq nestinc
     cmp #';'
-    beq @nestdec
+    beq nestdec
     cmp #']'
-    beq @nestdec
+    beq nestdec
     cmp #')'
-    beq @nestdec
-@nonest:
+    beq nestdec
+nonest:
     rts
-@nestinc:
+nestinc:
     inc nest
     rts
-@nestdec:
+nestdec:
     dec nest
     rts
 
@@ -1202,18 +1180,18 @@ puts_:
 ; prints a asciiz
 putstr:
     ldy #NUL
-@loop:
+putstr1:
     lda (tos), y
-    beq @ends   ; limit NUL
+    beq putstr3 ; limit NUL
     cpx #NUL
-    beq @cont
+    beq putstr2
     cmp #'`'        ; ` is the string terminator
-    beq @ends
-@cont:
+    beq putstr3
+putstr2:
     jsr putchar
     iny
-    bne @loop   ; limit 256
-@ends:
+    bne putstr1 ; limit 256
+putstr3:
     tya
     rts
 
@@ -1225,28 +1203,28 @@ printdec:
     sta nos + 0
     lda #>10000
     sta nos + 1
-    jsr @nums
+    jsr nums
     lda #<1000
     sta nos + 0
     lda #>1000
     sta nos + 1
-    jsr @nums
+    jsr nums
     lda #<100
     sta nos + 0
     lda #>100
     sta nos + 1
-    jsr @nums
+    jsr nums
     lda #<10
     sta nos + 0
     lda #>10
     sta nos + 1
-@nums:
+nums:
     ldy #'0'-1
-@loop:
+printdec1:
     ; subtract
     iny
     jsr subn2t
-    bcc @loop
+    bcc printdec1
     ; restore
     jsr addn2t
     tya
@@ -1256,29 +1234,29 @@ printdec:
 ; prints number in tos to hexadecimal ASCII
 printhex:
     lda tos + 1
-    jsr printhex8
+    jsr printhexbyte
     lda tos + 0
-    jsr printhex8
+    jsr printhexbyte
     rts
 
 ;----------------------------------------------------------------------
 ; print a 8-bit HEX
-printhex8:
+printhexbyte:
     tax
     lsr
     ror
     ror
     ror
-    jsr @conv
+    jsr printhexbyte1
     txa
-@conv:
+printhexbyte1:
     and #$0F
     clc
     ora #$30
     cmp #$3A
-    bcc @ends
+    bcc printhexbyte2
     adc #$06
-@ends:
+printhexbyte2:
     jmp putchar
 
 ;----------------------------------------------------------------------
@@ -1319,17 +1297,16 @@ ishex:
 ; convert a decimal value to binary
 dec_:
     jsr nul2tos
-@loop:
+dec1:
     jsr seekps
     jsr isdec
-    bcs @ends
-@uval:
+    bcs dec2
     jsr add2tos
     sta tos + 1
     jsr mul10
     clc
-    bcc @loop
-@ends:
+    bcc dec1
+dec2::
     jsr spush
     ; next
     jmp (vNext)
@@ -1338,19 +1315,19 @@ dec_:
 ; convert a hexadecimal value to binary
 hex_:
     jsr nul2tos
-@loop:
+hex1:
     jsr seekps
     jsr isdec
-    bcc @uval
+    bcc uval
     jsr ishex
-    bcc @uval
-    bcs @ends
-@uval:
+    bcc hex2
+    bcs hex3
+hex2:
     jsr add2tos
     jsr mul16
     clc
-    bcc @loop
-@ends:
+    bcc hex1
+hex3:
     jsr spush
     ; next
     jmp (vNext)
@@ -1373,31 +1350,32 @@ mul10:
     jsr addn2t
     rts
 
+
 ;----------------------------------------------------------------------
 ; multiply by sixteen
 mul16:
     ldy #4
-@loop:
+mulx2:
     asl tos + 0
     sta tos + 0
     rol tos + 1
     sta tos + 1
     dey
-    bne @loop
+    bne mulx2
     rts
 
 ;----------------------------------------------------------------------
 ; skip to eol
 comment_:
     ldy #NUL
-@loop:
+comment1:
     iny
-    beq @ends   ; limit 256
+    beq comment2   ; limit 256
     lda (ins_ptr), y
-    beq @ends
+    beq comment2
     cmp #CR
-    bne @loop
-@ends:
+    bne comment1
+comment2:
     tya
     jmp add2ps
 
@@ -1447,13 +1425,13 @@ newln_:
 ;----------------------------------------------------------------------
 crlf:
     jsr printStr
-    .asciiz "\r\n"
+    db '\r','\n',0
     rts
 
 ;----------------------------------------------------------------------
 prompt:
     jsr printStr
-    .asciiz "\r\n> "
+    db '\r','\n','>',' ',0
     rts
 
 ;----------------------------------------------------------------------
@@ -1461,7 +1439,7 @@ prompt:
 printStk_:
     jsr enter
     ;.asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'"
-    .asciiz  "\\a@2-\\D1-(14@\\b@\\(,)(.)2-)'"
+    ;.asciiz  "\\a@2-\\D1-(14@\\b@\\(,)(.)2-)'"
     ; next
     jmp (vNext)
 
@@ -1503,13 +1481,13 @@ compNext:
     iny
 
     lda vByteMode + 0
-    bne @isbm
+    bne isbm
 
     ; word
     lda tos + 1
     sta (nos), y
     iny
-@isbm:
+isbm:
 
     tya
     jsr add2heap
@@ -1547,9 +1525,9 @@ enter:
     pla
     sta ins_ptr + 1
     inc ins_ptr + 0
-    bcc @nock
+    bcc nock
     inc ins_ptr + 1
-@nock:
+nock:
     ; next
     jmp (vNext)
 
@@ -1653,9 +1631,9 @@ editDef_:
     ldy #NUL
     ; empty ?
     lda (nos), y
-    beq @editDef3    ; is NUL ?
+    beq editDef3    ; is NUL ?
     cmp #';'        ; is end ?
-    beq @editDef3
+    beq editDef3
 
     ; copy
 
@@ -1672,19 +1650,19 @@ editDef_:
     jsr add2tos
 
     clc
-    bcc @editDef2
+    bcc editDef2
 
-@editDef1:
+editDef1:
     iny
-    beq @editDef3
+    beq editDef3
 
-@editDef2:
+editDef2:
     lda (nos), y
     jsr writeChar
     cmp #';'
-    bne @editDef1
+    bne editDef1
 
-@editDef3:
+editDef3:
     lda #<tib
     sta vTIBPtr + 0
     lda #>tib
@@ -1849,11 +1827,11 @@ arrEnd_:
     sta tos + 1
 
     lda vByteMode
-    bne @isne	
+    bne isne	
     ; words
     lsr tos + 0
     ror tos + 1
-@isne:
+isne:
     ; save size
     jsr spush
 
@@ -1884,15 +1862,15 @@ def_:
 
     ; copy to heap
     ldy #NUL
-@loop:
+def1:
     lda (ins_ptr), y
     sta (nos), y
-    beq @ends
+    beq def2
     iny
-    beq @ends
+    beq def2
     cmp #';'
-    bne @loop
-@ends:
+    bne def1
+def2:
     ; update heap
     tya
     tax
@@ -1906,11 +1884,11 @@ def_:
 skipnest:
     lda #$01
     sta nest
-@loop:
+skipnext1:
     jsr seekps
     jsr nesting
     lda nest
-    bne @loop
+    bne skipnest1
     ; next
     jmp (vNext)
 
@@ -1938,10 +1916,10 @@ skframe:
 break_:
     jsr spull
     lda tos + 0
-    bne @isne
+    bne break1
     ; parse frame
     jmp (vNext)
-@isne:
+break1:
     jsr skframe
     jmp skipnest
 
@@ -1984,7 +1962,7 @@ again_:
     lda ret_zero + 0, x
     and ret_zero + 1, x
     cmp #$FF
-    bne @again1
+    bne again1
 
     ; push FALSE
     lda #FALSE
@@ -1999,15 +1977,15 @@ again_:
     ; next
     jmp (vNext)
 
-@again1:
+again1:
     ; test end
     ldx ret_indx
     lda ret_zero + 2, x
     cmp ret_zero + 0, x
-    bne @noend
+    bne again2
     lda ret_zero + 3, x
     cmp ret_zero + 1, x
-    bne @noend
+    bne again2
 
     ; end of loop
     jsr skframe
@@ -2015,12 +1993,12 @@ again_:
     ; next
     jmp (vNext)
 
-@noend:
+again2:
     ; increase counter
     inc ret_zero + 0, x
-    bne @novr
+    bne again3
     inc ret_zero + 1, x
-@novr:
+again3:
 
     ; return at begin
     lda ret_zero + 4, x
@@ -2059,11 +2037,11 @@ ifte_:
     jsr spull
     lda tos + 0
     ora tos + 1
-    bne @istrue
+    bne ifte1
     inc tos + 0
     jsr spush
     jmp skipnest
-@istrue:
+ifte1:
     lda #$FF
     sta tos + 0
     sta tos + 1
@@ -2076,9 +2054,9 @@ ifte_:
 etx_:
     lda dat_indx
     cmp STKSIZE * 2 ; bytes
-    bcc @ends
+    bcc ext1
     lda #NUL
-@ends:
+ext1:
     jmp interpret
 
 ;----------------------------------------------------------------------
@@ -2118,7 +2096,7 @@ mint_:
     sta vNext + 1
 
     jsr printStr
-    .asciiz "MINT 6502 V1.0\r\n"
+    db 'M','I','N','T',' ','6','5','0','2',' ','V','1','.','0','\r','\n',0
 
     ; auto reset
     jsr interpret
@@ -2160,11 +2138,11 @@ initialize:
     lda #>vsys
     sta nos + 1
     ldy #dysys
-@loop:
+inita2:
     lda (tos), y
     sta (nos), y
     dey
-    bne @loop
+    bne inita2
 
 ; default function
     lda #<defs
@@ -2173,9 +2151,9 @@ initialize:
     sta tos + 1
 
     ldx #NUL
-@loop2:
+inita3:
     ldy #NUL
-@loop3:
+inita4:
     ; default
     lda #>empty_
     sta (tos), y
@@ -2184,23 +2162,23 @@ initialize:
     sta (tos), y
     iny
     cpy #GRPSIZE
-    bne @loop3
+    bne inita4
 
     inx
     cpx #NUMGRPS
-    beq @ends
+    beq inita3
 
     ; increment
     clc
     lda tos + 0
     adc #GRPSIZE
     sta tos + 0
-    bcc @next
+    bcc inita5
     inc tos + 1
-@next:
+inita5:
     clc
-    bcc @loop2
-@ends:
+    bcc inita4
+
     ; all done
     rts
 
@@ -2215,531 +2193,532 @@ initialize:
 
 ; .align $100
 
+
 ; using pla, pla, rts, references must be one less
 ;----------------------------------------------------------------------
 optcodeslo:
-   .byte  <(exit_)    ;   NUL
-   .byte  <(nop_)     ;   SOH
-   .byte  <(nop_)     ;   STX
-   .byte  <(etx_)     ;   ETX
-   .byte  <(nop_)     ;   EOT
-   .byte  <(nop_)     ;   ENQ
-   .byte  <(nop_)     ;   ACK
-   .byte  <(nop_)     ;   BEL
-   .byte  <(nop_)     ;   BS
-   .byte  <(nop_)     ;   TAB
-   .byte  <(nop_)     ;   LF
-   .byte  <(nop_)     ;   VT
-   .byte  <(nop_)     ;   FF
-   .byte  <(nop_)     ;   CR
-   .byte  <(nop_)     ;   SO
-   .byte  <(nop_)     ;   SI
-   .byte  <(nop_)     ;   DLE
-   .byte  <(nop_)     ;   DC1
-   .byte  <(nop_)     ;   DC2
-   .byte  <(nop_)     ;   DC3
-   .byte  <(nop_)     ;   DC4
-   .byte  <(nop_)     ;   NAK
-   .byte  <(nop_)     ;   SYN
-   .byte  <(nop_)     ;   ETB
-   .byte  <(nop_)     ;   CAN
-   .byte  <(nop_)     ;   EM
-   .byte  <(nop_)     ;   SUB
-   .byte  <(nop_)     ;   ESC
-   .byte  <(nop_)     ;   FS
-   .byte  <(nop_)     ;   GS
-   .byte  <(nop_)     ;   RS
-   .byte  <(nop_)     ;   US
-   .byte  <(nop_)     ;   SP
-   .byte  <(store_)   ;   !
-   .byte  <(dup_)     ;   "
-   .byte  <(hex_)     ;    #
-   .byte  <(swap_)    ;    $
-   .byte  <(over_)    ;    %
-   .byte  <(and_)     ;    &
-   .byte  <(drop_)    ;    '
-   .byte  <(begin_)   ;    (
-   .byte  <(again_)   ;    )
-   .byte  <(mul_)     ;    * multiply 16x16
-   .byte  <(add_)     ;    +
-   .byte  <(hdot_)    ;    ,
-   .byte  <(sub_)     ;    -
-   .byte  <(dot_)     ;    .
-   .byte  <(div_)     ;    / divide 16x16
-   .byte  <(dec_)     ;    0
-   .byte  <(dec_)     ;    1
-   .byte  <(dec_)     ;    2
-   .byte  <(dec_)     ;    3
-   .byte  <(dec_)     ;    4
-   .byte  <(dec_)     ;    5
-   .byte  <(dec_)     ;    6
-   .byte  <(dec_)     ;    7
-   .byte  <(dec_)     ;    8
-   .byte  <(dec_)     ;    9
-   .byte  <(def_)     ;    :
-   .byte  <(ret_)     ;    ;
-   .byte  <(lt_)      ;    <
-   .byte  <(eq_)      ;    =
-   .byte  <(gt_)      ;    >
-   .byte  <(getRef_)  ;    ?
-   .byte  <(fetch_)   ;    @
-   .byte  <(call_)    ;    A
-   .byte  <(call_)    ;    B
-   .byte  <(call_)    ;    C
-   .byte  <(call_)    ;    D
-   .byte  <(call_)    ;    E
-   .byte  <(call_)    ;    F
-   .byte  <(call_)    ;    G
-   .byte  <(call_)    ;    H
-   .byte  <(call_)    ;    I
-   .byte  <(call_)    ;    J
-   .byte  <(call_)    ;    K
-   .byte  <(call_)    ;    L
-   .byte  <(call_)    ;    M
-   .byte  <(call_)    ;    N
-   .byte  <(call_)    ;    O
-   .byte  <(call_)    ;    P
-   .byte  <(call_)    ;    Q
-   .byte  <(call_)    ;    R
-   .byte  <(call_)    ;    S
-   .byte  <(call_)    ;    T
-   .byte  <(call_)    ;    U
-   .byte  <(call_)    ;    V
-   .byte  <(call_)    ;    W
-   .byte  <(call_)    ;    X
-   .byte  <(call_)    ;    Y
-   .byte  <(call_)    ;    Z
-   .byte  <(arrDef_)  ;    [
-   .byte  <(alt_)     ;    \
-   .byte  <(arrEnd_)  ;    ]
-   .byte  <(xor_)     ;    ^
-   .byte  <(neg_)     ;    _
-   .byte  <(str_)     ;    `
-   .byte  <(var_)     ;    a
-   .byte  <(var_)     ;    b
-   .byte  <(var_)     ;    c
-   .byte  <(var_)     ;    d
-   .byte  <(var_)     ;    e
-   .byte  <(var_)     ;    f
-   .byte  <(var_)     ;    g
-   .byte  <(var_)     ;    h
-   .byte  <(var_)     ;    i
-   .byte  <(var_)     ;    j
-   .byte  <(var_)     ;    k
-   .byte  <(var_)     ;    l
-   .byte  <(var_)     ;    m
-   .byte  <(var_)     ;    n
-   .byte  <(var_)     ;    o
-   .byte  <(var_)     ;    p
-   .byte  <(var_)     ;    q
-   .byte  <(var_)     ;    r
-   .byte  <(var_)     ;    s
-   .byte  <(var_)     ;    t
-   .byte  <(var_)     ;    u
-   .byte  <(var_)     ;    v
-   .byte  <(var_)     ;    w
-   .byte  <(var_)     ;    x
-   .byte  <(var_)     ;    y
-   .byte  <(var_)     ;    z
-   .byte  <(shl_)     ;    {
-   .byte  <(or_)      ;    |
-   .byte  <(shr_)     ;    }
-   .byte  <(inv_)     ;    ~
-   .byte  <(nop_)     ;    backspace
+   db lsb(exit_)    ;   NUL
+   ds lsb(nop_)     ;   SOH
+   ds lsb(nop_)     ;   STX
+   ds lsb(etx_)     ;   ETX
+   ds lsb(nop_)     ;   EOT
+   ds lsb(nop_)     ;   ENQ
+   ds lsb(nop_)     ;   ACK
+   ds lsb(nop_)     ;   BEL
+   ds lsb(nop_)     ;   BS
+   ds lsb(nop_)     ;   TAB
+   ds lsb(nop_)     ;   LF
+   ds lsb(nop_)     ;   VT
+   ds lsb(nop_)     ;   FF
+   ds lsb(nop_)     ;   CR
+   ds lsb(nop_)     ;   SO
+   ds lsb(nop_)     ;   SI
+   ds lsb(nop_)     ;   DLE
+   ds lsb(nop_)     ;   DC1
+   ds lsb(nop_)     ;   DC2
+   ds lsb(nop_)     ;   DC3
+   ds lsb(nop_)     ;   DC4
+   ds lsb(nop_)     ;   NAK
+   ds lsb(nop_)     ;   SYN
+   ds lsb(nop_)     ;   ETB
+   ds lsb(nop_)     ;   CAN
+   ds lsb(nop_)     ;   EM
+   ds lsb(nop_)     ;   SUB
+   ds lsb(nop_)     ;   ESC
+   ds lsb(nop_)     ;   FS
+   ds lsb(nop_)     ;   GS
+   ds lsb(nop_)     ;   RS
+   ds lsb(nop_)     ;   US
+   ds lsb(nop_)     ;   SP
+   ds lsb(store_)   ;   !
+   ds lsb(dup_)     ;   "
+   ds lsb(hex_)     ;    #
+   ds lsb(swap_)    ;    $
+   ds lsb(over_)    ;    %
+   ds lsb(and_)     ;    &
+   ds lsb(drop_)    ;    '
+   ds lsb(begin_)   ;    (
+   ds lsb(again_)   ;    )
+   ds lsb(mul_)     ;    * multiply 16x16
+   ds lsb(add_)     ;    +
+   ds lsb(hdot_)    ;    ,
+   ds lsb(sub_)     ;    -
+   ds lsb(dot_)     ;    .
+   ds lsb(div_)     ;    / divide 16x16
+   ds lsb(dec_)     ;    0
+   ds lsb(dec_)     ;    1
+   ds lsb(dec_)     ;    2
+   ds lsb(dec_)     ;    3
+   ds lsb(dec_)     ;    4
+   ds lsb(dec_)     ;    5
+   ds lsb(dec_)     ;    6
+   ds lsb(dec_)     ;    7
+   ds lsb(dec_)     ;    8
+   ds lsb(dec_)     ;    9
+   ds lsb(def_)     ;    :
+   ds lsb(ret_)     ;    ;
+   ds lsb(lt_)      ;    <
+   ds lsb(eq_)      ;    =
+   ds lsb(gt_)      ;    >
+   ds lsb(getRef_)  ;    ?
+   ds lsb(fetch_)   ;    @
+   ds lsb(call_)    ;    A
+   ds lsb(call_)    ;    B
+   ds lsb(call_)    ;    C
+   ds lsb(call_)    ;    D
+   ds lsb(call_)    ;    E
+   ds lsb(call_)    ;    F
+   ds lsb(call_)    ;    G
+   ds lsb(call_)    ;    H
+   ds lsb(call_)    ;    I
+   ds lsb(call_)    ;    J
+   ds lsb(call_)    ;    K
+   ds lsb(call_)    ;    L
+   ds lsb(call_)    ;    M
+   ds lsb(call_)    ;    N
+   ds lsb(call_)    ;    O
+   ds lsb(call_)    ;    P
+   ds lsb(call_)    ;    Q
+   ds lsb(call_)    ;    R
+   ds lsb(call_)    ;    S
+   ds lsb(call_)    ;    T
+   ds lsb(call_)    ;    U
+   ds lsb(call_)    ;    V
+   ds lsb(call_)    ;    W
+   ds lsb(call_)    ;    X
+   ds lsb(call_)    ;    Y
+   ds lsb(call_)    ;    Z
+   ds lsb(arrDef_)  ;    [
+   ds lsb(alt_)     ;    \
+   ds lsb(arrEnd_)  ;    ]
+   ds lsb(xor_)     ;    ^
+   ds lsb(neg_)     ;    _
+   ds lsb(str_)     ;    `
+   ds lsb(var_)     ;    a
+   ds lsb(var_)     ;    b
+   ds lsb(var_)     ;    c
+   ds lsb(var_)     ;    d
+   ds lsb(var_)     ;    e
+   ds lsb(var_)     ;    f
+   ds lsb(var_)     ;    g
+   ds lsb(var_)     ;    h
+   ds lsb(var_)     ;    i
+   ds lsb(var_)     ;    j
+   ds lsb(var_)     ;    k
+   ds lsb(var_)     ;    l
+   ds lsb(var_)     ;    m
+   ds lsb(var_)     ;    n
+   ds lsb(var_)     ;    o
+   ds lsb(var_)     ;    p
+   ds lsb(var_)     ;    q
+   ds lsb(var_)     ;    r
+   ds lsb(var_)     ;    s
+   ds lsb(var_)     ;    t
+   ds lsb(var_)     ;    u
+   ds lsb(var_)     ;    v
+   ds lsb(var_)     ;    w
+   ds lsb(var_)     ;    x
+   ds lsb(var_)     ;    y
+   ds lsb(var_)     ;    z
+   ds lsb(shl_)     ;    {
+   ds lsb(or_)      ;    |
+   ds lsb(shr_)     ;    }
+   ds lsb(inv_)     ;    ~
+   ds lsb(nop_)     ;    backspace
 
 optcodeshi:
-   .byte  >(exit_)    ;   NUL
-   .byte  >(nop_)     ;   SOH
-   .byte  >(nop_)     ;   STX
-   .byte  >(etx_)     ;   ETX
-   .byte  >(nop_)     ;   EOT
-   .byte  >(nop_)     ;   ENQ
-   .byte  >(nop_)     ;   ACK
-   .byte  >(nop_)     ;   BEL
-   .byte  >(nop_)     ;   BS
-   .byte  >(nop_)     ;   TAB
-   .byte  >(nop_)     ;   LF
-   .byte  >(nop_)     ;   VT
-   .byte  >(nop_)     ;   FF
-   .byte  >(nop_)     ;   CR
-   .byte  >(nop_)     ;   SO
-   .byte  >(nop_)     ;   SI
-   .byte  >(nop_)     ;   DLE
-   .byte  >(nop_)     ;   DC1
-   .byte  >(nop_)     ;   DC2
-   .byte  >(nop_)     ;   DC3
-   .byte  >(nop_)     ;   DC4
-   .byte  >(nop_)     ;   NAK
-   .byte  >(nop_)     ;   SYN
-   .byte  >(nop_)     ;   ETB
-   .byte  >(nop_)     ;   CAN
-   .byte  >(nop_)     ;   EM
-   .byte  >(nop_)     ;   SUB
-   .byte  >(nop_)     ;   ESC
-   .byte  >(nop_)     ;   FS
-   .byte  >(nop_)     ;   GS
-   .byte  >(nop_)     ;   RS
-   .byte  >(nop_)     ;   US
-   .byte  >(nop_)     ;   SP
-   .byte  >(store_)   ;   !
-   .byte  >(dup_)     ;   "
-   .byte  >(hex_)     ;    #
-   .byte  >(swap_)    ;    $
-   .byte  >(over_)    ;    %
-   .byte  >(and_)     ;    &
-   .byte  >(drop_)    ;    '
-   .byte  >(begin_)   ;    (
-   .byte  >(again_)   ;    )
-   .byte  >(mul_)     ;    *  multiply 16x16, (multpd multpr -- LSW MSW)
-   .byte  >(add_)     ;    +
-   .byte  >(hdot_)    ;    ,
-   .byte  >(sub_)     ;    -
-   .byte  >(dot_)     ;    .
-   .byte  >(div_)     ;    /  divide 16x16, (divd divs -- quo rem)
-   .byte  >(dec_)     ;    0
-   .byte  >(dec_)     ;    1
-   .byte  >(dec_)     ;    2
-   .byte  >(dec_)     ;    3
-   .byte  >(dec_)     ;    4
-   .byte  >(dec_)     ;    5
-   .byte  >(dec_)     ;    6
-   .byte  >(dec_)     ;    7
-   .byte  >(dec_)     ;    8
-   .byte  >(dec_)     ;    9
-   .byte  >(def_)     ;    :
-   .byte  >(ret_)     ;    ;
-   .byte  >(lt_)      ;    <( - 1)
-   .byte  >(eq_)      ;    =
-   .byte  >(gt_)      ;    >
-   .byte  >(getRef_)  ;    ?
-   .byte  >(fetch_)   ;    @
-   .byte  >(call_)    ;    A
-   .byte  >(call_)    ;    B
-   .byte  >(call_)    ;    C
-   .byte  >(call_)    ;    D
-   .byte  >(call_)    ;    E
-   .byte  >(call_)    ;    F
-   .byte  >(call_)    ;    G
-   .byte  >(call_)    ;    H
-   .byte  >(call_)    ;    I
-   .byte  >(call_)    ;    J
-   .byte  >(call_)    ;    K
-   .byte  >(call_)    ;    L
-   .byte  >(call_)    ;    M
-   .byte  >(call_)    ;    N
-   .byte  >(call_)    ;    O
-   .byte  >(call_)    ;    P
-   .byte  >(call_)    ;    Q
-   .byte  >(call_)    ;    R
-   .byte  >(call_)    ;    S
-   .byte  >(call_)    ;    T
-   .byte  >(call_)    ;    U
-   .byte  >(call_)    ;    V
-   .byte  >(call_)    ;    W
-   .byte  >(call_)    ;    X
-   .byte  >(call_)    ;    Y
-   .byte  >(call_)    ;    Z
-   .byte  >(arrDef_)  ;    [
-   .byte  >(alt_)     ;    \
-   .byte  >(arrEnd_)  ;    ]
-   .byte  >(xor_)     ;    ^
-   .byte  >(neg_)     ;    _
-   .byte  >(str_)     ;    `
-   .byte  >(var_)     ;    a
-   .byte  >(var_)     ;    b
-   .byte  >(var_)     ;    c
-   .byte  >(var_)     ;    d
-   .byte  >(var_)     ;    e
-   .byte  >(var_)     ;    f
-   .byte  >(var_)     ;    g
-   .byte  >(var_)     ;    h
-   .byte  >(var_)     ;    i
-   .byte  >(var_)     ;    j
-   .byte  >(var_)     ;    k
-   .byte  >(var_)     ;    l
-   .byte  >(var_)     ;    m
-   .byte  >(var_)     ;    n
-   .byte  >(var_)     ;    o
-   .byte  >(var_)     ;    p
-   .byte  >(var_)     ;    q
-   .byte  >(var_)     ;    r
-   .byte  >(var_)     ;    s
-   .byte  >(var_)     ;    t
-   .byte  >(var_)     ;    u
-   .byte  >(var_)     ;    v
-   .byte  >(var_)     ;    w
-   .byte  >(var_)     ;    x
-   .byte  >(var_)     ;    y
-   .byte  >(var_)     ;    z
-   .byte  >(shl_)     ;    {
-   .byte  >(or_)      ;    |
-   .byte  >(shr_)     ;    }
-   .byte  >(inv_)     ;    ~
-   .byte  >(nop_)     ;    backspace
+   ds msb(exit_)    ;   NUL
+   ds msb(nop_)     ;   SOH
+   ds msb(nop_)     ;   STX
+   ds msb(etx_)     ;   ETX
+   ds msb(nop_)     ;   EOT
+   ds msb(nop_)     ;   ENQ
+   ds msb(nop_)     ;   ACK
+   ds msb(nop_)     ;   BEL
+   ds msb(nop_)     ;   BS
+   ds msb(nop_)     ;   TAB
+   ds msb(nop_)     ;   LF
+   ds msb(nop_)     ;   VT
+   ds msb(nop_)     ;   FF
+   ds msb(nop_)     ;   CR
+   ds msb(nop_)     ;   SO
+   ds msb(nop_)     ;   SI
+   ds msb(nop_)     ;   DLE
+   ds msb(nop_)     ;   DC1
+   ds msb(nop_)     ;   DC2
+   ds msb(nop_)     ;   DC3
+   ds msb(nop_)     ;   DC4
+   ds msb(nop_)     ;   NAK
+   ds msb(nop_)     ;   SYN
+   ds msb(nop_)     ;   ETB
+   ds msb(nop_)     ;   CAN
+   ds msb(nop_)     ;   EM
+   ds msb(nop_)     ;   SUB
+   ds msb(nop_)     ;   ESC
+   ds msb(nop_)     ;   FS
+   ds msb(nop_)     ;   GS
+   ds msb(nop_)     ;   RS
+   ds msb(nop_)     ;   US
+   ds msb(nop_)     ;   SP
+   ds msb(store_)   ;   !
+   ds msb(dup_)     ;   "
+   ds msb(hex_)     ;    #
+   ds msb(swap_)    ;    $
+   ds msb(over_)    ;    %
+   ds msb(and_)     ;    &
+   ds msb(drop_)    ;    '
+   ds msb(begin_)   ;    (
+   ds msb(again_)   ;    )
+   ds msb(mul_)     ;    *  multiply 16x16, (multpd multpr -- LSW MSW)
+   ds msb(add_)     ;    +
+   ds msb(hdot_)    ;    ,
+   ds msb(sub_)     ;    -
+   ds msb(dot_)     ;    .
+   ds msb(div_)     ;    /  divide 16x16, (divd divs -- quo rem)
+   ds msb(dec_)     ;    0
+   ds msb(dec_)     ;    1
+   ds msb(dec_)     ;    2
+   ds msb(dec_)     ;    3
+   ds msb(dec_)     ;    4
+   ds msb(dec_)     ;    5
+   ds msb(dec_)     ;    6
+   ds msb(dec_)     ;    7
+   ds msb(dec_)     ;    8
+   ds msb(dec_)     ;    9
+   ds msb(def_)     ;    :
+   ds msb(ret_)     ;    ;
+   ds msb(lt_)      ;    lsb( - 1)
+   ds msb(eq_)      ;    =
+   ds msb(gt_)      ;    >
+   ds msb(getRef_)  ;    ?
+   ds msb(fetch_)   ;    @
+   ds msb(call_)    ;    A
+   ds msb(call_)    ;    B
+   ds msb(call_)    ;    C
+   ds msb(call_)    ;    D
+   ds msb(call_)    ;    E
+   ds msb(call_)    ;    F
+   ds msb(call_)    ;    G
+   ds msb(call_)    ;    H
+   ds msb(call_)    ;    I
+   ds msb(call_)    ;    J
+   ds msb(call_)    ;    K
+   ds msb(call_)    ;    L
+   ds msb(call_)    ;    M
+   ds msb(call_)    ;    N
+   ds msb(call_)    ;    O
+   ds msb(call_)    ;    P
+   ds msb(call_)    ;    Q
+   ds msb(call_)    ;    R
+   ds msb(call_)    ;    S
+   ds msb(call_)    ;    T
+   ds msb(call_)    ;    U
+   ds msb(call_)    ;    V
+   ds msb(call_)    ;    W
+   ds msb(call_)    ;    X
+   ds msb(call_)    ;    Y
+   ds msb(call_)    ;    Z
+   ds msb(arrDef_)  ;    [
+   ds msb(alt_)     ;    \
+   ds msb(arrEnd_)  ;    ]
+   ds msb(xor_)     ;    ^
+   ds msb(neg_)     ;    _
+   ds msb(str_)     ;    `
+   ds msb(var_)     ;    a
+   ds msb(var_)     ;    b
+   ds msb(var_)     ;    c
+   ds msb(var_)     ;    d
+   ds msb(var_)     ;    e
+   ds msb(var_)     ;    f
+   ds msb(var_)     ;    g
+   ds msb(var_)     ;    h
+   ds msb(var_)     ;    i
+   ds msb(var_)     ;    j
+   ds msb(var_)     ;    k
+   ds msb(var_)     ;    l
+   ds msb(var_)     ;    m
+   ds msb(var_)     ;    n
+   ds msb(var_)     ;    o
+   ds msb(var_)     ;    p
+   ds msb(var_)     ;    q
+   ds msb(var_)     ;    r
+   ds msb(var_)     ;    s
+   ds msb(var_)     ;    t
+   ds msb(var_)     ;    u
+   ds msb(var_)     ;    v
+   ds msb(var_)     ;    w
+   ds msb(var_)     ;    x
+   ds msb(var_)     ;    y
+   ds msb(var_)     ;    z
+   ds msb(shl_)     ;    {
+   ds msb(or_)      ;    |
+   ds msb(shr_)     ;    }
+   ds msb(inv_)     ;    ~
+   ds msb(nop_)     ;    backspace
 
 ;----------------------------------------------------------------------
 ; alternate function codes
 ctlcodeslo:
 altcodeslo:
-   .byte  <(empty_)      ; NUL ^@
-   .byte  <(empty_)      ; SOH ^A
-   .byte  <(toggleBase_) ; STX ^B
-   .byte  <(empty_)      ; ETX ^C
-   .byte  <(empty_)      ; EOT ^D
-   .byte  <(edit_)       ; ENQ ^E
-   .byte  <(empty_)      ; ACK ^F
-   .byte  <(empty_)      ; BEL ^G
-   .byte  <(backsp_)     ; BS  ^H
-   .byte  <(empty_)      ; TAB ^I
-   .byte  <(reedit_)     ; LF  ^J
-   .byte  <(empty_)      ; VT  ^K
-   .byte  <(list_)       ; FF  ^L
-   .byte  <(empty_)      ; CR  ^M
-   .byte  <(empty_)      ; SO  ^N
-   .byte  <(empty_)      ; SI  ^O
-   .byte  <(printStack_) ; DLE ^P
-   .byte  <(empty_)      ; DC1 ^Q
-   .byte  <(empty_)      ; DC2 ^R
-   .byte  <(empty_)      ; DC3 ^S
-   .byte  <(empty_)      ; DC4 ^T
-   .byte  <(empty_)      ; NAK ^U
-   .byte  <(empty_)      ; SYN ^V
-   .byte  <(empty_)      ; ETB ^W
-   .byte  <(empty_)      ; CAN ^X
-   .byte  <(empty_)      ; EM  ^Y
-   .byte  <(empty_)      ; SUB ^Z
-   .byte  <(empty_)      ; ESC ^[
-   .byte  <(empty_)      ; FS  ^\
-   .byte  <(empty_)      ; GS  ^]
-   .byte  <(empty_)      ; RS  ^^
-   .byte  <(empty_)      ; US  ^_)
-   .byte  <(aNop_)       ; SP  ^`
-   .byte  <(cStore_)     ;    !
-   .byte  <(aNop_)       ;    "
-   .byte  <(aNop_)       ;    #
-   .byte  <(aNop_)       ;    $  ( -- adr ) text input ptr
-   .byte  <(aNop_)       ;    %
-   .byte  <(aNop_)       ;    &
-   .byte  <(aNop_)       ;    '
-   .byte  <(ifte_)       ;    (  ( b -- )
-   .byte  <(aNop_)       ;    )
-   .byte  <(aNop_)       ;    *
-   .byte  <(incr_)       ;    +  ( adr -- ) increments variable at address
-   .byte  <(aNop_)       ;    ,
-   .byte  <(decr_)       ;    -  ( adr -- ) decrements variable at address
-   .byte  <(aNop_)       ;    .
-   .byte  <(aNop_)       ;    /
-   .byte  <(aNop_)       ;    0
-   .byte  <(aNop_)       ;    1
-   .byte  <(aNop_)       ;    2
-   .byte  <(aNop_)       ;    3
-   .byte  <(aNop_)       ;    4
-   .byte  <(aNop_)       ;    5
-   .byte  <(aNop_)       ;    6
-   .byte  <(aNop_)       ;    7
-   .byte  <(aNop_)       ;    8
-   .byte  <(aNop_)       ;    9
-   .byte  <(aNop_)       ;    :  start defining a macro
-   .byte  <(aNop_)       ;    ;
-   .byte  <(aNop_)       ;    <
-   .byte  <(aNop_)       ;    =
-   .byte  <(aNop_)       ;    >( - 1)
-   .byte  <(aNop_)       ;    ?
-   .byte  <(cFetch_)     ;    @
-   .byte  <(aNop_)       ;    A
-   .byte  <(break_)      ;    B
-   .byte  <(nop_)        ;    C
-   .byte  <(depth_)      ;    D  ( -- val ) depth of data stack
-   .byte  <(emit_)       ;    E  ( val -- ) emits a char to output
-   .byte  <(aNop_)       ;    F
-   .byte  <(go_)         ;    G  ( -- ? ) execute mint definition
-   .byte  <(keyq_)       ;    H  ( verify if key hit )
-   .byte  <(inPort_)     ;    I  ( port -- val )
-   .byte  <(aNop_)       ;    J
-   .byte  <(key_)        ;    K  ( -- val )  read a char from input
-   .byte  <(aNop_)       ;    L
-   .byte  <(aNop_)       ;    M
-   .byte  <(newln_)      ;    N  ; prints a newline to output
-   .byte  <(outPort_)    ;    O  ( val port -- )
-   .byte  <(printStk_)   ;    P  ( -- ) non-destructively prints stack
-   .byte  <(aNop_)       ;    Q  quits from Mint REPL
-   .byte  <(rot_)        ;    R  ( a b c -- b c a )
-   .byte  <(aNop_)       ;    S
-   .byte  <(aNop_)       ;    T
-   .byte  <(r2s_)        ;    U  S( -- w ) R( w -- )
-   .byte  <(s2r_)        ;    V  S( w -- ) R( -- w )
-   .byte  <(aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop
-   .byte  <(exec_)       ;    X
-   .byte  <(aNop_)       ;    Y
-   .byte  <(editDef_)    ;    Z
-   .byte  <(cArrDef_)    ;    [
-   .byte  <(comment_)    ;    \  comment text, skip reading until end of line
-   .byte  <(aNop_)       ;    ]
-   .byte  <(charCode_)   ;    ^
-   .byte  <(aNop_)       ;    _
-   .byte  <(aNop_)       ;    `
-   .byte  <(sysVar_)     ;    a  ; start of data stack *fixed
-   .byte  <(sysVar_)     ;    b  ; base16 flag
-   .byte  <(sysVar_)     ;    c  ; TIBPtr variable
-   .byte  <(sysVar_)     ;    d  ; vDefs variable
-   .byte  <(sysVar_)     ;    e  ;
-   .byte  <(sysVar_)     ;    f  ; start of return stack *fixed
-   .byte  <(sysVar_)     ;    g  ; next dispatcher
-   .byte  <(sysVar_)     ;    h  ; heap ptr variable
-   .byte  <(i_)          ;    i  ; returns index of current loop
-   .byte  <(j_)          ;    j  ; returns index of outer loop
-   .byte  <(sysVar_)     ;    k
-   .byte  <(sysVar_)     ;    l
-   .byte  <(sysVar_)     ;    m  ( a b -- c ) return the minimum value
-   .byte  <(sysVar_)     ;    n
-   .byte  <(sysVar_)     ;    o
-   .byte  <(sysVar_)     ;    p
-   .byte  <(sysVar_)     ;    q
-   .byte  <(sysVar_)     ;    r  ; return stack pointer
-   .byte  <(sysVar_)     ;    s  ; data stack pointer
-   .byte  <(sysVar_)     ;    t
-   .byte  <(sysVar_)     ;    u
-   .byte  <(sysVar_)     ;    v
-   .byte  <(sysVar_)     ;    w
-   .byte  <(sysVar_)     ;    x
-   .byte  <(sysVar_)     ;    y
-   .byte  <(sysVar_)     ;    z
-   .byte  <(group_)      ;    {
-   .byte  <(aNop_)       ;    |
-   .byte  <(endGroup_)   ;    }
-   .byte  <(aNop_)       ;    ~
-   .byte  <(aNop_)       ;    BS
+   ds lsb(empty_)      ; NUL ^@
+   ds lsb(empty_)      ; SOH ^A
+   ds lsb(toggleBase_) ; STX ^B
+   ds lsb(empty_)      ; ETX ^C
+   ds lsb(empty_)      ; EOT ^D
+   ds lsb(edit_)       ; ENQ ^E
+   ds lsb(empty_)      ; ACK ^F
+   ds lsb(empty_)      ; BEL ^G
+   ds lsb(backsp_)     ; BS  ^H
+   ds lsb(empty_)      ; TAB ^I
+   ds lsb(reedit_)     ; LF  ^J
+   ds lsb(empty_)      ; VT  ^K
+   ds lsb(list_)       ; FF  ^L
+   ds lsb(empty_)      ; CR  ^M
+   ds lsb(empty_)      ; SO  ^N
+   ds lsb(empty_)      ; SI  ^O
+   ds lsb(printStack_) ; DLE ^P
+   ds lsb(empty_)      ; DC1 ^Q
+   ds lsb(empty_)      ; DC2 ^R
+   ds lsb(empty_)      ; DC3 ^S
+   ds lsb(empty_)      ; DC4 ^T
+   ds lsb(empty_)      ; NAK ^U
+   ds lsb(empty_)      ; SYN ^V
+   ds lsb(empty_)      ; ETB ^W
+   ds lsb(empty_)      ; CAN ^X
+   ds lsb(empty_)      ; EM  ^Y
+   ds lsb(empty_)      ; SUB ^Z
+   ds lsb(empty_)      ; ESC ^[
+   ds lsb(empty_)      ; FS  ^\
+   ds lsb(empty_)      ; GS  ^]
+   ds lsb(empty_)      ; RS  ^^
+   ds lsb(empty_)      ; US  ^_)
+   ds lsb(aNop_)       ; SP  ^`
+   ds lsb(cStore_)     ;    !
+   ds lsb(aNop_)       ;    "
+   ds lsb(aNop_)       ;    #
+   ds lsb(aNop_)       ;    $  ( -- adr ) text input ptr
+   ds lsb(aNop_)       ;    %
+   ds lsb(aNop_)       ;    &
+   ds lsb(aNop_)       ;    '
+   ds lsb(ifte_)       ;    (  ( b -- )
+   ds lsb(aNop_)       ;    )
+   ds lsb(aNop_)       ;    *
+   ds lsb(incr_)       ;    +  ( adr -- ) increments variable at address
+   ds lsb(aNop_)       ;    ,
+   ds lsb(decr_)       ;    -  ( adr -- ) decrements variable at address
+   ds lsb(aNop_)       ;    .
+   ds lsb(aNop_)       ;    /
+   ds lsb(aNop_)       ;    0
+   ds lsb(aNop_)       ;    1
+   ds lsb(aNop_)       ;    2
+   ds lsb(aNop_)       ;    3
+   ds lsb(aNop_)       ;    4
+   ds lsb(aNop_)       ;    5
+   ds lsb(aNop_)       ;    6
+   ds lsb(aNop_)       ;    7
+   ds lsb(aNop_)       ;    8
+   ds lsb(aNop_)       ;    9
+   ds lsb(aNop_)       ;    :  start defining a macro
+   ds lsb(aNop_)       ;    ;
+   ds lsb(aNop_)       ;    <
+   ds lsb(aNop_)       ;    =
+   ds lsb(aNop_)       ;    msb( - 1)
+   ds lsb(aNop_)       ;    ?
+   ds lsb(cFetch_)     ;    @
+   ds lsb(aNop_)       ;    A
+   ds lsb(break_)      ;    B
+   ds lsb(nop_)        ;    C
+   ds lsb(depth_)      ;    D  ( -- val ) depth of data stack
+   ds lsb(emit_)       ;    E  ( val -- ) emits a char to output
+   ds lsb(aNop_)       ;    F
+   ds lsb(go_)         ;    G  ( -- ? ) execute mint definition
+   ds lsb(keyq_)       ;    H  ( verify if key hit )
+   ds lsb(inPort_)     ;    I  ( port -- val )
+   ds lsb(aNop_)       ;    J
+   ds lsb(key_)        ;    K  ( -- val )  read a char from input
+   ds lsb(aNop_)       ;    L
+   ds lsb(aNop_)       ;    M
+   ds lsb(newln_)      ;    N  ; prints a newline to output
+   ds lsb(outPort_)    ;    O  ( val port -- )
+   ds lsb(printStk_)   ;    P  ( -- ) non-destructively prints stack
+   ds lsb(aNop_)       ;    Q  quits from Mint REPL
+   ds lsb(rot_)        ;    R  ( a b c -- b c a )
+   ds lsb(aNop_)       ;    S
+   ds lsb(aNop_)       ;    T
+   ds lsb(r2s_)        ;    U  S( -- w ) R( w -- )
+   ds lsb(s2r_)        ;    V  S( w -- ) R( -- w )
+   ds lsb(aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop
+   ds lsb(exec_)       ;    X
+   ds lsb(aNop_)       ;    Y
+   ds lsb(editDef_)    ;    Z
+   ds lsb(cArrDef_)    ;    [
+   ds lsb(comment_)    ;    \  comment text, skip reading until end of line
+   ds lsb(aNop_)       ;    ]
+   ds lsb(charCode_)   ;    ^
+   ds lsb(aNop_)       ;    _
+   ds lsb(aNop_)       ;    `
+   ds lsb(sysVar_)     ;    a  ; start of data stack *fixed
+   ds lsb(sysVar_)     ;    b  ; base16 flag
+   ds lsb(sysVar_)     ;    c  ; TIBPtr variable
+   ds lsb(sysVar_)     ;    d  ; vDefs variable
+   ds lsb(sysVar_)     ;    e  ;
+   ds lsb(sysVar_)     ;    f  ; start of return stack *fixed
+   ds lsb(sysVar_)     ;    g  ; next dispatcher
+   ds lsb(sysVar_)     ;    h  ; heap ptr variable
+   ds lsb(i_)          ;    i  ; returns index of current loop
+   ds lsb(j_)          ;    j  ; returns index of outer loop
+   ds lsb(sysVar_)     ;    k
+   ds lsb(sysVar_)     ;    l
+   ds lsb(sysVar_)     ;    m  ( a b -- c ) return the minimum value
+   ds lsb(sysVar_)     ;    n
+   ds lsb(sysVar_)     ;    o
+   ds lsb(sysVar_)     ;    p
+   ds lsb(sysVar_)     ;    q
+   ds lsb(sysVar_)     ;    r  ; return stack pointer
+   ds lsb(sysVar_)     ;    s  ; data stack pointer
+   ds lsb(sysVar_)     ;    t
+   ds lsb(sysVar_)     ;    u
+   ds lsb(sysVar_)     ;    v
+   ds lsb(sysVar_)     ;    w
+   ds lsb(sysVar_)     ;    x
+   ds lsb(sysVar_)     ;    y
+   ds lsb(sysVar_)     ;    z
+   ds lsb(group_)      ;    {
+   ds lsb(aNop_)       ;    |
+   ds lsb(endGroup_)   ;    }
+   ds lsb(aNop_)       ;    ~
+   ds lsb(aNop_)       ;    BS
 
 ctlcodeshi:
 altcodeshi:
-   .byte  >(empty_)      ; NUL ^@
-   .byte  >(empty_)      ; SOH ^A
-   .byte  >(toggleBase_) ; STX ^B
-   .byte  >(empty_)      ; ETX ^C
-   .byte  >(empty_)      ; EOT ^D
-   .byte  >(edit_)       ; ENQ ^E
-   .byte  >(empty_)      ; ACK ^F
-   .byte  >(empty_)      ; BEL ^G
-   .byte  >(backsp_)     ; BS  ^H
-   .byte  >(empty_)      ; TAB ^I
-   .byte  >(reedit_)     ; LF  ^J
-   .byte  >(empty_)      ; VT  ^K
-   .byte  >(list_)       ; FF  ^L
-   .byte  >(empty_)      ; CR  ^M
-   .byte  >(empty_)      ; SO  ^N
-   .byte  >(empty_)      ; SI  ^O
-   .byte  >(printStack_) ; DLE ^P
-   .byte  >(empty_)      ; DC1 ^Q
-   .byte  >(empty_)      ; DC2 ^R
-   .byte  >(empty_)      ; DC3 ^S
-   .byte  >(empty_)      ; DC4 ^T
-   .byte  >(empty_)      ; NAK ^U
-   .byte  >(empty_)      ; SYN ^V
-   .byte  >(empty_)      ; ETB ^W
-   .byte  >(empty_)      ; CAN ^X
-   .byte  >(empty_)      ; EM  ^Y
-   .byte  >(empty_)      ; SUB ^Z
-   .byte  >(empty_)      ; ESC ^[
-   .byte  >(empty_)      ; FS  ^\
-   .byte  >(empty_)      ; GS  ^]
-   .byte  >(empty_)      ; RS  ^^
-   .byte  >(empty_)      ; US  ^_)
-   .byte  >(aNop_)       ; SP  ^`
-   .byte  >(cStore_)     ;    !
-   .byte  >(aNop_)       ;    "
-   .byte  >(aNop_)       ;    #
-   .byte  >(aNop_)       ;    $  ( -- adr ) text input ptr
-   .byte  >(aNop_)       ;    %
-   .byte  >(aNop_)       ;    &
-   .byte  >(aNop_)       ;    '
-   .byte  >(ifte_)       ;    (  ( b -- )
-   .byte  >(aNop_)       ;    )
-   .byte  >(aNop_)       ;    *
-   .byte  >(incr_)       ;    +  ( adr -- ) increments variable at address
-   .byte  >(aNop_)       ;    ,
-   .byte  >(decr_)       ;    -  ( adr -- ) decrements veriable at address
-   .byte  >(aNop_)       ;    .
-   .byte  >(aNop_)       ;    /
-   .byte  >(aNop_)       ;    0
-   .byte  >(aNop_)       ;    1
-   .byte  >(aNop_)       ;    2
-   .byte  >(aNop_)       ;    3
-   .byte  >(aNop_)       ;    4
-   .byte  >(aNop_)       ;    5
-   .byte  >(aNop_)       ;    6
-   .byte  >(aNop_)       ;    7
-   .byte  >(aNop_)       ;    8
-   .byte  >(aNop_)       ;    9
-   .byte  >(aNop_)       ;    :  start defining a macro
-   .byte  >(aNop_)       ;    ;
-   .byte  >(aNop_)       ;    <( - 1)
-   .byte  >(aNop_)       ;    =
-   .byte  >(aNop_)       ;    >
-   .byte  >(aNop_)       ;    ?
-   .byte  >(cFetch_)     ;    @
-   .byte  >(aNop_)       ;    A
-   .byte  >(break_)      ;    B
-   .byte  >(nop_)        ;    C
-   .byte  >(depth_)      ;    D  ( -- val ) depth of data stack
-   .byte  >(emit_)       ;    E  ( val -- ) emits a char to output
-   .byte  >(aNop_)       ;    F
-   .byte  >(go_)         ;    G  ( -- ? ) execute mint definition
-   .byte  >(keyq_)       ;    H  ( verify if key hit )
-   .byte  >(inPort_)     ;    I  ( port -- val )
-   .byte  >(aNop_)       ;    J
-   .byte  >(key_)        ;    K  ( -- val )  read a char from input
-   .byte  >(aNop_)       ;    L
-   .byte  >(aNop_)       ;    M
-   .byte  >(newln_)      ;    N  ; prints a newline to output
-   .byte  >(outPort_)    ;    O  ( val port -- )
-   .byte  >(printStk_)   ;    P  ( -- ) non-destructively prints stack
-   .byte  >(aNop_)       ;    Q  quits from Mint REPL
-   .byte  >(rot_)        ;    R  ( a b c -- b c a )
-   .byte  >(aNop_)       ;    S
-   .byte  >(aNop_)       ;    T
-   .byte  >(r2s_)        ;    U  S( -- w ) R( w -- )
-   .byte  >(s2r_)        ;    V  S( w -- ) R( -- w )
-   .byte  >(aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop
-   .byte  >(exec_)       ;    X
-   .byte  >(aNop_)       ;    Y
-   .byte  >(editDef_)    ;    Z
-   .byte  >(cArrDef_)    ;    [
-   .byte  >(comment_)    ;    \  comment text, skip reading until end of line
-   .byte  >(aNop_)       ;    ]
-   .byte  >(charCode_)   ;    ^
-   .byte  >(aNop_)       ;    _
-   .byte  >(aNop_)       ;    `
-   .byte  >(sysVar_)     ;    a  ; start of data stack *fixed
-   .byte  >(sysVar_)     ;    b  ; base16 flag
-   .byte  >(sysVar_)     ;    c  ; TIBPtr variable
-   .byte  >(sysVar_)     ;    d  ; vDefs variable
-   .byte  >(sysVar_)     ;    e  ;
-   .byte  >(sysVar_)     ;    f  ; start of return stack *fixed
-   .byte  >(sysVar_)     ;    g  ; next dispatcher
-   .byte  >(sysVar_)     ;    h  ; heap ptr variable
-   .byte  >(i_)          ;    i  ; returns index of current loop
-   .byte  >(j_)          ;    j  ; returns index of outer loop
-   .byte  >(sysVar_)     ;    k
-   .byte  >(sysVar_)     ;    l
-   .byte  >(sysVar_)     ;    m  ( a b -- c ) return the minimum value
-   .byte  >(sysVar_)     ;    n
-   .byte  >(sysVar_)     ;    o
-   .byte  >(sysVar_)     ;    p
-   .byte  >(sysVar_)     ;    q
-   .byte  >(sysVar_)     ;    r  ; return stack pointer
-   .byte  >(sysVar_)     ;    s  ; data stack pointer
-   .byte  >(sysVar_)     ;    t
-   .byte  >(sysVar_)     ;    u
-   .byte  >(sysVar_)     ;    v
-   .byte  >(sysVar_)     ;    w
-   .byte  >(sysVar_)     ;    x
-   .byte  >(sysVar_)     ;    y
-   .byte  >(sysVar_)     ;    z
-   .byte  >(group_)      ;    {
-   .byte  >(aNop_)       ;    |
-   .byte  >(endGroup_)   ;    }
-   .byte  >(aNop_)       ;    ~
-   .byte  >(aNop_)       ;    BS
+   ds msb(empty_)      ; NUL ^@
+   ds msb(empty_)      ; SOH ^A
+   ds msb(toggleBase_) ; STX ^B
+   ds msb(empty_)      ; ETX ^C
+   ds msb(empty_)      ; EOT ^D
+   ds msb(edit_)       ; ENQ ^E
+   ds msb(empty_)      ; ACK ^F
+   ds msb(empty_)      ; BEL ^G
+   ds msb(backsp_)     ; BS  ^H
+   ds msb(empty_)      ; TAB ^I
+   ds msb(reedit_)     ; LF  ^J
+   ds msb(empty_)      ; VT  ^K
+   ds msb(list_)       ; FF  ^L
+   ds msb(empty_)      ; CR  ^M
+   ds msb(empty_)      ; SO  ^N
+   ds msb(empty_)      ; SI  ^O
+   ds msb(printStack_) ; DLE ^P
+   ds msb(empty_)      ; DC1 ^Q
+   ds msb(empty_)      ; DC2 ^R
+   ds msb(empty_)      ; DC3 ^S
+   ds msb(empty_)      ; DC4 ^T
+   ds msb(empty_)      ; NAK ^U
+   ds msb(empty_)      ; SYN ^V
+   ds msb(empty_)      ; ETB ^W
+   ds msb(empty_)      ; CAN ^X
+   ds msb(empty_)      ; EM  ^Y
+   ds msb(empty_)      ; SUB ^Z
+   ds msb(empty_)      ; ESC ^[
+   ds msb(empty_)      ; FS  ^\
+   ds msb(empty_)      ; GS  ^]
+   ds msb(empty_)      ; RS  ^^
+   ds msb(empty_)      ; US  ^_)
+   ds msb(aNop_)       ; SP  ^`
+   ds msb(cStore_)     ;    !
+   ds msb(aNop_)       ;    "
+   ds msb(aNop_)       ;    #
+   ds msb(aNop_)       ;    $  ( -- adr ) text input ptr
+   ds msb(aNop_)       ;    %
+   ds msb(aNop_)       ;    &
+   ds msb(aNop_)       ;    '
+   ds msb(ifte_)       ;    (  ( b -- )
+   ds msb(aNop_)       ;    )
+   ds msb(aNop_)       ;    *
+   ds msb(incr_)       ;    +  ( adr -- ) increments variable at address
+   ds msb(aNop_)       ;    ,
+   ds msb(decr_)       ;    -  ( adr -- ) decrements veriable at address
+   ds msb(aNop_)       ;    .
+   ds msb(aNop_)       ;    /
+   ds msb(aNop_)       ;    0
+   ds msb(aNop_)       ;    1
+   ds msb(aNop_)       ;    2
+   ds msb(aNop_)       ;    3
+   ds msb(aNop_)       ;    4
+   ds msb(aNop_)       ;    5
+   ds msb(aNop_)       ;    6
+   ds msb(aNop_)       ;    7
+   ds msb(aNop_)       ;    8
+   ds msb(aNop_)       ;    9
+   ds msb(aNop_)       ;    :  start defining a macro
+   ds msb(aNop_)       ;    ;
+   ds msb(aNop_)       ;    lsb( - 1)
+   ds msb(aNop_)       ;    =
+   ds msb(aNop_)       ;    >
+   ds msb(aNop_)       ;    ?
+   ds msb(cFetch_)     ;    @
+   ds msb(aNop_)       ;    A
+   ds msb(break_)      ;    B
+   ds msb(nop_)        ;    C
+   ds msb(depth_)      ;    D  ( -- val ) depth of data stack
+   ds msb(emit_)       ;    E  ( val -- ) emits a char to output
+   ds msb(aNop_)       ;    F
+   ds msb(go_)         ;    G  ( -- ? ) execute mint definition
+   ds msb(keyq_)       ;    H  ( verify if key hit )
+   ds msb(inPort_)     ;    I  ( port -- val )
+   ds msb(aNop_)       ;    J
+   ds msb(key_)        ;    K  ( -- val )  read a char from input
+   ds msb(aNop_)       ;    L
+   ds msb(aNop_)       ;    M
+   ds msb(newln_)      ;    N  ; prints a newline to output
+   ds msb(outPort_)    ;    O  ( val port -- )
+   ds msb(printStk_)   ;    P  ( -- ) non-destructively prints stack
+   ds msb(aNop_)       ;    Q  quits from Mint REPL
+   ds msb(rot_)        ;    R  ( a b c -- b c a )
+   ds msb(aNop_)       ;    S
+   ds msb(aNop_)       ;    T
+   ds msb(r2s_)        ;    U  S( -- w ) R( w -- )
+   ds msb(s2r_)        ;    V  S( w -- ) R( -- w )
+   ds msb(aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop
+   ds msb(exec_)       ;    X
+   ds msb(aNop_)       ;    Y
+   ds msb(editDef_)    ;    Z
+   ds msb(cArrDef_)    ;    [
+   ds msb(comment_)    ;    \  comment text, skip reading until end of line
+   ds msb(aNop_)       ;    ]
+   ds msb(charCode_)   ;    ^
+   ds msb(aNop_)       ;    _
+   ds msb(aNop_)       ;    `
+   ds msb(sysVar_)     ;    a  ; start of data stack *fixed
+   ds msb(sysVar_)     ;    b  ; base16 flag
+   ds msb(sysVar_)     ;    c  ; TIBPtr variable
+   ds msb(sysVar_)     ;    d  ; vDefs variable
+   ds msb(sysVar_)     ;    e  ;
+   ds msb(sysVar_)     ;    f  ; start of return stack *fixed
+   ds msb(sysVar_)     ;    g  ; next dispatcher
+   ds msb(sysVar_)     ;    h  ; heap ptr variable
+   ds msb(i_)          ;    i  ; returns index of current loop
+   ds msb(j_)          ;    j  ; returns index of outer loop
+   ds msb(sysVar_)     ;    k
+   ds msb(sysVar_)     ;    l
+   ds msb(sysVar_)     ;    m  ( a b -- c ) return the minimum value
+   ds msb(sysVar_)     ;    n
+   ds msb(sysVar_)     ;    o
+   ds msb(sysVar_)     ;    p
+   ds msb(sysVar_)     ;    q
+   ds msb(sysVar_)     ;    r  ; return stack pointer
+   ds msb(sysVar_)     ;    s  ; data stack pointer
+   ds msb(sysVar_)     ;    t
+   ds msb(sysVar_)     ;    u
+   ds msb(sysVar_)     ;    v
+   ds msb(sysVar_)     ;    w
+   ds msb(sysVar_)     ;    x
+   ds msb(sysVar_)     ;    y
+   ds msb(sysVar_)     ;    z
+   ds msb(group_)      ;    {
+   ds msb(aNop_)       ;    |
+   ds msb(endGroup_)   ;    }
+   ds msb(aNop_)       ;    ~
+   ds msb(aNop_)       ;    BS
 
 ; *********************************************************************
 ; Macros must be written in Mint and end with ;
@@ -2747,6 +2726,7 @@ altcodeshi:
 ; *********************************************************************
 macros:
 
-.include "MINT.macros.asm"
+;.include "MINT.macros.asm"
 
-.word $DEAD
+dw $DEAD
+

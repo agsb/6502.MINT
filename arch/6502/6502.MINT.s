@@ -139,11 +139,11 @@ VOID:
 
 .ifndef ZERO_PAGE_STACK
 
- data stack
+ ; data stack
     .res STKSIZE, $00
  dat_zero:
 
- return stack
+ ; return stack
     .res STKSIZE, $00
  ret_zero:
 
@@ -328,7 +328,7 @@ keyq_:
 ; to keep code safe by not using "fall throught".
 ; uses A, Y, X caller must saves.
 ; needs 2 levels of hardware stack
-; uses 4 bytes in page zero as temporary
+; uses 4 bytes in page zero as temporary, TOS and NOS
 ; uses 6 bytes in memory for internal use
 ; ---------------------------------------------------------------------
 
@@ -1005,11 +1005,8 @@ macro:
     sta tos + 0
     lda ctlcodeshi, y
     sta tos + 1
-    ; bypass offset for rts
-    lda #1
-    jsr add2tos
-    ;
     jsr spush
+    ;
     jsr enter
     .asciiz "\\G"
     ldy vTIBPtr + 0 ; maybe spull
@@ -1108,6 +1105,9 @@ gets_:
     sta (tos), y
     iny
 
+    tya 
+    jsr add2tos
+
     ; update instruction pointer
     lda tos + 0
     sta ins_ptr + 0
@@ -1168,6 +1168,9 @@ printStr:
     sta tos + 0
     pla
     sta tos + 1
+
+    jsr inc2tos
+
     ; asciiz
     ldx #NUL
     jsr putstr
@@ -1246,7 +1249,7 @@ printdec:
     ; subtract
     iny
     jsr subn2t
-    bcc @loop
+    bcs @loop
     ; restore
     jsr addn2t
     tya
@@ -1546,6 +1549,7 @@ enter:
     sta ins_ptr + 0
     pla
     sta ins_ptr + 1
+
     inc ins_ptr + 0
     bcc @nock
     inc ins_ptr + 1
@@ -2185,7 +2189,6 @@ initialize:
     iny
     cpy #GRPSIZE
     bne @loop3
-
     inx
     cpx #NUMGRPS
     beq @ends
