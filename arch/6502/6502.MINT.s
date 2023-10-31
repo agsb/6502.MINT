@@ -137,6 +137,10 @@ tmp:    .word $0
 
 VOID:
 
+; terminal input buffer
+tib:
+    .res PAGE, $00
+
 .ifndef ZERO_PAGE_STACK
 
  ; data stack
@@ -148,10 +152,6 @@ VOID:
  ret_zero:
 
 .endif
-
-; terminal input buffer
-tib:
-    .res PAGE, $00
 
 ; mint variables, 26 plus 6 from z
 vsys:
@@ -660,7 +660,7 @@ decr_:
     jmp (vNext)
 
 .ifdef FULL_STACK_CODES
-jump_:
+goto_:
     ldx dat_indx
     lda dat_zero + 1,x
     pha
@@ -703,31 +703,31 @@ subto_:
 
 rpush:
 rpush_:
-    ldx dat_indx
+    ldx ret_indx
     lda tos + 0
     sta ret_zero - 2, x
     lda tos + 1
     sta ret_zero - 1, x
     dex
     dex
-    stx dat_indx
+    stx ret_indx
     rts
 
 rpull:
 rpull_:
-    ldx dat_indx
+    ldx ret_indx
     lda ret_zero + 0, x
     sta tos + 0
     lda ret_zero + 1, x
     sta tos + 1
     inx
     inx
-    stx dat_indx
+    stx ret_indx
     rts
 
 .ifdef FULL_STACK_CODES
 rshow_:
-    ldx dat_indx
+    ldx ret_indx
     lda ret_zero + 0, x
     sta tos + 0
     lda ret_zero + 1, x
