@@ -725,18 +725,6 @@ rpull_:
     stx ret_indx
     rts
 
-.ifdef FULL_STACK_CODES
-rshow_:
-    ldx ret_indx
-    lda ret_zero + 0, x
-    sta tos + 0
-    lda ret_zero + 1, x
-    sta tos + 1
-    jsr push_
-    ; rts
-    jmp (vNext)
-.endif
-
 r2s_:
     jsr rpull_
     jsr push_
@@ -748,6 +736,49 @@ s2r_:
     jsr rpush_
     ; rts
     jmp (vNext)
+
+;----------------------------------------------------------------------
+.ifdef FULL_STACK_CODES
+rshow_:
+    ldx ret_indx
+    lda ret_zero + 0, x
+    sta tos + 0
+    lda ret_zero + 1, x
+    sta tos + 1
+    jsr push_
+    ; rts
+    jmp (vNext)
+
+stkis_:
+    sta tos + 0
+    lda #0
+    sta tos + 1
+    jsr spush
+    jmp link_
+
+dat2t_:
+    lda dat_indx
+    clc
+    bcc stkis_
+
+ret2t_:
+    lda ret_indx
+    clc
+    bcc stkis_
+
+t2dat_:
+    jsr spull
+    lda tos + 0
+    sta dat_indx
+    jmp link_
+
+t2ret_:
+    jsr spull
+    lda tos + 0
+    sta ret_indx
+    jmp link_
+
+.endif
 
 ;----------------------------------------------------------------------
 ; prepare for mult or divd

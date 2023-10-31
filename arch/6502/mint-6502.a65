@@ -682,31 +682,31 @@ subto_:
 
 rpush:
 rpush_:
-    ldx dat_indx
+    ldx ret_indx
     lda tos + 0
     sta ret_zero - 2, x
     lda tos + 1
     sta ret_zero - 1, x
     dex
     dex
-    stx dat_indx
+    stx ret_indx
     rts
 
 rpull:
 rpull_:
-    ldx dat_indx
+    ldx ret_indx
     lda ret_zero + 0, x
     sta tos + 0
     lda ret_zero + 1, x
     sta tos + 1
     inx
     inx
-    stx dat_indx
+    stx ret_indx
     rts
 
 .if FULL_STACK_CODES
 rshow_:
-    ldx dat_indx
+    ldx ret_indx
     lda ret_zero + 0, x
     sta tos + 0
     lda ret_zero + 1, x
