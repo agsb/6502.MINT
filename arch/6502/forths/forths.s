@@ -74,6 +74,8 @@ TERMINAL  = $100
 ;---------------------------------------------------------------------
 .segment "ZERO"
 
+* = $F0
+
 dat_indx:   .byte $0
 ret_indx:   .byte $0
 
@@ -135,7 +137,6 @@ pull_:
     sta tos + 1
     jmp lose_
 
-.ifdef FULL_STACK_CODES
 push2_:
     ldx dat_indx
     lda nos + 0
@@ -148,9 +149,7 @@ push2_:
     sta dat_zero - 1, x
     jsr keep_
     jmp keep_
-.endif
 
-take2:
 pull2_:
     ldx dat_indx
     lda dat_zero + 0, x
@@ -467,6 +466,7 @@ subto_:
 ;----------------------------------------------------------------------
 ;   return stack stuff
 
+rpush:
 rpush_:
     ldx ret_indx
     lda tos + 0
@@ -478,6 +478,7 @@ rpush_:
     stx ret_indx
     rts
 
+rpull:
 rpull_:
     ldx ret_indx
     lda ret_zero + 0, x
@@ -489,6 +490,8 @@ rpull_:
     stx ret_indx
     rts
 
+;----------------------------------------------------------------------
+
 rshow_:
     ldx ret_indx
     lda ret_zero + 0, x
@@ -499,17 +502,46 @@ rshow_:
     ; rts
     jmp link_
 
-r2s_:
+r2d_:
     jsr rpull_
     jsr push_
     ; rts
     jmp link_
 
-s2r_:
+d2r_:
     jsr pull_
     jsr rpush_
     ; rts
     jmp link_
+
+stkis_:
+    sta tos + 0
+    lda #0
+    sta tos + 1
+    jsr spush
+    jmp link_
+
+dat2t_:
+    lda dat_indx
+    bcc stkis_
+
+ret2t_:
+    lda ret_indx
+    bcc stkis_
+
+t2dat_:
+    jsr spull
+    lda tos + 0
+    sta dat_indx
+    jmp link_
+
+t2ret_:
+    jsr spull
+    lda tos + 0
+    sta ret_indx
+    jmp link_
+
+;----------------------------------------------------------------------
 
 ;----------------------------------------------------------------------
 ; prepare for mult or divd
