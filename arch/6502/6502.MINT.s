@@ -887,11 +887,38 @@ mul_:
     ; ends
     jmp opout
 
+;----------------------------------------------------------------------
+.ifdef FULL_STACK_CODES
+
+
+; vide eorBookV1.0.1
+
 ; set overflow bit
-slv:
+setov_:
     bit @ends
 @ends:
     rts
+
+; where I am
+here_:
+    jsr @pops
+@pops:
+    pla
+    tay
+    pla
+    tax
+    rts
+
+; Z flag is zero in NMOS6502
+nmos_:
+    sed
+    clc
+    lda #$99
+    adc #$01
+    cld
+    rts
+
+.endif
 
 ;----------------------------------------------------------------------
 ;   MINT
