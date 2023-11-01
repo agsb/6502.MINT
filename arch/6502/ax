@@ -1,0 +1,72 @@
+339:    ; ldx dat_indx
+342:    stx dat_indx
+346:    ; ldx dat_indx
+349:    stx dat_indx
+354:    ldx dat_indx
+363:    ldx dat_indx
+373:    ldx dat_indx
+389:    ldx dat_indx
+402:    ldx dat_indx
+408:    ldx dat_indx
+418:    ldx dat_indx
+428:    ldx dat_indx
+445:    ldx dat_indx
+466:    ldx dat_indx
+476:    ldx dat_indx
+486:    ldx dat_indx
+496:    ldx dat_indx
+519:    ldx dat_indx
+530:    ldx dat_indx
+541:    ldx dat_indx
+566:    ldx dat_indx
+580:    ldx dat_indx
+587:    ldx dat_indx
+618:    ldx dat_indx
+646:    ldx dat_indx
+655:    ldx dat_indx
+667:    ldx dat_indx
+710:    ldx ret_indx
+717:    stx ret_indx
+722:    ldx ret_indx
+729:    stx ret_indx
+749:    ldx ret_indx
+792:    ldx dat_indx
+817:    ldx dat_indx
+844:    tax
+849:    stx tos + 0
+876:    tax
+881:    txa
+915:    tax
+953:    ldx ret_indx
+960:    stx ret_indx
+965:    ldx ret_indx
+972:    stx ret_indx
+1238:    ldx #NUL
+1255:    ldx #TRUE
+1263:    ldx #NUL
+1333:    tax
+1339:    txa
+1640:    ldx dat_indx
+1647:    stx dat_indx
+1661:    tax
+1663:    txa
+1710:    tax
+1736:    txa
+1770:    tax
+1780:    tax
+1791:    txa
+1825:    ldx ret_indx
+1832:    stx ret_indx
+1848:    ldx ret_indx
+1855:    stx ret_indx
+1882:    ldx dat_indx
+1889:    stx dat_indx
+1965:    tax
+1968:    txa
+2028:    ldx ret_indx
+2071:    ldx ret_indx
+2107:    tax
+2113:    ldx ret_indx
+2174:    ldx #$FF
+2177:    txa
+2244:    ldx #NUL

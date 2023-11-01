@@ -1605,7 +1605,7 @@ alt_:
     jmp (tos)
 
 ;----------------------------------------------------------------------
-; Parse inline code, must be asciiz
+; Parse inline mint, must be asciiz
 enter:
 ; pull from system stack
     pla
@@ -1621,7 +1621,7 @@ enter:
     jmp (vNext)
 
 ;----------------------------------------------------------------------
-; char 0, Continue from enter
+; char 0, Continue from enter, past inline mint
 exit_:
     jmp (ins_ptr)
 
@@ -2099,6 +2099,7 @@ again_:
     jmp (vNext)
 
 ;----------------------------------------------------------------------
+; do not update indx
 j_:
     sec
     lda ret_indx
@@ -2107,6 +2108,7 @@ j_:
     jmp index
 
 ;----------------------------------------------------------------------
+; do not update indx
 i_:
     ldx ret_indx
     ; fall through

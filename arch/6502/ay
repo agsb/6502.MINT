@@ -1,0 +1,37 @@
+498:    tya
+502:    tya
+510:    tay
+515:    tay
+595:    ldy #0
+623:    ldy #0
+677:    ldy #NUL
+691:    ldy #NUL
+810:    ldy #16
+913:    tay
+977:    ldy #NUL
+1066:    sty vTIBPtr + 0 ; maybe spush 
+1067:    tay
+1076:    ldy vTIBPtr + 0 ; maybe spull
+1093:    tay
+1118:    ldy #NUL
+1171:    tya 
+1270:    ldy #NUL
+1283:    tya
+1310:    ldy #'0'-1
+1318:    tya
+1445:    ldy #4
+1458:    ldy #NUL
+1467:    tya
+1566:    ldy #NUL
+1580:    tya
+1589:    tay
+1600:    tay
+1668:    ldy #NUL
+1688:    tay
+1720:    ldy #NUL
+1953:    ldy #NUL
+1964:    tya
+2178:    tay
+2210:    ldy #GRPSIZE
+2231:    ldy #dysys
+2246:    ldy #NUL
