@@ -650,11 +650,6 @@ mul_:
     ; ends
     jmp opout
 
-; set overflow bit
-slv:
-    bit @ends
-@ends:
-    rts
 
 ;----------------------------------------------------------------------
 ;
@@ -738,4 +733,34 @@ jump_:
     stx ret_indx
     ; do the jump
     jmp (tos)
+
+
+;----------------------------------------------------------------------
+; extras for 6502
+; vide eorBookV1.0.1
+
+; set overflow bit
+setovr_:
+    bit @ends
+@ends:
+    rts
+
+; where I am
+here_:
+    jsr @pops
+@pops:
+    pla
+    tay
+    pla
+    tax
+    rts
+
+; Z flag is zero in NMOS6502
+nmos_:
+    sed
+    clc
+    lda #$99
+    adc #$01
+    cld
+    rts
 
