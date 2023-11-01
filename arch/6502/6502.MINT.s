@@ -88,7 +88,7 @@
 ;----------------------------------------------------------------------
 .segment "ZERO"
 
-; offset
+; offsets
 
 .ifdef ZERO_PAGE_STACK
 
