@@ -1134,9 +1134,9 @@ gets_:
     cmp #$0
     beq @endstr
     ; windows CRLF, linux CR, Mac LF
-    cmp CR                 ; carriage return ?
+    cmp #CR                 ; carriage return ?
     beq @iscrlf
-    cmp LF                 ; line feed ?
+    cmp #LF                 ; line feed ?
     beq @iscrlf
 
 @ismacro:
@@ -1394,7 +1394,6 @@ dec_:
     bcs @ends
 @uval:
     jsr add2tos
-    sta tos + 1
     jsr mul10
     clc
     bcc @loop
@@ -2147,7 +2146,7 @@ ifte_:
 ; verify stack
 etx_:
     lda dat_indx
-    cmp STKSIZE     ; bytes
+    cmp #STKSIZE     ; bytes
     bmi @ends
     lda #2          ; leave one word as offset
     sta dat_indx
