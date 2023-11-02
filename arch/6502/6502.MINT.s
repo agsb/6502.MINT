@@ -107,10 +107,6 @@ ret_zero:
 * = $00F0
 ; instruction pointer
 ins_ptr:    .addr $0
-; index for data stack
-dat_indx:    .byte $0
-; index for return stack
-ret_indx:    .byte $0
 ; copycat
 nest: 	.byte $0
 echo:   .byte $0
@@ -172,6 +168,12 @@ vEdited:
 
 vByteMode:
     .byte $0
+
+; index for data stack
+dat_indx:    .byte $0
+
+; index for return stack
+ret_indx:    .byte $0
 
 ; heap must be here !
 heap:
@@ -1237,6 +1239,7 @@ printStr:
     ; asciiz
     ldx #NUL
     jsr putstr
+    
     ; offset
     jsr add2tos
     lda tos + 1
@@ -1330,13 +1333,13 @@ printhex:
 ;----------------------------------------------------------------------
 ; print a 8-bit HEX
 printhex8:
-    tax
+    pha
     lsr
     ror
     ror
     ror
     jsr @conv
-    txa
+    pla
 @conv:
     and #$0F
     clc
@@ -2144,9 +2147,10 @@ ifte_:
 ; verify stack
 etx_:
     lda dat_indx
-    cmp STKSIZE * 2 ; bytes
-    bcc @ends
-    lda #NUL
+    cmp STKSIZE     ; bytes
+    bmi @ends
+    lda #2          ; leave one word as offset
+    sta dat_indx
 @ends:
     jmp interpret
 
@@ -2171,6 +2175,7 @@ mint_:
 
     sei
     cld
+    clv
     ldx #$FF
     txs
     inx
@@ -2185,6 +2190,10 @@ mint_:
     sta vNext + 0
     lda #>next
     sta vNext + 1
+
+    lda #2
+    sta dat_indx
+    sta ret_indx
 
     jsr printStr
     .asciiz "MINT 6502 V1.0\r\n"
@@ -2246,10 +2255,10 @@ initialize:
     ldy #NUL
 @loop3:
     ; default
-    lda #>empty_
+    lda #<empty_
     sta (tos), y
     iny
-    lda #<empty_
+    lda #>empty_
     sta (tos), y
     iny
     cpy #GRPSIZE

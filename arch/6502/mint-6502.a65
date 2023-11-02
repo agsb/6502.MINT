@@ -639,7 +639,7 @@ ends1:
     jmp (vNext)
 
 .if FULL_STACK_CODES
-jump_:
+goto_:
     ldx dat_indx
     lda dat_zero + 1,x
     pha
