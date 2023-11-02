@@ -1170,9 +1170,6 @@ gets_:
     sta (tos), y
     iny
 
-    tya 
-    jsr add2tos
-
     ; update instruction pointer
     lda tos + 0
     sta ins_ptr + 0
