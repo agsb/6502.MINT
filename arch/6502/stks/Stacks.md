@@ -155,5 +155,7 @@ All operations DROP, DUP, OVER, SWAP, ROT, AND, OR, XOR, NEG, INV, ADD, SUB, INC
 
 **For common "alone" applications _zero page indexed by X_ with 24 words per stack and 32 words shared could be faster.** 
 
+Note that all modes needs read and write stack indexes from/into somewhere, then _lda, sta, inc, dec_ are always used.
+
      
      
