@@ -1062,7 +1062,7 @@ macro:
 interpret:
     jsr enter
     .asciiz "\\N`> `"
-    ; fall throught
+    ; fall thru
 
 ; used by TESTs
 interpret1:
@@ -1085,7 +1085,7 @@ interpret2:
 @isnest:
     cpy vTIBPtr
     bne @loop
-    ; fall throught
+    ; fall thru
 
 ;----------------------------------------------------------------------
 ; loop around waiting for character
@@ -1093,7 +1093,7 @@ interpret2:
 waitchar:
     jsr tib2tos
     jsr spush
-    ; fall throught
+    ; fall thru
 
 ;----------------------------------------------------------------------
 ; get a line into buffer pointer by TOS
@@ -1244,7 +1244,7 @@ str_:
 puts_:
     ldx #NUL
     jsr spull
-    ; fall throught
+    ; fall thru
 
 ;----------------------------------------------------------------------
 ; prints a asciiz
@@ -1402,6 +1402,7 @@ pends:
 ; ascii code
 charCode_:
     jsr seekps
+    ; fall thru
 
 bytos:
     sta tos + 0
@@ -1581,7 +1582,7 @@ compNext:
 
     tya
     jsr add2heap
-    ; fall throught
+    ; fall thru
 
 ;----------------------------------------------------------------------
 ; Execute next opcode
@@ -1680,7 +1681,7 @@ call_:
 ;----------------------------------------------------------------------
 lookupDeft:
     sta vEdited
-    ; fall throught
+    ; fall thru
 
 ;----------------------------------------------------------------------
 lookupDefs:
@@ -1841,7 +1842,7 @@ arrDef_:
 ;----------------------------------------------------------------------
 cArrDef_:
     lda #TRUE
-    ; fall throught
+    ; fall thru
 
 ;----------------------------------------------------------------------
 arrDefs:
@@ -1994,7 +1995,7 @@ begin_:
     ; alloc a frame
     jsr mkframe
 
-    ; a frame
+    ; do a frame
     ldx ret_indx
     ; counter
     lda #NUL
