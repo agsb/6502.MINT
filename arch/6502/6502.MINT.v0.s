@@ -18,12 +18,6 @@
 ;
 ; *********************************************************************
 
-; using data stack in page zero
-; using return stack in page one
-; rom usable code, no relocable
-; code depends on host memory maps
-; using SP for index on return stack
-; usinf X for index on data stack
 ;--------------------------------------------------------
 ;
 ;  ca65 assembler specifics
@@ -79,6 +73,13 @@
         NUMGRPS = 5
 
 ;----------------------------------------------------------------------
+        ; using page zero for data stack and page one for return stack
+;----------------------------------------------------------------------
+
+        ; stacks at zero page, 24 word deep
+
+        ; include extra functions
+        ; FULL_STACK_CODES = 1
 
         ; define emulator mode
         EMULATOR = 1
@@ -88,12 +89,19 @@
 
 ; offsets
 
-; mint internals, depends on host
+* = $00F0 - (STKSIZE * 2)
 
 ini_zero:
 
-* = $00A0
+; return stack with 24 words
+.res  STKSIZE, $0
+dat_zero:
 
+; data stack with 24 words
+.res  STKSIZE, $0
+ret_zero:
+
+* = $00F0
 ; instruction pointer
 void_ptr:   .addr $0
 ins_ptr:    .addr $0
@@ -105,19 +113,6 @@ tos:    .word $0
 nos:    .word $0
 wrk:    .word $0
 tmp:    .word $0
-; safe for x and sp
-spf:    .byte $0
-rpf:    .byte $0
-
-;----------------------------------------------------------------------
-
-; for easy
-
-; bottom of data stack, reserves 32 words, depends on host
-S0      = $00FF
-
-; bottom of return stack, reserves 32 words, depends on host
-R0      = $01FF
 
 ;----------------------------------------------------------------------
 .segment "VECTORS"
@@ -163,13 +158,18 @@ vEdited:
 vByteMode:
         .byte $0
 
+; index for data stack
+dat_indx:    .byte $0
+
+; index for return stack
+ret_indx:    .byte $0
+
 ; heap must be here !
 heap:
         .addr $0
 
 ;----------------------------------------------------------------------
 ; aliases
-; zzzz
 
 vS0      =  vsys + $00     ;    a  ; start of data stack
 vBase16  =  vsys + $02     ;    b  ; base16 flag
@@ -178,25 +178,21 @@ vDefs    =  vsys + $08     ;    d  ; reference for group user functions
 ;        =  vsys + $0a     ;    e  ;
 vR0      =  vsys + $0c     ;    f  ; start of return stack
 vNext    =  vsys + $0e     ;    g  ; next routine dispatcher
-vHeap    =  vsys + $10     ;    h  ; heap ptr variable
+vHeap =  vsys + $10     ;    h  ; heap ptr variable
+
+; the address of stacks are hardcoded, any change do no apply
+dStack = vS0
+rStack = vR0
+; any change will cause unexpected behavior
+HEAP = heap
+DEFS = defs
 
 ;----------------------------------------------------------------------
 .segment "ONCE"
 
-; start of ROM ?
+; start of ROM
 
 init:
-
-;       normal boot
-        sei
-        cld
-        ; trick for init both stacks
-        ldx #$FF
-        txs
-        cli
-
-;       normal init
-
         jmp mint_
         .asciiz "MINT@6502"
 
@@ -204,24 +200,119 @@ init:
 ; 25/10/2023, using lib6502, -M E000
 .ifdef EMULATOR
 
-hitch:
+hitchar:
 
-getch:
+getchar:
+        ;jsr $E010
         lda $E000
+        rts
 
-        ; test EOF
-        cmp #$FF
-        beq byes
-
-putch:
+putchar:
+        ;jsr $E020
         sta $E000
         rts
 
-byes:
-        ; exit of emulator
-        jmp $0000
+.endif
+
+.ifndef EMULATOR
+
+;----------------------------------------------------------------------
+;    depends on hardware, ACIA 6551 common
+;----------------------------------------------------------------------
+        CIA       =  $E000   ; The base address of the 6551 ACIA.
+        CIA_DATA  =  CIA+0   ; Its data I/O register
+        CIA_RX    =  CIA+0   ; Its data I/O register
+        CIA_TX    =  CIA+0   ; Its data I/O register
+        CIA_STAT  =  CIA+1   ; Its  status  register
+        CIA_COMM  =  CIA+2   ; Its command  register
+        CIA_CTRL  =  CIA+3   ; Its control  register
+
+;----------------------------------------------------------------
+; setup thru 6551
+setchar:
+pcia_init:
+        ; reset CIA
+        lda #0
+        sta #CIA_STAT
+        ; %0001 1110 =  9600 baud, external receiver, 8 bit , 1 stop bit
+        ; %0001 1111 = 19200 baud, external receiver, 8 bit , 1 stop bit
+        lda #$1F
+        sta #CIA_CTRL
+        ; %0000 1011 = no parity, normal mode, RTS low, INT disable, DTR low
+        lda #$0B
+        sta #CIA_COMM
+        rts
+
+;----------------------------------------------------------------
+;   verify thru 6551, no waits
+hitchar:
+@acia_ht:
+; verify
+        lda #CIA_STAT
+        and #8
+        beq _nak
+_ack:
+        lda #$01
+        rts
+_nak:
+        lda #$00
+        rts
+
+;----------------------------------------------------------------
+;   receive a byte thru 6551, waits
+getchar:
+@acia_rx:
+; verify
+        lda #CIA_STAT
+        and #8
+        ; beq @ends
+        beq @acia_rx
+; receive
+        lda #CIA_RX
+        rts
+
+;----------------------------------------------------------------
+;   transmit a byte thru 6551, waits
+putchar:
+@acia_tx:
+; verify
+        pha
+        lda #CIA_STAT
+        and #16
+        ; beq @ends
+        beq @acia_tx
+; transmit
+        pla
+        sta #CIA_TX
+        rts
 
 .endif
+
+;----------------------------------------------------------------------
+; get a char
+key_:
+        jsr getchar
+keyk:
+        sta tos + 0
+        jsr spush
+        ; next
+        jmp (vNext)
+
+;----------------------------------------------------------------------
+; put a char
+emit_:
+        jsr spull
+        lda tos + 0
+        jsr putchar
+        ; next
+        jmp (vNext)
+
+;----------------------------------------------------------------------
+; hit a char ?
+keyq_:
+        jsr hitchar
+        clc
+        bcc keyk
 
 ; ---------------------------------------------------------------------
 ; Forth like functions
