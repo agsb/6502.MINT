@@ -1,0 +1,9 @@
+6502.MINT.s:2012: Error: Symbol 'rStack' is undefined
+6502.MINT.s:2007: Error: Symbol 'dStack' is undefined
+6502.MINT.s:1827: Error: Symbol '@iseq' is undefined
+6502.MINT.s:1438: Error: Symbol 'cStore_' is undefined
+6502.MINT.s:2426: Note: Expanded from here
+6502.MINT.s:2557: Note: Expanded from here
+6502.MINT.s:1433: Error: Symbol 'cFetch_' is undefined
+6502.MINT.s:2457: Note: Expanded from here
+6502.MINT.s:2588: Note: Expanded from here

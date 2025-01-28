@@ -74,8 +74,8 @@
         BKX = 92        ; ascii back slash
 
 
-        ; stack size 
-        STKSIZE = 48
+        ; stack LIMIT 36 words
+        STKENDS = 256 - 72
 
         ; size page
         PAGE = 256
@@ -607,7 +607,6 @@ rpush_:
         pha
         inx 
         inx
-        ; zzzz ????
         jmp (vNext)
 
 ; usual R>
@@ -619,7 +618,6 @@ rpull_:
         sta 1, x
         pla
         sta 0, x
-        ; zzzz ????
         jmp (vNext)
 
 ;----------------------------------------------------------------------
@@ -1328,11 +1326,10 @@ hex_:
 
 ;----------------------------------------------------------------------
 depth_:
-        ; stacks are 24 words
+        ; stacks moves backwards
         sec
-        lda dat_indx
-        lsr
-        ; words
+        txa
+        lsr ; words
         jmp bytos
 
 ;----------------------------------------------------------------------
@@ -1540,9 +1537,9 @@ go_:
 ;----------------------------------------------------------------------
 ret_:
         pla
-        sta inst_ptr + 1
+        sta ins_ptr + 1
         pla 
-        sta inst_ptr + 0
+        sta ins_ptr + 0
         ; next
         jmp (vNext)
 
@@ -1551,9 +1548,9 @@ ret_:
 call_:
 
         tay
-        lda inst_ptr + 0
+        lda ins_ptr + 0
         pha
-        lda inst_ptr + 1
+        lda ins_ptr + 1
         pha
         tya
 
@@ -1685,14 +1682,11 @@ group_:
         ror nos + 0
         ;-----------------------
         ; save last group
-        ldx ret_indx
         lda vDefs + 0
-        sta ret_zero - 2, x
+        pha
         lda vDefs + 1
-        sta ret_zero - 1, x
-        dex
-        dex
-        stx ret_indx
+        pha
+        ;-----------------------
         ; update group
         clc
         lda defs + 0
@@ -1708,15 +1702,10 @@ group_:
 ;----------------------------------------------------------------------
 endGroup_:
         ; load last group
-        ldx ret_indx
-        lda ret_zero + 0, x
+        pla
         sta vDefs + 0
-        lda ret_zero + 1, x
+        pla
         sta vDefs + 1
-        inx
-        inx
-        stx ret_indx
-
         ; next
         jmp (vNext)
 
@@ -1742,14 +1731,10 @@ arrDefs:
         sta vByteMode
 
         ; save array start
-        ldx dat_indx
         lda vHeap + 0
-        sta ret_zero - 2, x
+        pha
         lda vHeap + 1
-        sta ret_zero - 1, x
-        dex
-        dex
-        stx dat_indx
+        pha
 
         ; array next
         lda #<compNext
@@ -1764,10 +1749,12 @@ arrDefs:
 arrEnd_:
 
         ; start of array
-        jsr rpull
-
-        ; save start
-        jsr spush
+        dex
+        dex
+        pha
+        sta 0, x
+        pha
+        sta 1, x
 
         ; bytes
         sec
@@ -1832,7 +1819,21 @@ def_:
         jmp add2ps
 
 ;----------------------------------------------------------------------
-; skip while nest
+
+;----------------------------------------------------------------------
+break_:
+        jsr spull
+        lda tos + 0
+        beq @iseq
+skframe:
+        ; skip a frame 3 words
+        pla
+        pla
+        pla
+        pla
+        pla
+        pla
+        ; skip while nest
 skipnest:
         lda #$01
         sta nest
@@ -1841,39 +1842,9 @@ skipnest:
         jsr nesting
         lda nest
         bne @loop
-        ; next
-        jmp (vNext)
-
-;----------------------------------------------------------------------
-; make a frame
-mkframe:
-        ; alloc a frame
-        sec
-        lda ret_indx
-        sbc #6
-        sta ret_indx
-        rts
-
-;----------------------------------------------------------------------
-; skip a frame
-skframe:
-        ; alloc a frame
-        clc
-        lda ret_indx
-        adc #6
-        sta ret_indx
-        rts
-
-;----------------------------------------------------------------------
-break_:
-        jsr spull
-        lda tos + 0
-        bne @isne
+@iseq:
         ; parse frame
         jmp (vNext)
-@isne:
-        jsr skframe
-        jmp skipnest
 
 ;----------------------------------------------------------------------
 ; Left parentesis ( begins a loop
@@ -1884,25 +1855,21 @@ begin_:
         lda tos + 0
         beq skipnest
 
-        ; alloc a frame
-        jsr mkframe
-
         ; do a frame
-        ldx ret_indx
         ; counter
         lda #NUL
-        sta ret_zero + 0, x
-        sta ret_zero + 1, x
+        pha
+        pha
         ; limit
         lda tos + 0
-        sta ret_zero + 2, x
+        pha
         lda tos + 1
-        sta ret_zero + 3, x
+        pha
         ; pointer
         lda ins_ptr + 0
-        sta ret_zero + 4, x
+        pha
         lda ins_ptr + 1
-        sta ret_zero + 5, x
+        pha
 
         ; next
         jmp (vNext)
@@ -1911,77 +1878,102 @@ begin_:
 ; Right parentesis ) again a loop
 again_:
         ; check if IFTEMode $FFFF
-        lda ret_zero + 0, x
-        and ret_zero + 1, x
+        stx xpf
+        tsx
+        lda 0, x
+        and 1, x
         cmp #$FF
         bne @again1
 
         ; push FALSE
-        lda #FALSE
-        sta tos + 0
-        sta tos + 1
-        jsr spush
+        ldx xpf
+        lda #0
+        dex
+        dex
+        sta 0, x
+        sta 1, x
 
         ; drop IFTEMmode
-        inc ret_indx
-        inc ret_indx
+        pla
+        pla
 
         ; next
         jmp (vNext)
 
 @again1:
         ; test end
-        ldx ret_indx
-        lda ret_zero + 2, x
-        cmp ret_zero + 0, x
+        lda 2, x
+        cmp 0, x
         bne @noend
-        lda ret_zero + 3, x
-        cmp ret_zero + 1, x
+        lda 3, x
+        cmp 1, x
         bne @noend
-
+        
         ; end of loop
-        jsr skframe
-
+        ldx xpf
+        pla
+        pla
+        pla
+        pla
+        pla
+        pla
         ; next
         jmp (vNext)
 
 @noend:
         ; increase counter
-        inc ret_zero + 0, x
+        inc 0, x
         bne @novr
-        inc ret_zero + 1, x
+        inc 1, x
 @novr:
 
         ; return at begin
-        lda ret_zero + 4, x
+        lda 4, x
         sta ins_ptr + 0
-        lda ret_zero + 5, x
+        lda 5, x
         sta ins_ptr + 1
 
         ; next
+        ldx xpf
         jmp (vNext)
 
+; ZZZZZ
 ;----------------------------------------------------------------------
 ; do not update indx
 j_:
-        sec
-        lda ret_indx
-        sbc #6
-        tax
+        stx xpf
+        tsx
+        dex
+        dex
+        dex
+        dex
+        dex
+        dex
+        txa
+        ldx xpf
         jmp index
 
 ;----------------------------------------------------------------------
 ; do not update indx
 i_:
-        ldx ret_indx
+        stx xpf
+        tsx
+        txa
+        ldx xpf
         ; fall through
 
 ;----------------------------------------------------------------------
 index:
-        lda ret_zero + 0, x
+        pla
         sta tos + 0
-        lda ret_zero + 1, x
+        pla
         sta tos + 1
+        
+        lda tos + 0
+        pha
+        lda tos + 1
+        pha
+
         jmp pends
 
 ;----------------------------------------------------------------------
@@ -1995,20 +1987,18 @@ ifte_:
         jmp skipnest
 @istrue:
         lda #$FF
-        sta tos + 0
-        sta tos + 1
-        jsr rpush
-        ; next
+        pha
+        pha
         jmp (vNext)
 
 ;----------------------------------------------------------------------
 ; verify stack
 etx_:
-        lda dat_indx
-        cmp #STKSIZE     ; bytes
+        txa
+        cmp #STKENDS    ; bytes
         bmi @ends
-        lda #2          ; leave one word as offset
-        sta dat_indx
+        lda #$FF          ; leave one word as offset
+        tax
 @ends:
         jmp interpret
 
