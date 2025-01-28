@@ -24,6 +24,10 @@
 ; code depends on host memory maps
 ; using SP for index on return stack
 ; usinf X for index on data stack
+;
+; stacks grows backwards, push decrements, pull increments
+;
+; this MINT is to be called after boot.
 ;--------------------------------------------------------
 ;
 ;  ca65 assembler specifics
@@ -59,18 +63,22 @@
         TRUE  = 1
         FALSE = 0
 
-        CAN = 24 
-        CR  = 13
-        LF  = 10
-        BS  = 9
-        ETX = 3
-        NUL = 0
+; useful ascii
+
+        CAN = 24        ; ascii cancel
+        CR  = 13        ; ascii carriage return
+        LF  = 10        ; ascii line feed
+        BS  = 9         ; ascii backspace
+        ETX = 3         ; ascii end of text
+        NUL = 0         ; ascii null
+        BKX = 92        ; ascii back slash
+
 
         ; stack size 
         STKSIZE = 48
 
         ; size page
-        PAGE = 255
+        PAGE = 256
 
         ; group size, 32 x 16-bit words
         GRPSIZE = 64
@@ -80,9 +88,17 @@
 
 ;----------------------------------------------------------------------
 
-        ; define emulator mode
+        ; define emulator mode for basic IO
+
         EMULATOR = 1
 
+;----------------------------------------------------------------------
+; for easy
+;       page zero used for internal variable and data stack
+;       page one  used for system stack
+;       page two  used as terminal input buffer
+;       page three used for extras
+;       page four  mint code
 ;----------------------------------------------------------------------
 .segment "ZERO"
 
@@ -97,6 +113,7 @@ ini_zero:
 ; instruction pointer
 void_ptr:   .addr $0
 ins_ptr:    .addr $0
+
 ; copycat
 nest: 	.byte $0
 echo:   .byte $0
@@ -105,9 +122,9 @@ tos:    .word $0
 nos:    .word $0
 wrk:    .word $0
 tmp:    .word $0
-; safe for x and sp
-spf:    .byte $0
-rpf:    .byte $0
+; safe for x and y
+xpf:    .byte $0
+ypf:    .byte $0
 
 ;----------------------------------------------------------------------
 
@@ -120,29 +137,21 @@ S0      = $00FF
 R0      = $01FF
 
 ;----------------------------------------------------------------------
-.segment "VECTORS"
-
-.word init
-.word init
-.word init
+;.segment "VECTORS"
+;
+;.word init
+;.word init
+;.word init
 
 ;----------------------------------------------------------------------
 .segment "CODE"
 
-; start of RAM
-
-; safety sake
-
-        jmp init
-
-;.align $100
-
-VOID:
-
+; this is page two $200
 ; terminal input buffer
 tib:
         .res PAGE, $00
 
+; this is page three $300
 ; mint variables, 26 plus 6 from z
 vsys:
         .res GRPSIZE, $00
@@ -153,7 +162,7 @@ vars:
 
 ; user function groups, each with 26 plus 6 from Z
 defs:
-        .res GRPSIZE * NUMGRPS, $00
+        .res NUMGRPS * GRPSIZE, $00
 
 ; internals
 
@@ -163,34 +172,32 @@ vEdited:
 vByteMode:
         .byte $0
 
-; heap must be here !
-heap:
-        .addr $0
-
 ;----------------------------------------------------------------------
 ; aliases
-; zzzz
 
-vS0      =  vsys + $00     ;    a  ; start of data stack
-vBase16  =  vsys + $02     ;    b  ; base16 flag
-vTIBPtr  =  vsys + $04     ;    c  ; TIBPtr variable
-vDefs    =  vsys + $08     ;    d  ; reference for group user functions
-;        =  vsys + $0a     ;    e  ;
-vR0      =  vsys + $0c     ;    f  ; start of return stack
-vNext    =  vsys + $0e     ;    g  ; next routine dispatcher
-vHeap    =  vsys + $10     ;    h  ; heap ptr variable
+vS0      =  vsys + $00     ;    \a  ; start of data stack
+vBase16  =  vsys + $02     ;    \b  ; base16 flag
+vTIBPtr  =  vsys + $04     ;    \c  ; TIBPtr variable
+vDefs    =  vsys + $08     ;    \d  ; reference for group user functions
+;        =  vsys + $0a     ;    \e  ;
+vR0      =  vsys + $0c     ;    \f  ; start of return stack
+vNext    =  vsys + $0e     ;    \g  ; next routine dispatcher
+vHeap    =  vsys + $10     ;    \h  ; heap ptr variable
+vIx      =  vsys + $12     ;    \i  ; inner loop counter
+vJx      =  vsys + $14     ;    \j  ; inner loop counter
+
+endofit:
+        .word $DE, $AD
 
 ;----------------------------------------------------------------------
-.segment "ONCE"
 
-; start of ROM ?
+* = $500
 
 init:
 
 ;       normal boot
         sei
         cld
-        ; trick for init both stacks
         ldx #$FF
         txs
         cli
@@ -201,8 +208,10 @@ init:
         .asciiz "MINT@6502"
 
 ;----------------------------------------------------------------------
-; 25/10/2023, using lib6502, -M E000
 .ifdef EMULATOR
+;
+; 25/10/2023, using lib6502, -M E000 -X 0000
+;
 
 hitch:
 
@@ -224,266 +233,253 @@ byes:
 .endif
 
 ; ---------------------------------------------------------------------
+; using emulator
+
+; keyq does not work with emulator, using default key_
+keyq_:
+
+key_:
+        jsr getch
+        dex
+        dex
+        sta 0, x
+        jmp (vNext)
+
+emit_:
+        lda 0, x
+        inx 
+        inx
+        jsr putch
+        jmp (vNext)
+
+; ---------------------------------------------------------------------
 ; Forth like functions
 
 ; ---------------------------------------------------------------------
 ;   data stack stuff
 
-keep_: ; to push
-        ; ldx dat_indx
-        dex
-        dex
-        stx dat_indx
-        rts
-
-lose_: ; to pull
-        ; ldx dat_indx
-        inx
-        inx
-        stx dat_indx
-        rts
-
 spush:
 push_:
-        ldx dat_indx
-        lda tos + 0
-        sta dat_zero - 2, x
+        dex
+        dex
         lda tos + 1
-        sta dat_zero - 1, x
-        jmp keep_
+        sta 1, x
+        lda tos + 0
+        sta 0, x
+        rts
 
 spull:
 pull_:
-        ldx dat_indx
-        lda dat_zero + 0, x
+        lda 0, x
         sta tos + 0
-        lda dat_zero + 1, x
+        lda 1, x
         sta tos + 1
-        jmp lose_
-
-.ifdef FULL_STACK_CODES
-
-push2_:
-        ldx dat_indx
-        lda nos + 0
-        sta dat_zero - 4, x
-        lda nos + 1
-        sta dat_zero - 3, x
-        lda tos + 0
-        sta dat_zero - 2, x
-        lda tos + 1
-        sta dat_zero - 1, x
-        jsr keep_
-        jmp keep_
-
-.endif
-
-take2:
-pull2_:
-        ldx dat_indx
-        lda dat_zero + 0, x
-        sta tos + 0
-        lda dat_zero + 1, x
-        sta tos + 1
-        lda dat_zero + 2, x
-        sta nos + 0
-        lda dat_zero + 3, x
-        sta nos + 1
-        jsr lose_
-        jmp lose_
-
-drop_:
-        ldx dat_indx
-        jsr lose_
-        ; rts
-        jmp (vNext)
-
-dup_:
-        ldx dat_indx
-        lda dat_zero + 0, x
-        sta dat_zero - 2
-        lda dat_zero + 1, x
-        sta dat_zero - 1
-        jsr keep_
-        ; rts
-        jmp (vNext)
-
-over_:
-        ldx dat_indx
-        lda dat_zero + 2, x
-        sta dat_zero - 2
-        lda dat_zero + 3, x
-        sta dat_zero - 1
-        jsr keep_
-        ; rts
-        jmp (vNext)
-
-swap_:
-        ldx dat_indx
-        lda dat_zero + 0, x
-        sta dat_zero - 2
-        lda dat_zero + 1, x
-        sta dat_zero - 1
-        lda dat_zero + 2, x
-        sta dat_zero + 0
-        lda dat_zero + 3, x
-        sta dat_zero + 1
-        lda dat_zero - 2, x
-        sta dat_zero + 2
-        lda dat_zero - 1, x
-        sta dat_zero + 3
-        ; rts
-        jmp (vNext)
-
-rot_:
-        ldx dat_indx
-        lda dat_zero + 4, x
-        sta dat_zero - 2
-        lda dat_zero + 5, x
-        sta dat_zero - 1
-        lda dat_zero + 2, x
-        sta dat_zero + 4
-        lda dat_zero + 3, x
-        sta dat_zero + 5
-        lda dat_zero + 0, x
-        sta dat_zero + 2
-        lda dat_zero + 1, x
-        sta dat_zero + 3
-        lda dat_zero - 2, x
-        sta dat_zero + 0
-        lda dat_zero - 1, x
-        sta dat_zero + 1
-        ; rts
-        jmp (vNext)
-
-and_:
-        ldx dat_indx
-        lda dat_zero + 0, x
-        and dat_zero + 2, x
-        sta dat_zero + 2, x
-        lda dat_zero + 1, x
-        and dat_zero + 3, x
-        sta dat_zero + 3, x
-        jmp drop_
-
-or_:
-        ldx dat_indx
-        lda dat_zero + 0, x
-        ora dat_zero + 2, x
-        sta dat_zero + 2, x
-        lda dat_zero + 1, x
-        ora dat_zero + 3, x
-        sta dat_zero + 3, x
-        jmp drop_
-
-xor_:
-        ldx dat_indx
-        lda dat_zero + 0, x
-        eor dat_zero + 2, x
-        sta dat_zero + 2, x
-        lda dat_zero + 1, x
-        eor dat_zero + 3, x
-        sta dat_zero + 3, x
-        jmp drop_
-
-cpt_:
-        ldx dat_indx
-        sec
-        tya
-        sbc dat_zero + 0, x
-        sta dat_zero + 0, x
-        sec
-        tya
-        sbc dat_zero + 1, x
-        sta dat_zero + 1, x
-        ; rts
-        jmp (vNext)
-
-neg_:
-        lda #$00
-        tay
-        jmp cpt_
-
-inv_:
-        lda #$FF
-        tay
-        jmp cpt_
-
-sub_:
-        ldx dat_indx
-        sec
-        lda dat_zero + 2, x
-        sbc dat_zero + 0, x
-        sta dat_zero + 2, x
-        lda dat_zero + 3, x
-        sbc dat_zero + 1, x
-        sta dat_zero + 3, x
-        jmp drop_
-
-add_:
-        ldx dat_indx
-        clc
-        lda dat_zero + 2, x
-        adc dat_zero + 0, x
-        sta dat_zero + 2, x
-        lda dat_zero + 3, x
-        adc dat_zero + 1, x
-        sta dat_zero + 3, x
-        jmp drop_
-
-cmp_:
-        ldx dat_indx
-        sec
-        lda dat_zero + 2, x
-        sbc dat_zero + 0, x
-        lda dat_zero + 3, x
-        sbc dat_zero + 1, x
+        inx
+        inx
         rts
 
+pull2_:
+        lda 0, x
+        sta tos + 0
+        lda 1, x
+        sta tos + 1
+        lda 2, x
+        sta nos + 0
+        lda 3, x
+        sta nos + 1
+        inx
+        inx
+        inx
+        inx
+        rts
+
+; DROP
+drop_:
+        inx
+        inx
+        jmp (vNext)
+; DUP
+dup_:
+        dex
+        dex
+        lda 2, x
+        sta 0, x
+        lda 3, x
+        sta 1, x
+        jmp (vNext)
+
+; OVER
+over_:
+        dex 
+        dex
+        lda 4, x
+        sta 0, x
+        lda 5, x
+        sta 1, x
+        jmp (vNext)
+
+; SWAP
+swap_:
+        lda 0, x
+        pha
+        lda 1, x
+        pha
+        lda 2, x
+        sta 0, x
+        lda 3, x
+        sta 1, x
+        pla
+        sta 3, x
+        pla
+        sta 2, x
+        jmp (vNext)
+
+; ROT
+rot_:
+        lda  4, x
+        pha
+        lda  5, x
+        pha
+        lda  2, x
+        sta  4, x
+        lda  3, x
+        sta  5, x
+        lda  0, x
+        sta  2, x
+        lda  1, x
+        sta  3, x
+        pla
+        sta  1
+        pla
+        sta  0
+        jmp (vNext)
+
+; AND
+and_:
+        lda  0, x
+        and  2, x
+        sta  2, x
+        lda  1, x
+        and  3, x
+        jmp nsta3_
+
+; OR
+or_:
+        lda  0, x
+        ora  2, x
+        sta  2, x
+        lda  1, x
+        ora  3, x
+        jmp nsta3_
+
+; XOR
+xor_:
+        lda  0, x
+        eor  2, x
+        sta  2, x
+        lda  1, x
+        eor  3, x
+        jmp nsta3_
+
+; ADD
+add_:
+        clc
+        lda  2, x
+        adc  0, x
+        sta  2, x
+        lda  3, x
+        adc  1, x
+        jmp nsta3_
+
+; SUB
+sub_:
+        sec
+        lda  2, x
+        sbc  0, x
+        sta  2, x
+        lda  3, x
+        sbc  1, x
+
+nsta3_:
+        sta  3, x
+        jmp drop_
+
+; NEGATE
+neg_:
+        lda #$00
+        beq cpt_
+
+; INVERT
+inv_:
+        lda #$FF
+cpt_:
+        sec
+        pha
+        sbc  0, x
+        sta  0, x
+        sec
+        pla
+        sbc  1, x
+        sta  1, x
+        jmp (vNext)
+
+; COMPARES
+cmp_:
+        sec
+        lda  2, x
+        sbc  0, x
+        lda  3, x
+        sbc  1, x
+        rts
+
+; EQ
 eq_:
         jsr cmp_
         beq true2_
         bne false2_
 
+; LESS THAN
 lt_:
         jsr cmp_
         bmi true2_
         bpl false2_
 
+; GREATER THAN
 gt_:
         jsr cmp_
+        bpl true2_
         bmi false2_
         beq false2_
-        bpl true2_
 
+; SAMES
 same2_:
-        ldx dat_indx
-        sta dat_zero + 2, x
-        sta dat_zero + 3, x
+        sta  2, x
+        sta  3, x
         jmp drop_
 
+; FALSE
 false2_:
         lda #(FALSE)
         beq same2_
 
+; TRUE
 true2_:
         lda #(!FALSE)
         bne same2_
 
+; SHIFT LEFT
 shl_:
-        ldx dat_indx
-        asl dat_zero + 0, x
-        rol dat_zero + 1, x
-        ; rts
+        asl  0, x
+        rol  1, x
         jmp (vNext)
 
+; SHIFT RIGHT
 shr_:
-        ldx dat_indx
-        lsr dat_zero + 0, x
-        ror dat_zero + 1, x
-        ; rts
+        lsr  0, x
+        ror  1, x
         jmp (vNext)
 
+; store byte
 cto_:
         jsr pull2_
         ldy #0
@@ -491,6 +487,7 @@ cto_:
         sta (tos), y
         rts
 
+; store word
 to_:
         jsr cto_
         iny
@@ -498,78 +495,80 @@ to_:
         sta (tos), y
         rts
 
-cStore_:
+; byte store
+cstore_:
         jsr cto_
         ; rts
         jmp (vNext)
 
+; word store
 store_:
         jsr to_
         ; rts
         jmp (vNext)
 
+; fetch byte
 cat_:
-        ldx dat_indx
-        lda dat_zero + 0, x
+        lda  0, x
         sta tos + 0
-        lda dat_zero + 1, x
+        lda  1, x
         sta tos + 1
         ldy #0
         lda (tos), y
-        sta dat_zero + 0, x
+        sta  0, x
         rts
 
+; fetch word
 at_:
         jsr cat_
         iny
         lda (tos), y
-        sta dat_zero + 1, x
+        sta  1, x
         rts
 
-cFetch_:
+; fetch byte
+cfetch_:
         jsr cat_
-        ; rts
         jmp (vNext)
 
+; fetch word
 fetch_:
         jsr at_
-        ; rts
         jmp (vNext)
 
+; increase a word at TOS
 incr_:
-        ldx dat_indx
-        inc dat_zero + 0, x
+        inc  0, x
         bne @ends
-        inc dat_zero + 1, x
+        inc  1, x
 @ends:
-        ; rts
         jmp (vNext)
 
+; decrease a word at TOS
 decr_:
-        ldx dat_indx
-        lda dat_zero + 0, x
+        lda  0, x
         bne @ends
-        dec dat_zero + 1, x
+        dec  1, x
 @ends:
-        dec dat_zero + 0, x
-        ; rts
+        dec  0, x
         jmp (vNext)
 
-.ifdef FULL_STACK_CODES
-
+; absolute jump to code
 ; on 6502 use rti, the rts increase the return address
 goto_:
-        ldx dat_indx
-        lda dat_zero + 1,x
+        lda  1, x
         pha
-        lda dat_zero + 0,x
+        lda  0, x
         pha
         php
+        inx
+        inx
         rti
 
+; ADD STORE
 addto_:
         jsr pull2_
-        ldy #NUL
+        ldy #0
         clc
         lda (tos), y
         adc nos + 0
@@ -581,9 +580,10 @@ addto_:
         ; rts
 	jmp (vNext)
 
+; SUB STORE
 subto_:
         jsr pull2_
-        ldy #NUL
+        ldy #0
         sec
         lda (tos), y
         sbc nos + 0
@@ -595,108 +595,104 @@ subto_:
         ; rts
 	jmp (vNext)
 
-.endif
-
 ;----------------------------------------------------------------------
 ;   return stack stuff
 
-rpush:
+; usual >R
+s2r_:
 rpush_:
-        ldx ret_indx
-        lda tos + 0
-        sta ret_zero - 2, x
-        lda tos + 1
-        sta ret_zero - 1, x
-        dex
-        dex
-        stx ret_indx
-        rts
-
-rpull:
-rpull_:
-        ldx ret_indx
-        lda ret_zero + 0, x
-        sta tos + 0
-        lda ret_zero + 1, x
-        sta tos + 1
+        lda 0, x
+        pha
+        lda 1, x
+        pha
+        inx 
         inx
-        inx
-        stx ret_indx
-        rts
+        ; zzzz ????
+        jmp (vNext)
 
 ; usual R>
 r2s_:
-        jsr rpull_
-        jsr push_
-        ; rts
-        jmp (vNext)
-
-; usual >R
-s2r_:
-        jsr pull_
-        jsr rpush_
-        ; rts
+rpull_:
+        dex
+        dex
+        pla
+        sta 1, x
+        pla
+        sta 0, x
+        ; zzzz ????
         jmp (vNext)
 
 ;----------------------------------------------------------------------
-
-.ifdef FULL_STACK_CODES
 
 ; usual R@
 rshow_:
-        ldx ret_indx
-        lda ret_zero + 0, x
+        dex
+        dex
+        pla
         sta tos + 0
-        lda ret_zero + 1, x
+        pla
         sta tos + 1
-        jsr push_
+        lda tos + 0
+        pha
+        lda tos + 1
+        pha
         ; rts
         jmp (vNext)
 
-stkis_:
-        sta tos + 0
-        lda #0
-        sta tos + 1
-        jsr spush
+; 
+stkat_:
+        dex
+        dex
+        sta 1, x
+        pla
+        sta 0, x
         jmp (vNext)
 
+; SP@
 dat2t_:
-        lda dat_indx
-        clc
-        bcc stkis_
-
+        txa
+        pha
+        lda #0
+        beq stkat_
+; RP@
 ret2t_:
-        lda ret_indx
-        clc
-        bcc stkis_
+        stx xpf
+        tsx
+        txa
+        ldx xpf
+        pha
+        lda #1
+        bne stkat_
 
+; SP!
 t2dat_:
-        jsr spull
-        lda tos + 0
-        sta dat_indx
+        lda S0
+        tax
         jmp (vNext)
 
+; RP!
 t2ret_:
-        jsr spull
-        lda tos + 0
-        sta ret_indx
+        lda R0
+        stx xpf
+        tax
+        tsx
+        ldx xpf
         jmp (vNext)
 
-.endif
-
+;----------------------------------------------------------------------
+; need review
 ;----------------------------------------------------------------------
 ; prepare for mult or divd
 opin:
-        ldx dat_indx
         ; pseudo tos
-        lda dat_zero + 0, x
+        lda  0, x
         sta wrk + 0
-        lda dat_zero + 1, x
+        lda  1, x
         sta wrk + 1
         ; pseudo nos
-        lda dat_zero + 2, x
+        lda  2, x
         sta tmp + 0
-        lda dat_zero + 3, x
+        lda  3, x
         sta tmp + 1
         ; clear results
         lda #NUL
@@ -712,15 +708,14 @@ opin:
 ; resume from mult or divd
 opout:
         ; copy results
-        ldx dat_indx
         lda nos + 0
-        sta dat_zero + 0, x
+        sta  0, x
         lda nos + 1
-        sta dat_zero + 1, x
+        sta  1, x
         lda tos + 0
-        sta dat_zero + 2, x
+        sta  2, x
         lda tos + 1
-        sta dat_zero + 3, x
+        sta  3, x
         ; rts
         jmp (vNext)
 
@@ -792,9 +787,9 @@ mul_:
         jmp opout
 
 ;----------------------------------------------------------------------
-
-.ifdef FULL_STACK_CODES
-
+;
+; some extras
+;
 ; vide eorBookV1.0.1
 
 ; set overflow bit
@@ -822,8 +817,6 @@ nmos_:
         cld
         rts
 
-.endif
-
 ;----------------------------------------------------------------------
 ;   MINT
 ;----------------------------------------------------------------------
@@ -845,30 +838,6 @@ add2ps:
 @ends:
         ; next
         jmp (vNext)
-
-;----------------------------------------------------------------------
-pushps:
-        ldx ret_indx
-        lda ins_ptr + 0
-        sta ret_zero - 2, x
-        lda ins_ptr + 1
-        sta ret_zero - 1, x
-        dex
-        dex
-        stx ret_indx
-        rts
-
-;----------------------------------------------------------------------
-pullps:
-        ldx ret_indx
-        lda ret_zero + 0, x
-        sta ins_ptr + 0
-        lda ret_zero + 1, x
-        sta ins_ptr + 1
-        inx
-        inx
-        stx ret_indx
-        rts
 
 ;----------------------------------------------------------------------
 seekps:
@@ -1023,7 +992,7 @@ gets_:
         cpy #$FE
         beq @endstr
 
-        jsr getchar
+        jsr getch
 
         ; ge space ?
         cmp #32
@@ -1080,7 +1049,7 @@ gets_:
 ; maximum 254 chars
 @toTib:
         ; echo
-        jsr putchar
+        jsr putch
         ; store
         sta (tos), y
         iny
@@ -1174,7 +1143,7 @@ putstr:
         cmp #'`'        ; ` is the string terminator
         beq @ends
 @cont:
-        jsr putchar
+        jsr putch
         iny
         bne @loop   ; limit 256
 @ends:
@@ -1214,7 +1183,7 @@ printdec:
         ; restore
         jsr addn2t
         tya
-        jmp putchar
+        jmp putch
 
 ;----------------------------------------------------------------------
 ; prints number in tos to hexadecimal ASCII
@@ -1243,7 +1212,7 @@ printhex8:
         bcc @ends
         adc #$06
 @ends:
-        jmp putchar
+        jmp putch
 
 ;----------------------------------------------------------------------
 nul2tos:
@@ -1430,7 +1399,7 @@ dot_:
 ; print space
 dotsp:
         lda #' '
-        jsr putchar
+        jsr putch
         ; next
         jmp (vNext)
 
@@ -1554,22 +1523,26 @@ exec_:
 ;----------------------------------------------------------------------
 ; Interpret code from data stack
 go_:
-        jsr pushps
+        lda ins_ptr + 0
+        pha
+        lda ins_ptr + 1
+        pha
         ; pull ps from data stack
-        ldx dat_indx
-        lda dat_zero + 0, x
+        lda  0, x
         sta ins_ptr + 0
-        lda dat_zero + 1, x
+        lda  1, x
         sta ins_ptr + 1
         inx
         inx
-        stx dat_indx
         ; next
         jmp (vNext)
 
 ;----------------------------------------------------------------------
 ret_:
-        jsr pullps
+        pla
+        sta inst_ptr + 1
+        pla 
+        sta inst_ptr + 0
         ; next
         jmp (vNext)
 
@@ -1577,9 +1550,12 @@ ret_:
 ; Execute code from a user function
 call_:
 
-        tax
-        jsr pushps
-        txa
+        tay
+        lda ins_ptr + 0
+        pha
+        lda ins_ptr + 1
+        pha
+        tya
 
         jsr lookupDefs
 
@@ -1681,7 +1657,7 @@ editDef_:
 ;----------------------------------------------------------------------
 writeChar:
         sta (tos), y
-        jmp putchar
+        jmp putch
 
 ;----------------------------------------------------------------------
 ; skip spaces
@@ -2053,18 +2029,6 @@ dysys = fSysVars - iSysVars
 ;----------------------------------------------------------------------
 mint_:
 
-; wise
-
-        sei
-        cld
-        clv
-        ldx #$FF
-        txs
-        inx
-        txa
-        tay
-        cli
-
         jsr initialize
 
 ; safe
@@ -2072,10 +2036,6 @@ mint_:
         sta vNext + 0
         lda #>next
         sta vNext + 1
-
-        lda #2
-        sta dat_indx
-        sta ret_indx
 
         jsr printStr
         .asciiz "MINT 6502 V1.0\r\n"
@@ -2726,4 +2686,8 @@ toggleBase_:
 
 empty_:
         .asciiz ";"
+
+; heap must be here !
+heap:
+        .addr $0
 
