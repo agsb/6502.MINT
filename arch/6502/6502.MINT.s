@@ -564,7 +564,7 @@ goto_:
         inx
         rti
 
-; ADD STORE
+; +! ADD STORE
 addto_:
         jsr pull2_
         ldy #0
@@ -579,7 +579,7 @@ addto_:
         ; rts
 	jmp (vNext)
 
-; SUB STORE
+; -! SUB STORE
 subto_:
         jsr pull2_
         ldy #0
@@ -598,7 +598,6 @@ subto_:
 ;   return stack stuff
 
 ; usual >R
-s2r_:
 rpush_:
         lda 0, x
         pha
@@ -609,7 +608,6 @@ rpush_:
         jmp (vNext)
 
 ; usual R>
-r2s_:
 rpull_:
         dex
         dex
@@ -626,24 +624,16 @@ putw_:
 rshow_:
         dex
         dex
-        pla
-        sta tos + 0
-        pla
-        sta tos + 1
-        lda tos + 0
-        pha
-        lda tos + 1
-        pha
-        ; rts
-        jmp (vNext)
-
-; 
-stkat_:
-        dex
-        dex
-        sta 1, x
-        pla
+        stx xpf
+        tsx
+        lda 1, x
+        tay
+        lda 0, x
+        ldx xpf
         sta 0, x
+        tya 
+        sta 1, x
+        ; rts
         jmp (vNext)
 
 ; SP@
@@ -651,7 +641,8 @@ dat2t_:
         txa
         pha
         lda #0
-        beq stkat_
+        pha
+        beq rpull_
 ; RP@
 ret2t_:
         stx xpf
@@ -660,7 +651,8 @@ ret2t_:
         ldx xpf
         pha
         lda #1
-        bne stkat_
+        pha
+        bne rpull_
 
 ; SP!
 t2dat_:
@@ -949,7 +941,7 @@ interpret:
 
 ; used by TESTs
 interpret1:
-        lda #NUL
+        lda #0
         tay
 
 interpret2:
@@ -2097,7 +2089,7 @@ mint_:
 ; Jump Tables, optmized for single index
 ; *********************************************************************
 
-; .align $100
+.align $100
 
 ; using pla, pla, rts, references must be one less
 ;----------------------------------------------------------------------

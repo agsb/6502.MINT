@@ -4,6 +4,12 @@ _this still a stub_
 
 A still raw [Mint](https://github.com/monsonite/MINT) for 6502.
 
+Use to compile: make
+
+Use to clean: make clean
+
+still not work -- Use to run: make runs
+
 ## Notes
 
 _29/01/2025
