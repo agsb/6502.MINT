@@ -8,7 +8,7 @@ A still raw [Mint](https://github.com/monsonite/MINT) for 6502.
 
 _29/01/2025
 
-Compiling complete, less than 4k, need to review of functions and macros 
+Rewrite Makefile and compiling complete, less than 4k, need to review of functions and macros 
 
 _28/01/2025
 
