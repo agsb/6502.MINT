@@ -74,8 +74,8 @@
         BKX = 92        ; ascii back slash
 
 
-        ; stack LIMIT 36 words
-        STKENDS = 256 - 72
+        ; stack LIMIT 26 words, backwards
+        STKENDS = 256 - 52
 
         ; size page
         PAGE = 256
@@ -94,11 +94,15 @@
 
 ;----------------------------------------------------------------------
 ; for easy
-;       page zero used for internal variable and data stack
-;       page one  used for system stack
-;       page two  used as terminal input buffer
-;       page three used for extras
-;       page four  mint code
+;       1. page zero used for internal variable and data stack
+;               (for lesser and faster code)
+;       2. page one  used for system stack
+;               (could be at page zero also)
+;       3. page two  used as terminal input buffer
+;               ( classic TIB )
+;       4. page three mint data
+;       5. page four  mint code
+;       
 ;----------------------------------------------------------------------
 .segment "ZERO"
 
@@ -106,63 +110,63 @@
 
 ; mint internals, depends on host
 
-ini_zero:
-
-* = $00A0
+; 52 bytes stack and 12 bytes variables
+* = $00C0
 
 ; instruction pointer
-void_ptr:   .addr $0
 ins_ptr:    .addr $0
-
-; copycat
+; copycat nest counter
 nest: 	.byte $0
-echo:   .byte $0
+; safe for x 
+xpf:    .byte $0
+
 ; pseudo registers
 tos:    .word $0
 nos:    .word $0
 wrk:    .word $0
 tmp:    .word $0
-; safe for x and y
-xpf:    .byte $0
-ypf:    .byte $0
 
+; data stack
+stk:    .res 52, $0
+
+stk_end:
+        .word $0
 ;----------------------------------------------------------------------
 
-; for easy
+; for easy, Chuck does with 22 deep.
 
-; bottom of data stack, reserves 32 words, depends on host
+; bottom of data stack, reserve 26 words, depends on system host
 S0      = $00FF
 
-; bottom of return stack, reserves 32 words, depends on host
+; bottom of return stack, reserves 26 words, depends on system host
 R0      = $01FF
 
 ;----------------------------------------------------------------------
+;
+; these does not belongs to MINT
+;
 ;.segment "VECTORS"
 ;
 ;.word init
 ;.word init
 ;.word init
-
+;
 ;----------------------------------------------------------------------
 .segment "CODE"
 
 ; this is page two $200
 ; terminal input buffer
 tib:
-        .res PAGE, $00
+        .res PAGE, $0
 
 ; this is page three $300
 ; mint variables, 26 plus 6 from z
 vsys:
-        .res GRPSIZE, $00
+        .res GRPSIZE, $0
 
 ; user variable, 26 plus 6 from z
 vars:
-        .res GRPSIZE, $00
-
-; user function groups, each with 26 plus 6 from Z
-defs:
-        .res NUMGRPS * GRPSIZE, $00
+        .res GRPSIZE, $0
 
 ; internals
 
@@ -191,7 +195,7 @@ endofit:
 
 ;----------------------------------------------------------------------
 
-* = $500
+* = $400
 
 init:
 
@@ -204,7 +208,7 @@ init:
 
 ;       normal init
 
-        jmp mint_
+        jmp main_
         .asciiz "MINT@6502"
 
 ;----------------------------------------------------------------------
@@ -230,11 +234,8 @@ byes:
         ; exit of emulator
         jmp $0000
 
-.endif
 
 ; ---------------------------------------------------------------------
-; using emulator
-
 ; keyq does not work with emulator, using default key_
 keyq_:
 
@@ -251,6 +252,8 @@ emit_:
         inx
         jsr putch
         jmp (vNext)
+
+.endif
 
 ; ---------------------------------------------------------------------
 ; Forth like functions
@@ -279,16 +282,11 @@ pull_:
         rts
 
 pull2_:
+        jsr pull_
         lda 0, x
-        sta tos + 0
-        lda 1, x
-        sta tos + 1
-        lda 2, x
         sta nos + 0
-        lda 3, x
+        lda 1, x
         sta nos + 1
-        inx
-        inx
         inx
         inx
         rts
@@ -318,6 +316,7 @@ over_:
         sta 1, x
         jmp (vNext)
 
+
 ; SWAP
 swap_:
         lda 0, x
@@ -336,22 +335,22 @@ swap_:
 
 ; ROT
 rot_:
-        lda  4, x
+        lda 4, x
         pha
-        lda  5, x
+        lda 5, x
         pha
-        lda  2, x
-        sta  4, x
-        lda  3, x
-        sta  5, x
-        lda  0, x
-        sta  2, x
-        lda  1, x
-        sta  3, x
+        lda 2, x
+        sta 4, x
+        lda 3, x
+        sta 5, x
+        lda 0, x
+        sta 2, x
+        lda 1, x
+        sta 3, x
         pla
-        sta  1
+        sta 1, x
         pla
-        sta  0
+        sta 0, x
         jmp (vNext)
 
 ; AND
@@ -614,6 +613,7 @@ r2s_:
 rpull_:
         dex
         dex
+putw_:
         pla
         sta 1, x
         pla
@@ -693,7 +693,7 @@ opin:
         lda  3, x
         sta tmp + 1
         ; clear results
-        lda #NUL
+        lda #0
         sta tos + 0
         sta tos + 1
         sta nos + 0
@@ -1430,12 +1430,12 @@ printStk_:
 ;----------------------------------------------------------------------
 ; 6502 is memory mapped IO, just read
 inPort_:
-        jmp cFetch_
+        jmp cfetch_
 
 ;----------------------------------------------------------------------
 ; 6502 is memory mapped IO, just write
 outPort_:
-        jmp cStore_
+        jmp cstore_
 
 ;----------------------------------------------------------------------
 ; copy and update
@@ -1824,7 +1824,7 @@ def_:
 break_:
         jsr spull
         lda tos + 0
-        beq @iseq
+        beq iseq
 skframe:
         ; skip a frame 3 words
         pla
@@ -1842,7 +1842,7 @@ skipnest:
         jsr nesting
         lda nest
         bne @loop
-@iseq:
+iseq:
         ; parse frame
         jmp (vNext)
 
@@ -2004,61 +2004,21 @@ etx_:
 
 ;----------------------------------------------------------------------
 iSysVars:
-        .word  dStack               ; a vS0
-        .word  FALSE                ; b vBase16
-        .word  tib                  ; c vTIBPtr
-        .word  defs                 ; d vDEFS
-        .word  FALSE                ; e vEdited
-        .word  rStack               ; f vR0
-        .word  next                 ; g dispatcher
-        .word  heap                 ; h vHeap
+        .word  vS0              ; a vS0
+        .word  FALSE            ; b vBase16
+        .word  tib              ; c vTIBPtr
+        .word  defs             ; d vDEFS
+        .word  FALSE            ; e vEdited
+        .word  vR0              ; f vR0
+        .word  next             ; g dispatcher
+        .word  heap             ; h vHeap
 fSysVars:
 
 dysys = fSysVars - iSysVars
 
 ;----------------------------------------------------------------------
-mint_:
 
-        jsr initialize
-
-; safe
-        lda #<next
-        sta vNext + 0
-        lda #>next
-        sta vNext + 1
-
-        jsr printStr
-        .asciiz "MINT 6502 V1.0\r\n"
-
-        ; auto reset
-        jsr interpret
-
-        jmp mint_
-
-;----------------------------------------------------------------------
-initialize:
-
-.if 0
-; defaults values
-        lda #<vars
-        sta tos + 0
-        lda #>vars
-        sta tos + 1
-        lda #<vsys
-        sta nos + 0
-        lda #>vsys
-        sta nos + 1
-        ldy #GRPSIZE
-        lda #NUL
-@loop1:
-        sta (tos), y
-        sta (nos), y
-        dey
-        sta (tos), y
-        sta (nos), y
-        dey
-        bne @loop1
-.endif
+main_:
 
 ; default system values
         lda #<iSysVars
@@ -2111,7 +2071,22 @@ initialize:
         bcc @loop2
 @ends:
         ; all done
-        rts
+
+; safe
+        lda #<next
+        sta vNext + 0
+        lda #>next
+        sta vNext + 1
+
+mint_:
+; prompt
+        jsr printStr
+        .asciiz "MINT 6502 V1.0\r\n"
+
+        ; auto reset
+        jsr interpret
+
+        jmp mint_
 
 ;----------------------------------------------------------------------
 ;optcodes: parsed by opt_ (next)
@@ -2423,7 +2398,7 @@ altcodeslo:
    .byte  <(empty_)      ; RS  ^^
    .byte  <(empty_)      ; US  ^_)
    .byte  <(aNop_)       ; SP  ^`
-   .byte  <(cStore_)     ;    !
+   .byte  <(cstore_)     ;    !
    .byte  <(aNop_)       ;    "
    .byte  <(aNop_)       ;    #
    .byte  <(aNop_)       ;    $  ( -- adr ) text input ptr
@@ -2454,7 +2429,7 @@ altcodeslo:
    .byte  <(aNop_)       ;    =
    .byte  <(aNop_)       ;    >( - 1)
    .byte  <(aNop_)       ;    ?
-   .byte  <(cFetch_)     ;    @
+   .byte  <(cfetch_)     ;    @
    .byte  <(aNop_)       ;    A
    .byte  <(break_)      ;    B
    .byte  <(nop_)        ;    C
@@ -2554,7 +2529,7 @@ altcodeshi:
    .byte  >(empty_)      ; RS  ^^
    .byte  >(empty_)      ; US  ^_)
    .byte  >(aNop_)       ; SP  ^`
-   .byte  >(cStore_)     ;    !
+   .byte  >(cstore_)     ;    !
    .byte  >(aNop_)       ;    "
    .byte  >(aNop_)       ;    #
    .byte  >(aNop_)       ;    $  ( -- adr ) text input ptr
@@ -2585,7 +2560,7 @@ altcodeshi:
    .byte  >(aNop_)       ;    =
    .byte  >(aNop_)       ;    >
    .byte  >(aNop_)       ;    ?
-   .byte  >(cFetch_)     ;    @
+   .byte  >(cfetch_)     ;    @
    .byte  >(aNop_)       ;    A
    .byte  >(break_)      ;    B
    .byte  >(nop_)        ;    C
@@ -2649,6 +2624,12 @@ altcodeshi:
    .byte  >(endGroup_)   ;    }
    .byte  >(aNop_)       ;    ~
    .byte  >(aNop_)       ;    BS
+
+
+; *********************************************************************
+; user function groups, each with 26 plus 6 from Z
+defs:
+        .res NUMGRPS * GRPSIZE, $00
 
 ; *********************************************************************
 ; Macros must be written in Mint and end with ;

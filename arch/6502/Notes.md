@@ -6,10 +6,14 @@ A still raw [Mint](https://github.com/monsonite/MINT) for 6502.
 
 ## Notes
 
+_29/01/2025
+
+Compiling complete, less than 4k, need to review of functions and macros 
+
 _28/01/2025
 
 Review of MINT-6502, using ideas from milliforth-6502, 6502-toy forth, simplify io using emulator run6502
-all system dependent functions in one file
+all system I/O dependent functions in one file
 
 _02/11/2023
 

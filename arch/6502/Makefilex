@@ -4,6 +4,8 @@
 
 .PHONY: clean all
 
+# MY = $(ARGV[1])
+
 ########################################
 
 LD = cl65
@@ -17,7 +19,7 @@ LDFLAGS = --cpu 6502 --memory-model near \
 
 %: %.s
 
-6502.MINT: $(SOURCES:.s=.o)
+$(MY): $(SOURCES:.s=.o)
 
 	$(LD) $(LDFLAGS) -C $@.cfg -Ln $@.lbl \
 	-l $@.lst -m $@.map -o $@ $@.s \
