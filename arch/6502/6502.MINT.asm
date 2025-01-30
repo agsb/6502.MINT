@@ -88,19 +88,31 @@
 
 ;----------------------------------------------------------------------
 
+; for easy, Chuck does with 22 deep.
+
+; bottom of data stack, reserve at least 26 words
+S0      = $00FF
+
+; bottom of return stack, reserves at least 26 words
+R0      = $01FF
+
+;----------------------------------------------------------------------
+
         ; define emulator mode for basic IO
 
         EMULATOR = 1
 
 ;----------------------------------------------------------------------
-; for easy
+; Memory uses
+;
 ;       1. page zero used for internal variable and data stack
-;               (for lesser and faster code)
+;
 ;       2. page one  used for system stack
-;               (could be at page zero also)
-;       3. page two  used as terminal input buffer
-;               ( classic TIB )
+;
+;       3. page two  used as terminal input buffer, classic TIB
+;
 ;       4. page three mint data
+;
 ;       5. page four  mint code
 ;       
 ;----------------------------------------------------------------------
@@ -108,17 +120,21 @@
 
 ; offsets
 
-; mint internals, depends on host
+; mint internals, depends on systems host
 
-; 52 bytes stack and 12 bytes variables
-* = $00C0
+; reserved for variables
+* = $00B0
 
 ; instruction pointer
-ins_ptr:    .addr $0
+ipt:    .addr $0
+
 ; copycat nest counter
 nest: 	.byte $0
-; safe for x 
+vByteMode: .byte $0
+
+; safes 
 xpf:    .byte $0
+ypf:    .byte $0
 
 ; pseudo registers
 tos:    .word $0
@@ -126,20 +142,11 @@ nos:    .word $0
 wrk:    .word $0
 tmp:    .word $0
 
-; data stack
-stk:    .res 52, $0
+; reserved for data stack
+* = $00C0
 
-stk_end:
-        .word $0
-;----------------------------------------------------------------------
-
-; for easy, Chuck does with 22 deep.
-
-; bottom of data stack, reserve 26 words, depends on system host
-S0      = $00FF
-
-; bottom of return stack, reserves 26 words, depends on system host
-R0      = $01FF
+; data stack, top at $00FF
+stk:    .res 64, $0
 
 ;----------------------------------------------------------------------
 ;
@@ -159,23 +166,6 @@ R0      = $01FF
 tib:
         .res PAGE, $0
 
-; this is page three $300
-; mint variables, 26 plus 6 from z
-vsys:
-        .res GRPSIZE, $0
-
-; user variable, 26 plus 6 from z
-vars:
-        .res GRPSIZE, $0
-
-; internals
-
-vEdited:
-        .byte $0
-
-vByteMode:
-        .byte $0
-
 ;----------------------------------------------------------------------
 ; aliases
 
@@ -183,23 +173,20 @@ vS0      =  vsys + $00     ;    \a  ; start of data stack
 vBase16  =  vsys + $02     ;    \b  ; base16 flag
 vTIBPtr  =  vsys + $04     ;    \c  ; TIBPtr variable
 vDefs    =  vsys + $08     ;    \d  ; reference for group user functions
-;        =  vsys + $0a     ;    \e  ;
+vEdited  =  vsys + $0a     ;    \e  ;
 vR0      =  vsys + $0c     ;    \f  ; start of return stack
 vNext    =  vsys + $0e     ;    \g  ; next routine dispatcher
 vHeap    =  vsys + $10     ;    \h  ; heap ptr variable
 vIx      =  vsys + $12     ;    \i  ; inner loop counter
 vJx      =  vsys + $14     ;    \j  ; inner loop counter
 
-endofit:
-        .word $DE, $AD
-
 ;----------------------------------------------------------------------
 
-* = $400
+* = $300
 
 init:
 
-;       normal boot
+;       wise
         sei
         cld
         ldx #$FF
@@ -281,6 +268,7 @@ pull_:
         inx
         rts
 
+spull2:
 pull2_:
         jsr pull_
         lda 0, x
@@ -319,18 +307,19 @@ over_:
 
 ; SWAP
 swap_:
-        lda 0, x
-        pha
-        lda 1, x
-        pha
         lda 2, x
-        sta 0, x
+        pha
         lda 3, x
-        sta 1, x
-        pla
+        pha
+move_:
+        lda 0, x
+        sta 2, x
+        lda 1, x
         sta 3, x
         pla
-        sta 2, x
+        sta 1, x
+        pla
+        sta 0, x
         jmp (vNext)
 
 ; ROT
@@ -343,15 +332,7 @@ rot_:
         sta 4, x
         lda 3, x
         sta 5, x
-        lda 0, x
-        sta 2, x
-        lda 1, x
-        sta 3, x
-        pla
-        sta 1, x
-        pla
-        sta 0, x
-        jmp (vNext)
+        jmp move_
 
 ; AND
 and_:
@@ -406,7 +387,7 @@ nsta3_:
 ; NEGATE
 neg_:
         lda #$00
-        beq cpt_
+        .byte $2c   ; mask next two bytes, nice trick !
 
 ; INVERT
 inv_:
@@ -425,10 +406,10 @@ cpt_:
 ; COMPARES
 cmp_:
         sec
-        lda  2, x
-        sbc  0, x
-        lda  3, x
-        sbc  1, x
+        lda  0, x
+        sbc  2, x
+        lda  1, x
+        sbc  3, x
         rts
 
 ; EQ
@@ -447,24 +428,21 @@ lt_:
 gt_:
         jsr cmp_
         bpl true2_
-        bmi false2_
-        beq false2_
+
+; FALSE
+false2_:
+        lda #FALSE
+        .byte $2c   ; mask next two bytes, nice trick !
+
+; TRUE
+true2_:
+        lda #TRUE
 
 ; SAMES
 same2_:
         sta  2, x
         sta  3, x
         jmp drop_
-
-; FALSE
-false2_:
-        lda #(FALSE)
-        beq same2_
-
-; TRUE
-true2_:
-        lda #(!FALSE)
-        bne same2_
 
 ; SHIFT LEFT
 shl_:
@@ -564,7 +542,7 @@ goto_:
         inx
         rti
 
-; ADD STORE
+; +! ADD STORE
 addto_:
         jsr pull2_
         ldy #0
@@ -579,7 +557,7 @@ addto_:
         ; rts
 	jmp (vNext)
 
-; SUB STORE
+; -! SUB STORE
 subto_:
         jsr pull2_
         ldy #0
@@ -627,23 +605,15 @@ rshow_:
         dex
         dex
         pla
-        sta tos + 0
-        pla
-        sta tos + 1
-        lda tos + 0
-        pha
-        lda tos + 1
-        pha
-        ; rts
-        jmp (vNext)
-
-; 
-stkat_:
-        dex
-        dex
         sta 1, x
-        pla
+        pla 
         sta 0, x
+        stx xpf
+        tsx
+        dex
+        dex
+        txs
+        ldx xpf
         jmp (vNext)
 
 ; SP@
@@ -651,7 +621,8 @@ dat2t_:
         txa
         pha
         lda #0
-        beq stkat_
+        pha
+        beq rpull_
 ; RP@
 ret2t_:
         stx xpf
@@ -660,7 +631,8 @@ ret2t_:
         ldx xpf
         pha
         lda #1
-        bne stkat_
+        pha
+        bne rpull_
 
 ; SP!
 t2dat_:
@@ -829,21 +801,21 @@ nop_:
 add2ps:
 ; update ip
         clc
-        adc ins_ptr + 0
-        sta ins_ptr + 0
+        adc ipt + 0
+        sta ipt + 0
         bcc @ends
-        inc ins_ptr + 1
+        inc ipt + 1
 @ends:
         ; next
         jmp (vNext)
 
 ;----------------------------------------------------------------------
 seekps:
-        ldy #NUL
-        lda (ins_ptr), y
-        inc ins_ptr + 0
+        ldy #0
+        lda (ipt), y
+        inc ipt + 0
         bne @ends
-        inc ins_ptr + 1
+        inc ipt + 1
 @ends:
         rts
 
@@ -919,9 +891,7 @@ addn2t:
 ; add 2x
 addt2t:
         asl tos + 0
-        sta tos + 0
         rol tos + 1
-        sta tos + 1
         rts
 
 ;----------------------------------------------------------------------
@@ -949,12 +919,12 @@ interpret:
 
 ; used by TESTs
 interpret1:
-        lda #NUL
+        lda #0
         tay
 
 interpret2:
         sty vTIBPtr 
-        lda #NUL
+        lda #0L
         sta nest
         tay
         beq @isnest
@@ -982,7 +952,7 @@ waitchar:
 ; get a line into buffer pointer by TOS
 gets_:
         ; already
-        ldy #NUL
+        ldy #0
         jsr spull
 
 @loop:
@@ -1037,9 +1007,9 @@ gets_:
 
         ; update instruction pointer
         lda tos + 0
-        sta ins_ptr + 0
+        sta ipt + 0
         lda tos + 1
-        sta ins_ptr + 1
+        sta ipt + 1
 
         ; next
         jmp next
@@ -1113,9 +1083,9 @@ printStr:
 ;----------------------------------------------------------------------
 ; puts a string, ends on `
 str_:
-        lda ins_ptr + 0
+        lda ipt + 0
         sta tos + 0
-        lda ins_ptr + 1
+        lda ipt + 1
         sta tos + 1
         ldx #TRUE
         jsr putstr
@@ -1370,7 +1340,7 @@ comment_:
 @loop:
         iny
         beq @ends   ; limit 256
-        lda (ins_ptr), y
+        lda (ipt), y
         beq @ends
         cmp #CR
         bne @loop
@@ -1494,13 +1464,13 @@ alt_:
 enter:
 ; pull from system stack
         pla
-        sta ins_ptr + 0
+        sta ipt + 0
         pla
-        sta ins_ptr + 1
+        sta ipt + 1
 
-        inc ins_ptr + 0
+        inc ipt + 0
         bcc @nock
-        inc ins_ptr + 1
+        inc ipt + 1
 @nock:
         ; next
         jmp (vNext)
@@ -1508,7 +1478,7 @@ enter:
 ;----------------------------------------------------------------------
 ; char 0, Continue from enter, past inline mint
 exit_:
-        jmp (ins_ptr)
+        jmp (ipt)
 
 ;----------------------------------------------------------------------
 ; Execute code from data stack
@@ -1520,15 +1490,15 @@ exec_:
 ;----------------------------------------------------------------------
 ; Interpret code from data stack
 go_:
-        lda ins_ptr + 0
+        lda ipt + 0
         pha
-        lda ins_ptr + 1
+        lda ipt + 1
         pha
         ; pull ps from data stack
         lda  0, x
-        sta ins_ptr + 0
+        sta ipt + 0
         lda  1, x
-        sta ins_ptr + 1
+        sta ipt + 1
         inx
         inx
         ; next
@@ -1537,9 +1507,9 @@ go_:
 ;----------------------------------------------------------------------
 ret_:
         pla
-        sta ins_ptr + 1
+        sta ipt + 1
         pla 
-        sta ins_ptr + 0
+        sta ipt + 0
         ; next
         jmp (vNext)
 
@@ -1548,9 +1518,9 @@ ret_:
 call_:
 
         tay
-        lda ins_ptr + 0
+        lda ipt + 0
         pha
-        lda ins_ptr + 1
+        lda ipt + 1
         pha
         tya
 
@@ -1559,10 +1529,10 @@ call_:
         ; update instruction pointer
         ldy #NUL
         lda (tos), y
-        sta ins_ptr + 0
+        sta ipt + 0
         iny
         lda (tos), y
-        sta ins_ptr + 1
+        sta ipt + 1
 
         ; next
         jmp (vNext)
@@ -1802,7 +1772,7 @@ def_:
         ; copy to heap
         ldy #NUL
 @loop:
-        lda (ins_ptr), y
+        lda (ipt), y
         sta (nos), y
         beq @ends
         iny
@@ -1866,9 +1836,9 @@ begin_:
         lda tos + 1
         pha
         ; pointer
-        lda ins_ptr + 0
+        lda ipt + 0
         pha
-        lda ins_ptr + 1
+        lda ipt + 1
         pha
 
         ; next
@@ -1929,9 +1899,9 @@ again_:
 
         ; return at begin
         lda 4, x
-        sta ins_ptr + 0
+        sta ipt + 0
         lda 5, x
-        sta ins_ptr + 1
+        sta ipt + 1
 
         ; next
         ldx xpf
@@ -1964,6 +1934,7 @@ i_:
 
 ;----------------------------------------------------------------------
 index:
+; WTF ?
         pla
         sta tos + 0
         pla
@@ -1997,8 +1968,9 @@ etx_:
         txa
         cmp #STKENDS    ; bytes
         bmi @ends
-        lda #$FF          ; leave one word as offset
+        lda #$FF        ; stack top
         tax
+        txs
 @ends:
         jmp interpret
 
@@ -2095,6 +2067,8 @@ mint_:
 
 ; *********************************************************************
 ; Jump Tables, optmized for single index
+; points the LSB and MSB of functions
+; each uses 127 bytes
 ; *********************************************************************
 
 ; .align $100
@@ -2627,6 +2601,14 @@ altcodeshi:
 
 
 ; *********************************************************************
+; mint variables, 26 plus 6 from z
+vsys:
+        .res GRPSIZE, $0
+
+; user variable, 26 plus 6 from z
+vars:
+        .res GRPSIZE, $0
+
 ; user function groups, each with 26 plus 6 from Z
 defs:
         .res NUMGRPS * GRPSIZE, $00
@@ -2636,6 +2618,9 @@ defs:
 ; this code must not span pages
 ; *********************************************************************
 macros:
+
+empty_:
+        .asciiz ";"
 
 backsp_:
         .asciiz "\\c@0=0=(1_\\c\\+`\\b \\b`);"
@@ -2654,9 +2639,6 @@ printStack_:
 
 toggleBase_:
         .asciiz "\\b@0=\\b!;"
-
-empty_:
-        .asciiz ";"
 
 ; heap must be here !
 heap:
