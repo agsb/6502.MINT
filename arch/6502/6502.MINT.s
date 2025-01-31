@@ -105,7 +105,7 @@
 ;----------------------------------------------------------------------
 .segment "ZERO"
 
-; offsets
+; $000 - $00AF free for system
 
 ; mint internals, depends on systems host
 
@@ -115,9 +115,9 @@
 ; instruction pointer
 ipt:    .addr $0
 
-; copycat nest counter
+; copycats
 nest: 	.byte $0
-vByteMode: .byte $0
+mode:   .byte $0
 
 ; safes 
 xpf:    .byte $0
@@ -136,19 +136,8 @@ tmp:    .word $0
 stk:    .res 64, $0
 
 ;----------------------------------------------------------------------
-;
-; does not belongs to MINT
-;
-;.segment "VECTORS"
-;
-;.word init
-;.word init
-;.word init
-;
-;----------------------------------------------------------------------
 .segment "CODE"
 
-; this is page two $200
 ; terminal input buffer
 * = $200
 tib:
@@ -269,11 +258,6 @@ pull2_:
         rts
 
 ; ---------------------------------------------------------------------
-; DROP
-drop_:
-        inx
-        inx
-        jmp (vNext)
 ; DUP
 dup_:
         dex
@@ -293,7 +277,6 @@ over_:
         lda 5, x
         sta 1, x
         jmp (vNext)
-
 
 ; SWAP
 swap_:
@@ -372,7 +355,13 @@ sub_:
 
 nsta3_:
         sta  3, x
-        jmp drop_
+        ; fall through
+
+; DROP
+drop_:
+        inx
+        inx
+        jmp (vNext)
 
 ; NEGATE
 neg_:
@@ -521,7 +510,7 @@ decr_:
         jmp (vNext)
 
 ; absolute jump to code
-; on 6502 use rti, the rts increase the return address
+; on 6502 use rti, the rts needs increase the return address
 goto_:
         lda  0, x
         pha
@@ -544,7 +533,6 @@ addto_:
         lda (tos), y
         adc nos + 1
         sta (tos), y
-        ; rts
 	jmp (vNext)
 
 ; -! SUB STORE
@@ -559,13 +547,12 @@ subto_:
         lda (tos), y
         sbc nos + 1
         sta (tos), y
-        ; rts
 	jmp (vNext)
 
 ;----------------------------------------------------------------------
-;   return stack stuff
+;       return stack stuff
 
-; usual >R
+; >R
 s2r_:
 rpush_:
         lda 0, x
@@ -576,7 +563,7 @@ rpush_:
         inx
         jmp (vNext)
 
-; usual R>
+; R>
 r2s_:
 rpull_:
         dex
@@ -588,9 +575,7 @@ putw_:
         sta 0, x
         jmp (vNext)
 
-;----------------------------------------------------------------------
-
-; usual R@
+; R@
 rshow_:
         dex
         dex
@@ -629,9 +614,8 @@ t2dat_:
 
 ; RP!
 t2ret_:
-        lda #$FF
         stx xpf
-        tax
+        ldx #$FF
         tsx
         ldx xpf
         jmp (vNext)
@@ -744,37 +728,6 @@ mul_:
         jmp opout
 
 ;----------------------------------------------------------------------
-;
-; some extras
-;
-; vide eorBookV1.0.1
-
-; set overflow bit
-setov_:
-        bit @ends
-@ends:
-        rts
-
-; where I am
-here_:
-        jsr @pops
-@pops:
-        pla
-        tay
-        pla
-        tax
-        rts
-
-; Z flag is zero in NMOS6502
-nmos_:
-        sed
-        clc
-        lda #$99
-        adc #$01
-        cld
-        rts
-
-;----------------------------------------------------------------------
 ;   MINT
 ;----------------------------------------------------------------------
 ; NOOP
@@ -797,6 +750,16 @@ add2ps:
         jmp (vNext)
 
 ;----------------------------------------------------------------------
+add2hp:
+        clc
+        adc vHeap + 0
+        sta vHeap + 0
+        bcc @ends
+        inc vHeap + 1
+@ends:
+        rts
+
+;----------------------------------------------------------------------
 seekps:
         ldy #0
         lda (ipt), y
@@ -815,16 +778,6 @@ heap2nos:
         rts
 
 ;----------------------------------------------------------------------
-add2heap:
-        clc
-        adc vHeap + 0
-        sta vHeap + 0
-        bcc @ends
-        inc vHeap + 1
-@ends:
-        rts
-
-;----------------------------------------------------------------------
 tib2tos:
         lda #<tib
         sta tos + 0
@@ -837,14 +790,6 @@ add2tos:
         clc
         adc tos + 0
         sta tos + 0
-        bcc @ends
-        inc tos + 1
-@ends:
-        rts
-
-;----------------------------------------------------------------------
-inc2tos:
-        inc tos + 0
         bcc @ends
         inc tos + 1
 @ends:
@@ -902,9 +847,9 @@ macro:
 interpret:
         jsr enter
         .asciiz "\\N`> `"
-        ; fall thru
+        ; fall through
 
-; used by TESTs
+; used by tests
 interpret1:
         lda #0
         tay
@@ -922,10 +867,11 @@ interpret2:
         beq waitchar
         jsr nesting            ; update nesting value
         iny
+
 @isnest:
         cpy vTIBPtr
         bne @loop
-        ; fall thru
+        ; fall through
 
 ;----------------------------------------------------------------------
 ; loop around waiting for character
@@ -933,7 +879,7 @@ interpret2:
 waitchar:
         jsr tib2tos
         jsr spush
-        ; fall thru
+        ; fall through
 
 ;----------------------------------------------------------------------
 ; get a line into buffer pointer by TOS
@@ -952,9 +898,11 @@ gets_:
         ; ge space ?
         cmp #32
         bcs @ischar
-        ; is it ia NUL ?
-        cmp #$0
+
+        ; is asciiz ?
+        cmp #0
         beq @endstr
+        
         ; windows CRLF, linux CR, Mac LF
         cmp #CR                 ; carriage return ?
         beq @iscrlf
@@ -962,6 +910,7 @@ gets_:
         beq @iscrlf
 
 @ismacro:
+        ; 
         ; $00 to $1F
         ; y is the position in tib
         ; a is the code
@@ -1015,11 +964,13 @@ gets_:
 nesting:
         cmp #'`'
         bne @nests
+        
         ; toggle bit 7
         lda #$80
-        eor nest
+        or nest
         sta nest
         rts
+
 @nests:
         bit nest
         bmi @nonest
@@ -1053,10 +1004,13 @@ printStr:
         pla
         sta tos + 1
 
-        jsr inc2tos
+        inc tos + 0
+        bcc @ends
+        inc tos + 1
+@ends:
 
-        ; asciiz
-        ldx #NUL
+        ; mark as asciiz
+        clc
         jsr putstr
         
         ; offset
@@ -1074,28 +1028,28 @@ str_:
         sta tos + 0
         lda ipt + 1
         sta tos + 1
-        ldx #TRUE
+        ; mark as str
+        sec
         jsr putstr
-        ; next
         jmp (vNext)
 
 ;----------------------------------------------------------------------
 ; puts a string, asciiz
 puts_:
-        ldx #NUL
         jsr spull
-        ; fall thru
+        ; mark as asciiz
+        clc
+        ; fall through
 
 ;----------------------------------------------------------------------
 ; prints a asciiz
 putstr:
-        ldy #NUL
+        ldy #0
 @loop:
         lda (tos), y
         beq @ends   ; limit NUL
-        cpx #NUL
-        beq @cont
-        cmp #'`'        ; ` is the string terminator
+        bcc @cont
+        cmp #'`'    ; ` is the string terminator
         beq @ends
 @cont:
         jsr putch
@@ -1231,7 +1185,8 @@ a2z:
         sbc #'a'
         asl
         jsr add2tos
-        ; fall thru
+        ; fall through
+
 ;----------------------------------------------------------------------
 pends:
         jsr spush
@@ -1242,11 +1197,11 @@ pends:
 ; ascii code
 charCode_:
         jsr seekps
-        ; fall thru
+        ; fall through
 
-bytos:
+bytos:  ; ????
         sta tos + 0
-        lda #NUL
+        lda #0
         sta tos + 1
         beq pends
 
@@ -1323,13 +1278,16 @@ mul16:
 ;----------------------------------------------------------------------
 ; skip to eol, crlf 
 comment_:
-        ldy #NUL
+        ldy #0
 @loop:
         iny
         beq @ends   ; limit 256
         lda (ipt), y
         beq @ends
         cmp #CR
+        beq @ends
+        cmp #LF
+        beq @ends
         bne @loop
 @ends:
         tya
@@ -1410,7 +1368,7 @@ compNext:
         sta (nos), y
         iny
 
-        lda vByteMode + 0
+        lda mode + 0
         bne @isbm
 
         ; word
@@ -1421,7 +1379,7 @@ compNext:
 
         tya
         jsr add2heap
-        ; fall thru
+        ; fall through
 
 ;----------------------------------------------------------------------
 ; Execute next opcode
@@ -1528,7 +1486,7 @@ call_:
 ;----------------------------------------------------------------------
 lookupDeft:
         sta vEdited
-        ; fall thru
+        ; fall through
 
 ;----------------------------------------------------------------------
 lookupDefs:
@@ -1557,7 +1515,7 @@ editDef_:
         clc
         lda #'A'
         adc tos + 0
-        tax
+        pha
         jsr lookupDeft
 
         ; origin
@@ -1583,7 +1541,7 @@ editDef_:
         lda #1
         jsr add2tos
 
-        txa
+        pla
         jsr writeChar
         lda #1
         jsr add2tos
@@ -1676,17 +1634,17 @@ getRef_:
 ;----------------------------------------------------------------------
 arrDef_:
         lda #FALSE
-        beq arrDefs
+        .byte $2c   ; mask next two bytes, nice trick !
 
 ;----------------------------------------------------------------------
 cArrDef_:
         lda #TRUE
-        ; fall thru
+        ; fall through
 
 ;----------------------------------------------------------------------
 arrDefs:
         ; save array mode
-        sta vByteMode
+        sta mode
 
         ; save array start
         lda vHeap + 0
@@ -1709,9 +1667,9 @@ arrEnd_:
         ; start of array
         dex
         dex
-        pha
+        pla
         sta 0, x
-        pha
+        pla
         sta 1, x
 
         ; bytes
@@ -1723,7 +1681,7 @@ arrEnd_:
         sbc tos + 1
         sta tos + 1
 
-        lda vByteMode
+        lda mode
         bne @isne	
         ; words
         lsr tos + 0

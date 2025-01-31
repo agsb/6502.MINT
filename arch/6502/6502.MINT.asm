@@ -17,17 +17,17 @@
 ;  agsb@ star(tm) date 10/10/2023
 ;
 ; *********************************************************************
-
-; using data stack in page zero
-; using return stack in page one
-; rom usable code, no relocable
-; code depends on host memory maps
-; using SP for index on return stack
-; usinf X for index on data stack
+; this MINT is to be called after boot.
+;
+; ROM usable code, no relocable or self modify 
+; memory depends on system host memory maps
 ;
 ; stacks grows backwards, push decrements, pull increments
+; using SP for return stack
+; usinf X for index on data stack
 ;
-; this MINT is to be called after boot.
+; reserve page two for terminal input buffer
+;
 ;--------------------------------------------------------
 ;
 ;  ca65 assembler specifics
@@ -74,8 +74,8 @@
         BKX = 92        ; ascii back slash
 
 
-        ; stack LIMIT 26 words, backwards
-        STKENDS = 256 - 52
+        ; stack LIMIT words, backwards
+        STKENDS = 256 - 64
 
         ; size page
         PAGE = 256
@@ -91,30 +91,17 @@
 ; for easy, Chuck does with 22 deep.
 
 ; bottom of data stack, reserve at least 26 words
-S0      = $00FF
+        S0 = $00FF
 
 ; bottom of return stack, reserves at least 26 words
-R0      = $01FF
+        R0 = $01FF
 
 ;----------------------------------------------------------------------
 
-        ; define emulator mode for basic IO
+; define emulator mode for basic IO
 
         EMULATOR = 1
 
-;----------------------------------------------------------------------
-; Memory uses
-;
-;       1. page zero used for internal variable and data stack
-;
-;       2. page one  used for system stack
-;
-;       3. page two  used as terminal input buffer, classic TIB
-;
-;       4. page three mint data
-;
-;       5. page four  mint code
-;       
 ;----------------------------------------------------------------------
 .segment "ZERO"
 
@@ -150,7 +137,7 @@ stk:    .res 64, $0
 
 ;----------------------------------------------------------------------
 ;
-; these does not belongs to MINT
+; does not belongs to MINT
 ;
 ;.segment "VECTORS"
 ;
@@ -163,6 +150,7 @@ stk:    .res 64, $0
 
 ; this is page two $200
 ; terminal input buffer
+* = $200
 tib:
         .res PAGE, $0
 
@@ -181,6 +169,7 @@ vIx      =  vsys + $12     ;    \i  ; inner loop counter
 vJx      =  vsys + $14     ;    \j  ; inner loop counter
 
 ;----------------------------------------------------------------------
+; real code
 
 * = $300
 
@@ -279,6 +268,7 @@ pull2_:
         inx
         rts
 
+; ---------------------------------------------------------------------
 ; DROP
 drop_:
         inx
@@ -513,7 +503,7 @@ fetch_:
         jsr at_
         jmp (vNext)
 
-; increase a word at TOS
+; increase a word at stack
 incr_:
         inc  0, x
         bne @ends
@@ -521,7 +511,7 @@ incr_:
 @ends:
         jmp (vNext)
 
-; decrease a word at TOS
+; decrease a word at stack
 decr_:
         lda  0, x
         bne @ends
@@ -533,9 +523,9 @@ decr_:
 ; absolute jump to code
 ; on 6502 use rti, the rts increase the return address
 goto_:
-        lda  1, x
-        pha
         lda  0, x
+        pha
+        lda  1, x
         pha
         php
         inx
@@ -608,12 +598,9 @@ rshow_:
         sta 1, x
         pla 
         sta 0, x
-        stx xpf
-        tsx
-        dex
-        dex
-        txs
-        ldx xpf
+        pha 
+        lda 1, x
+        pha
         jmp (vNext)
 
 ; SP@
@@ -636,13 +623,13 @@ ret2t_:
 
 ; SP!
 t2dat_:
-        lda S0
+        lda #$FF
         tax
         jmp (vNext)
 
 ; RP!
 t2ret_:
-        lda R0
+        lda #$FF
         stx xpf
         tax
         tsx
@@ -924,7 +911,7 @@ interpret1:
 
 interpret2:
         sty vTIBPtr 
-        lda #0L
+        lda #0
         sta nest
         tay
         beq @isnest
@@ -1090,7 +1077,7 @@ str_:
         ldx #TRUE
         jsr putstr
         ; next
-        jmp  (vNext)
+        jmp (vNext)
 
 ;----------------------------------------------------------------------
 ; puts a string, asciiz
@@ -1468,6 +1455,7 @@ enter:
         pla
         sta ipt + 1
 
+; jsr/rst uses return address less one, must add one :)
         inc ipt + 0
         bcc @nock
         inc ipt + 1
@@ -1976,12 +1964,12 @@ etx_:
 
 ;----------------------------------------------------------------------
 iSysVars:
-        .word  vS0              ; a vS0
+        .word  S0               ; a vS0
         .word  FALSE            ; b vBase16
         .word  tib              ; c vTIBPtr
         .word  defs             ; d vDEFS
         .word  FALSE            ; e vEdited
-        .word  vR0              ; f vR0
+        .word  R0               ; f vR0
         .word  next             ; g dispatcher
         .word  heap             ; h vHeap
 fSysVars:
