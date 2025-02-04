@@ -12,6 +12,10 @@ still not work -- Use to run: make runs
 
 ## Notes
 
+_04/02/2025
+
+    Compiled Ok, 2128 code, 960 tables, now verify each function.
+
 _29/01/2025
 
 Rewrite Makefile and compiling complete, less than 4k, need to review of functions and macros 

@@ -737,19 +737,6 @@ nop_:
         jmp next
 
 ;----------------------------------------------------------------------
-; add a byte offset to instruction pointer
-add2ps:
-; update ip
-        clc
-        adc ipt + 0
-        sta ipt + 0
-        bcc @ends
-        inc ipt + 1
-@ends:
-        ; next
-        jmp (vNext)
-
-;----------------------------------------------------------------------
 add2hp:
         clc
         adc vHeap + 0
@@ -827,6 +814,18 @@ addt2t:
         rts
 
 ;----------------------------------------------------------------------
+add2ip:
+; update ip
+        clc
+        adc ipt + 0
+        sta ipt + 0
+        bcc @ends
+        inc ipt + 1
+@ends:
+        ; next
+        jmp (vNext)
+
+;----------------------------------------------------------------------
 ; $00 to $1F, reserved for macros
 ; macros could not call macros.
 macro:
@@ -871,7 +870,7 @@ interpret2:
 @isnest:
         cpy vTIBPtr
         bne @loop
-        ; fall through
+        ; or fall through
 
 ;----------------------------------------------------------------------
 ; loop around waiting for character
@@ -889,8 +888,8 @@ gets_:
         jsr spull
 
 @loop:
-        ; limit 254
-        cpy #$FE
+        ; limit 255
+        cpy #$FF
         beq @endstr
 
         jsr getch
@@ -921,8 +920,7 @@ gets_:
         ; nest ?
         jsr nesting
         ; wait for next character
-        clc
-        bcc @loop
+        jmp @loop
 
 @iscrlf:
         ; just for easy
@@ -950,14 +948,13 @@ gets_:
         ; next
         jmp next
 
-; maximum 254 chars
+; maximum 255 chars
 @toTib:
-        ; echo
-        jsr putch
         ; store
         sta (tos), y
         iny
-        rts
+        ; echo
+        jmp putch
 
 ;----------------------------------------------------------------------
 ; nesting deep
@@ -965,21 +962,25 @@ nesting:
         cmp #'`'
         bne @nests
         
-        ; toggle bit 7
+        ; toggle bit 7, for strings
         lda #$80
-        or nest
+        ora nest
         sta nest
         rts
 
 @nests:
+        ; allow 127 deep nests
         bit nest
         bmi @nonest
+
+        ; open
         cmp #':'
         beq @nestinc
         cmp #'['
         beq @nestinc
         cmp #'('
         beq @nestinc
+        ; close
         cmp #';'
         beq @nestdec
         cmp #']'
@@ -1004,16 +1005,17 @@ printStr:
         pla
         sta tos + 1
 
+        ; ever add one to a jsr/rts address
         inc tos + 0
         bcc @ends
         inc tos + 1
 @ends:
 
-        ; mark as asciiz
+        ; use carry to mark as asciiz
         clc
         jsr putstr
         
-        ; offset
+        ; one is auto added to a jsr/rts address
         jsr add2tos
         lda tos + 1
         pha
@@ -1028,26 +1030,28 @@ str_:
         sta tos + 0
         lda ipt + 1
         sta tos + 1
-        ; mark as str
+        ; use carry to mark as string
         sec
         jsr putstr
+
         jmp (vNext)
 
 ;----------------------------------------------------------------------
 ; puts a string, asciiz
 puts_:
         jsr spull
-        ; mark as asciiz
+        ; use carry to mark as asciiz
         clc
         ; fall through
 
 ;----------------------------------------------------------------------
-; prints a asciiz
+; prints a asciiz, max. 255 chars
 putstr:
         ldy #0
 @loop:
         lda (tos), y
         beq @ends   ; limit NUL
+        ; skip `strings`
         bcc @cont
         cmp #'`'    ; ` is the string terminator
         beq @ends
@@ -1056,6 +1060,7 @@ putstr:
         iny
         bne @loop   ; limit 256
 @ends:
+        ; return the offset in a
         tya
         rts
 
@@ -1083,7 +1088,7 @@ printdec:
         lda #>10
         sta nos + 1
 @nums:
-        ldy #'0'-1
+        ldy #'0' - 1
 @loop:
         ; subtract
         iny
@@ -1102,7 +1107,6 @@ printhex:
         lda tos + 0
         jsr printhex8
         rts
-
 ;----------------------------------------------------------------------
 ; print a 8-bit HEX
 printhex8:
@@ -1125,7 +1129,7 @@ printhex8:
 
 ;----------------------------------------------------------------------
 nul2tos:
-        lda #NUL
+        lda #0
         sta tos + 0
         sta tos + 1
         rts
@@ -1160,7 +1164,7 @@ ishex:
 ;----------------------------------------------------------------------
 ; push an user variable
 var_:
-        tax
+        pha
         lda #<vars
         sta tos + 0
         lda #>vars
@@ -1170,18 +1174,18 @@ var_:
 ;----------------------------------------------------------------------
 ; push a mint variable
 sysVar_:
-        tax
+        pha
         lda #<vsys
         sta tos + 0
         lda #>vsys
         sta tos + 1
-        jmp a2z
+        ; fall through
 
 ;----------------------------------------------------------------------
 ; push a reference into stack
 a2z:
         sec
-        txa
+        pla
         sbc #'a'
         asl
         jsr add2tos
@@ -1190,7 +1194,6 @@ a2z:
 ;----------------------------------------------------------------------
 pends:
         jsr spush
-        ; next
         jmp (vNext)
 
 ;----------------------------------------------------------------------
@@ -1291,7 +1294,7 @@ comment_:
         bne @loop
 @ends:
         tya
-        jmp add2ps
+        jmp add2ip
 
 ;----------------------------------------------------------------------
 ; print hexadecimal
@@ -1378,7 +1381,7 @@ compNext:
 @isbm:
 
         tya
-        jsr add2heap
+        jsr add2hp
         ; fall through
 
 ;----------------------------------------------------------------------
@@ -1413,6 +1416,7 @@ enter:
         pla
         sta ipt + 1
 
+; ????
 ; jsr/rst uses return address less one, must add one :)
         inc ipt + 0
         bcc @nock
@@ -1498,7 +1502,7 @@ lookupDefs:
         clc
         adc vDefs + 0
         sta tos + 0
-        lda #NUL
+        lda #0
         adc vDefs + 1
         sta tos + 1
         rts
@@ -1525,11 +1529,11 @@ editDef_:
         lda (tos), y
         sta nos + 1
 
-        ldy #NUL
+        ldy #0
         ; empty ?
         lda (nos), y
         beq @editDef3    ; is NUL ?
-        cmp #';'        ; is end ?
+        cmp #';'         ; is end ?
         beq @editDef3
 
         ; copy
@@ -1716,7 +1720,7 @@ def_:
         sta (tos), y
 
         ; copy to heap
-        ldy #NUL
+        ldy #0
 @loop:
         lda (ipt), y
         sta (nos), y
@@ -1726,13 +1730,12 @@ def_:
         cmp #';'
         bne @loop
 @ends:
-        ; update heap
+        ; update heap pointer
         tya
-        tax
-        jsr add2heap
+        jsr add2hp
         ; update instruction pointer
-        txa
-        jmp add2ps
+        tya
+        jmp add2ip
 
 ;----------------------------------------------------------------------
 
