@@ -1033,7 +1033,6 @@ str_:
         ; use carry to mark as string
         sec
         jsr putstr
-
         jmp (vNext)
 
 ;----------------------------------------------------------------------
@@ -1297,18 +1296,18 @@ comment_:
         jmp add2ip
 
 ;----------------------------------------------------------------------
-; print hexadecimal
-hdot_:
-        jsr spull
-        jsr printhex
-        jmp dotsp
-
-;----------------------------------------------------------------------
 ; print decimal
 dot_:
         jsr spull
         jsr printdec
         jmp dotsp
+
+;----------------------------------------------------------------------
+; print hexadecimal
+hdot_:
+        jsr spull
+        jsr printhex
+        ; fall through
 
 ;----------------------------------------------------------------------
 ; print space
@@ -1366,7 +1365,7 @@ compNext:
         jsr spull
 
         ; byte
-        ldy #NUL
+        ldy #0
         lda tos + 0
         sta (nos), y
         iny
@@ -1378,6 +1377,7 @@ compNext:
         lda tos + 1
         sta (nos), y
         iny
+
 @isbm:
 
         tya
@@ -1393,8 +1393,21 @@ opt_:
         lda optcodeslo, y
         sta tos + 0
         lda optcodeshi, y
+jmptos:
         sta tos + 1
         jmp (tos)
+
+;----------------------------------------------------------------------
+; Execute next clt opcode, future ?
+.ifdef CTLCODES
+ctl_:
+        jsr seekps
+        tay
+        lda cltcodeslo, y
+        sta tos + 0
+        lda cltcodeshi, y
+        jmp jmptos
+.endif
 
 ;----------------------------------------------------------------------
 ; Execute next alt opcode
@@ -1404,11 +1417,10 @@ alt_:
         lda altcodeslo, y
         sta tos + 0
         lda altcodeshi, y
-        sta tos + 1
-        jmp (tos)
+        jmp jmptos
 
 ;----------------------------------------------------------------------
-; Parse inline mint, must be asciiz
+; Parse inline asciiz mint
 enter:
 ; pull from system stack
         pla
@@ -1416,7 +1428,6 @@ enter:
         pla
         sta ipt + 1
 
-; ????
 ; jsr/rst uses return address less one, must add one :)
         inc ipt + 0
         bcc @nock
@@ -1763,6 +1774,7 @@ skipnest:
         bne @loop
 iseq:
         ; parse frame
+        ; next
         jmp (vNext)
 
 ;----------------------------------------------------------------------
@@ -1854,6 +1866,7 @@ again_:
 
         ; next
         ldx xpf
+        ; next
         jmp (vNext)
 
 ; ZZZZZ
@@ -1909,6 +1922,7 @@ ifte_:
         lda #$FF
         pha
         pha
+        ; next
         jmp (vNext)
 
 ;----------------------------------------------------------------------
@@ -1938,7 +1952,7 @@ fSysVars:
 dysys = fSysVars - iSysVars
 
 ;----------------------------------------------------------------------
-
+; prepare 
 main_:
 
 ; default system values
@@ -1993,20 +2007,25 @@ main_:
 @ends:
         ; all done
 
-; safe
+; safe next
         lda #<next
         sta vNext + 0
         lda #>next
         sta vNext + 1
 
+; stacks default
+        ldx #$FF
+        txs
+
 mint_:
-; prompt
+        ; prompt
         jsr printStr
         .asciiz "MINT 6502 V1.0\r\n"
 
         ; auto reset
         jsr interpret
 
+        ; loop me
         jmp mint_
 
 ;----------------------------------------------------------------------

@@ -4,11 +4,15 @@ _this still a stub_
 
 A still raw [Mint](https://github.com/monsonite/MINT) for 6502.
 
+Original MINT is for Z80, a 16bit register CPU, and 6502 is a 8bit register CPU, there is a lot of diferences. 
+
+The code and jump tables are bigger and need be fine touched.
+
 Use to compile: make
 
 Use to clean: make clean
 
-still not work -- Use to run: make runs
+Use to run: make runs (Stil not working)
 
 ## Notes
 
