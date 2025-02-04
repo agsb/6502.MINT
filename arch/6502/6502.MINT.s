@@ -1385,7 +1385,7 @@ compNext:
         ; fall through
 
 ;----------------------------------------------------------------------
-; Execute next opcode
+; Execute next opcode, default
 next:
 opt_:
         jsr seekps
