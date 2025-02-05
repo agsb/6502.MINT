@@ -606,8 +606,7 @@ ret2t_:
 
 ; SP!
 t2dat_:
-        lda #$FF
-        tax
+        ldx #$FF
         jmp (vNext)
 
 ; RP!
@@ -1216,8 +1215,7 @@ dec_:
 @uval:
         jsr add2tos
         jsr mul10
-        clc
-        bcc @loop
+        jmp @loop
 
 ;----------------------------------------------------------------------
 ; convert a hexadecimal value to binary
@@ -1233,8 +1231,7 @@ hex_:
 @uval:
         jsr add2tos
         jsr mul16
-        clc
-        bcc @loop
+        jmp @loop
 
 ;----------------------------------------------------------------------
 depth_:
