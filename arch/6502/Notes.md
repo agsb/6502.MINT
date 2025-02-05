@@ -18,6 +18,11 @@ Use to run: make runs (Stil not working)
 
 _04/02/2025
 
+    Changes in configuration file 6502-MINT.cfg
+    running tests with run6502
+
+_04/02/2025
+
     Compiled Ok, 2128 code, 960 tables, now verify each function.
 
 _29/01/2025

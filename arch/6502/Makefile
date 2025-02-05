@@ -14,6 +14,8 @@ LDFLAGS = --cpu 6502 --memory-model near \
 
 MY = 6502.MINT
 
+LOADD = 0300
+
 ########################################
 
 %: %.s
@@ -39,4 +41,10 @@ clean:
 	$(RM) $(MY).out $(MY).map $(MY).lst \
 	      $(MY).lbl $(MY).lbs $(MY).hex \
 	      err out
+
+run:
+	run6502 -l $(LOADD) $(MY).out \
+		-R $(LOADD) -M E000 -X 0 \
+		-d 200 1000 -c
+
 

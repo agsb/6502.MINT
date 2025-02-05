@@ -139,9 +139,7 @@ stk:    .res 64, $0
 .segment "CODE"
 
 ; terminal input buffer
-* = $200
-tib:
-        .res PAGE, $0
+tib  = $0200
 
 ;----------------------------------------------------------------------
 ; aliases
@@ -1385,7 +1383,7 @@ compNext:
         ; fall through
 
 ;----------------------------------------------------------------------
-; Execute next opcode
+; Execute next opcode, default
 next:
 opt_:
         jsr seekps
