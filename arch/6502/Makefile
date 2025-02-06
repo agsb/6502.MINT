@@ -42,9 +42,9 @@ clean:
 	      $(MY).lbl $(MY).lbs $(MY).hex \
 	      err out
 
-run:
-	run6502 -l $(LOADD) $(MY).out \
+run: 
+	run6502 -l $(LOADD) $(MY).out -c \
 		-R $(LOADD) -M E000 -X 0 \
-		-d 200 1000 -c
+		# -d 200 1000
 
 

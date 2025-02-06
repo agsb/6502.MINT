@@ -84,8 +84,7 @@
         GRPSIZE = 64
 
         ; groups for defs, could be more
-        ; one plus common MINT
-        NUMGRPS = 6
+        NUMGRPS = 5
 
 ;----------------------------------------------------------------------
 
@@ -170,7 +169,10 @@ init:
         txs
         cli
 
-        jmp initialize
+;       normal init
+
+        jmp main_
+        .asciiz "MINT@6502"
 
 ;----------------------------------------------------------------------
 .ifdef EMULATOR
@@ -215,115 +217,6 @@ emit_:
         jmp (vNext)
 
 .endif
-
-;----------------------------------------------------------------------
-iSysVars:
-        .word  S0               ; a vS0
-        .word  FALSE            ; b vBase16
-        .word  tib              ; c vTIBPtr
-        .word  defs             ; d vDEFS
-        .word  FALSE            ; e vEdited
-        .word  R0               ; f vR0
-        .word  next             ; g dispatcher
-        .word  heap             ; h vHeap
-fSysVars:
-
-dysys = fSysVars - iSysVars
-
-;----------------------------------------------------------------------
-; prepare 
-
-initialize:
-
-        jsr printStr
-        .asciiz "system\r\n"
-
-; default system values
-
-        lda #<iSysVars
-        sta tos + 0
-        lda #>iSysVars
-        sta tos + 1
-        lda #<vsys
-        sta nos + 0
-        lda #>vsys
-        sta nos + 1
-        ldy #dysys
-@loop:
-        lda (tos), y
-        sta (nos), y
-        dey
-        bne @loop
-
-; default function for defs and groups
-
-        jsr printStr
-        .asciiz "function\r\n"
-
-        lda #<defs
-        sta tos + 0
-        lda #>defs
-        sta tos + 1
-
-        ldx #0
-@loop2:
-        ldy #0
-@loop3:
-        lda #<empty_
-        sta (tos), y
-        iny
-        lda #>empty_
-        sta (tos), y
-        iny
-
-        cpy #GRPSIZE
-        bne @loop3
-
-        inx
-        cpx #NUMGRPS
-        beq @ends
-
-        ; increment
-        clc
-        lda tos + 0
-        adc #GRPSIZE
-        sta tos + 0
-        bcc @nccs
-        inc tos + 1
-@nccs:
-        jmp @loop2
-
-@ends:
-
-        txa
-        jsr putch 
-        lda #'+'
-        jsr putch
-
-here:
-        jsr printStr
-        .asciiz "safes\r\n"
-
-; safe next
-        lda #<next
-        sta vNext + 0
-        lda #>next
-        sta vNext + 1
-
-; stacks default
-        ldx #$FF
-        txs
-
-mint_:
-        ; prompt
-        jsr printStr
-        .asciiz "MINT 6502 V1.0\r\n"
-
-        ; auto reset
-        jsr interpret
-
-        ; loop me
-        jmp mint_
 
 ; ---------------------------------------------------------------------
 ; Forth like functions
@@ -2040,6 +1933,97 @@ etx_:
         jmp interpret
 
 ;----------------------------------------------------------------------
+iSysVars:
+        .word  S0               ; a vS0
+        .word  FALSE            ; b vBase16
+        .word  tib              ; c vTIBPtr
+        .word  defs             ; d vDEFS
+        .word  FALSE            ; e vEdited
+        .word  R0               ; f vR0
+        .word  next             ; g dispatcher
+        .word  heap             ; h vHeap
+fSysVars:
+
+dysys = fSysVars - iSysVars
+
+;----------------------------------------------------------------------
+; prepare 
+main_:
+
+; default system values
+        lda #<iSysVars
+        sta tos + 0
+        lda #>iSysVars
+        sta tos + 1
+        lda #<vsys
+        sta nos + 0
+        lda #>vsys
+        sta nos + 1
+        ldy #dysys
+@loop:
+        lda (tos), y
+        sta (nos), y
+        dey
+        bne @loop
+
+; default function
+        lda #<defs
+        sta tos + 0
+        lda #>defs
+        sta tos + 1
+
+        ldx #NUL
+@loop2:
+        ldy #NUL
+@loop3:
+        ; default
+        lda #<empty_
+        sta (tos), y
+        iny
+        lda #>empty_
+        sta (tos), y
+        iny
+        cpy #GRPSIZE
+        bne @loop3
+        inx
+        cpx #NUMGRPS
+        beq @ends
+
+        ; increment
+        clc
+        lda tos + 0
+        adc #GRPSIZE
+        sta tos + 0
+        bcc @next
+        inc tos + 1
+@next:
+        clc
+        bcc @loop2
+@ends:
+        ; all done
+
+; safe next
+        lda #<next
+        sta vNext + 0
+        lda #>next
+        sta vNext + 1
+
+; stacks default
+        ldx #$FF
+        txs
+
+mint_:
+        ; prompt
+        jsr printStr
+        .asciiz "MINT 6502 V1.0\r\n"
+
+        ; auto reset
+        jsr interpret
+
+        ; loop me
+        jmp mint_
+
+;----------------------------------------------------------------------
 ;optcodes: parsed by opt_ (next)
 ;altcodes: parsed by alt_
 ;ctlcodes: maybe in a future...
@@ -2590,7 +2574,7 @@ vars:
 
 ; user function groups, each with 26 plus 6 from Z
 defs:
-        .res NUMGRPS  * GRPSIZE, $0
+        .res NUMGRPS * GRPSIZE, $00
 
 ; *********************************************************************
 ; Macros must be written in Mint and end with ;
@@ -2619,7 +2603,7 @@ printStack_:
 toggleBase_:
         .asciiz "\\b@0=\\b!;"
 
-; heap must be here, where the user macros are copied !
+; heap must be here !
 heap:
         .addr $0
 
