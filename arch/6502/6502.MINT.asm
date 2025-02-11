@@ -116,6 +116,9 @@
 ; instruction pointer
 ipt:    .addr $0
 
+; heap pointer
+hpt:    .addr $0
+
 ; copycats
 nest: 	.byte $0
 mode:   .byte $0
@@ -175,7 +178,7 @@ init:
 ;----------------------------------------------------------------------
 .ifdef EMULATOR
 ;
-; 25/10/2023, using lib6502, -M E000 -X 0000
+; 25/10/2023, using run6502, -M E000 -X 0000, use ctrl-D to ends
 ;
 
 hitch:
@@ -198,6 +201,7 @@ byes:
 
 ; ---------------------------------------------------------------------
 ; keyq does not work with emulator, using default key_
+; high byte not changed
 keyq_:
 
 key_:
@@ -230,13 +234,22 @@ fSysVars:
 
 dysys = fSysVars - iSysVars
 
+okey:
+        lda #'O'
+        jsr putch
+        lda #'K'
+        jsr putch
+        lda #' '
+        jsr putch
+        rts
+
 ;----------------------------------------------------------------------
 ; prepare 
 
 initialize:
 
         jsr printStr
-        .asciiz "system\r\n"
+        .asciiz "initialize\r\n"
 
 ; default system values
 
@@ -244,43 +257,41 @@ initialize:
         sta tos + 0
         lda #>iSysVars
         sta tos + 1
+
         lda #<vsys
         sta nos + 0
         lda #>vsys
         sta nos + 1
+
         ldy #dysys
 @loop:
+        dey
         lda (tos), y
         sta (nos), y
-        dey
         bne @loop
 
 ; default function for defs and groups
-
-        jsr printStr
-        .asciiz "function\r\n"
 
         lda #<defs
         sta tos + 0
         lda #>defs
         sta tos + 1
 
-        ldx #0
-@loop2:
+        ldx #NUMGRPS
+@loopx:
+
         ldy #0
-@loop3:
+@loopy:
         lda #<empty_
         sta (tos), y
         iny
         lda #>empty_
         sta (tos), y
         iny
-
         cpy #GRPSIZE
-        bne @loop3
+        bne @loopy
 
-        inx
-        cpx #NUMGRPS
+        dex
         beq @ends
 
         ; increment
@@ -291,18 +302,9 @@ initialize:
         bcc @nccs
         inc tos + 1
 @nccs:
-        jmp @loop2
+        jmp @loopx
 
 @ends:
-
-        txa
-        jsr putch 
-        lda #'+'
-        jsr putch
-
-here:
-        jsr printStr
-        .asciiz "safes\r\n"
 
 ; safe next
         lda #<next
@@ -314,11 +316,15 @@ here:
         ldx #$FF
         txs
 
+        lda #'5'
+        jsr putch
+        
 mint_:
+
         ; prompt
         jsr printStr
         .asciiz "MINT 6502 V1.0\r\n"
-
+        
         ; auto reset
         jsr interpret
 
@@ -1115,6 +1121,9 @@ printStr:
         inc tos + 1
 @ends:
 
+        lda #'>'
+        jsr putch
+
         ; use carry to mark as asciiz
         clc
         jsr putstr
@@ -1150,6 +1159,7 @@ puts_:
 ;----------------------------------------------------------------------
 ; prints a asciiz, max. 255 chars
 putstr:
+        sty ypf
         ldy #0
 @loop:
         lda (tos), y
@@ -1165,6 +1175,7 @@ putstr:
 @ends:
         ; return the offset in a
         tya
+        ldy ypf
         rts
 
 ;----------------------------------------------------------------------
@@ -2590,7 +2601,7 @@ vars:
 
 ; user function groups, each with 26 plus 6 from Z
 defs:
-        .res NUMGRPS  * GRPSIZE, $0
+        .res NUMGRPS * GRPSIZE, $0
 
 ; *********************************************************************
 ; Macros must be written in Mint and end with ;
