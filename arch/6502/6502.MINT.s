@@ -959,9 +959,9 @@ interpret:
         ; fall through
 
 ; used by tests
-interpret1:
-        lda #0
-        tay
+;interpret1:
+;        lda #0
+;        tay
 
 ; always used
 interpret2:
@@ -1064,8 +1064,9 @@ gets_:
         ; store
         sta (tos), y
         iny
-        ; echo
-        jmp putch
+        ; echo or
+        ;jmp putch
+        rts
 
 ;----------------------------------------------------------------------
 ; nesting deep

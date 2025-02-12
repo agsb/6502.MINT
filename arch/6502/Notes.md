@@ -8,15 +8,19 @@ Original MINT is for Z80, a 16bit register CPU, and 6502 is a 8bit register CPU,
 
 The code and jump tables are bigger and need be fine touched.
 
-Use to compile: make
-
 Use to clean: make clean
 
-Use to run: make runs (Stil not working)
+Use to compile: make
+
+Use to run: make run 
 
 ## Notes
 
-_04/02/2025
+_12/02/2025
+
+    Reviews and custom local changes
+
+_05/02/2025
 
     Changes in configuration file 6502-MINT.cfg
     running tests with run6502
