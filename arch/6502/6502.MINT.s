@@ -288,6 +288,7 @@ initialize:
         lda #>empty_
         sta (tos), y
         iny
+
         cpy #GRPSIZE
         bne @loopy
 
@@ -531,13 +532,13 @@ same2_:
         sta  3, x
         jmp drop_
 
-; SHIFT LEFT
+; shift left
 shl_:
         asl  0, x
         rol  1, x
         jmp (vNext)
 
-; SHIFT RIGHT
+; shift right
 shr_:
         lsr  0, x
         ror  1, x
@@ -618,18 +619,20 @@ decr_:
         jmp (vNext)
 
 ; absolute jump to code
-; on 6502 use rti, the rts needs increase the return address
+; on 6502 use rti, do not forget php
+; rts needs increase the return address
+; jmp (tos) needs more bytes and cycles
 goto_:
         lda  0, x
-        pha
+        pha             ; or sta tos + 0
         lda  1, x
-        pha
+        pha             ; or sta tos + 1
         php
         inx
         inx
-        rti
+        rti             ; or jmp (tos)
 
-; +! ADD STORE
+; +! add to
 addto_:
         jsr pull2_
         ldy #0
@@ -643,7 +646,7 @@ addto_:
         sta (tos), y
 	jmp (vNext)
 
-; -! SUB STORE
+; -! sub to (why not?)
 subto_:
         jsr pull2_
         ldy #0
@@ -936,7 +939,7 @@ add2ip:
 ; $00 to $1F, reserved for macros
 ; macros could not call macros.
 macro:
-        sty vTIBPtr ; maybe spush 
+        sty ypf 
         tay
         lda ctlcodeslo, y
         sta tos + 0
@@ -946,7 +949,7 @@ macro:
         ;
         jsr enter
         .asciiz "\\G"
-        ldy vTIBPtr ; maybe spull
+        ldy ypf
         jmp interpret2
 
 ;----------------------------------------------------------------------
@@ -960,11 +963,12 @@ interpret1:
         lda #0
         tay
 
+; always used
 interpret2:
         sty vTIBPtr 
         lda #0
-        sta nest
         tay
+        sta nest
         beq @isnest
 
 ; calc nesting (a macro might have changed it)
@@ -1012,11 +1016,11 @@ gets_:
         ; windows CRLF, linux CR, Mac LF
         cmp #CR                 ; carriage return ?
         beq @iscrlf
-        cmp #LF                 ; line feed ?
-        beq @iscrlf
+        ;cmp #LF                 ; line feed ?
+        ;beq @iscrlf
 
 @ismacro:
-        ; 
+        ; ctrl codes 
         ; $00 to $1F
         ; y is the position in tib
         ; a is the code
@@ -1033,8 +1037,8 @@ gets_:
         ; just for easy
         lda #CR
         jsr @toTib
-        lda #LF
-        jsr @toTib
+        ;lda #LF
+        ;jsr @toTib
         ; pending nest ?
         lda nest
         bne @loop
@@ -1112,21 +1116,15 @@ printStr:
         pla
         sta tos + 1
 
-        ; ever add one to a jsr/rts address
-        inc tos + 0
-        bcc @ends
-        inc tos + 1
-@ends:
-
-        lda #'>'
-        jsr putch
-
         ; use carry to mark as asciiz
         clc
+        ldy #1  ; offset jsr/rts
         jsr putstr
         
-        ; one is auto added to a jsr/rts address
+        ; adjust offset
+        tya
         jsr add2tos
+
         lda tos + 1
         pha
         lda tos + 0
@@ -1134,30 +1132,33 @@ printStr:
         rts
 
 ;----------------------------------------------------------------------
+; puts a string, asciiz
+strz_:
+        jsr spull
+        ; use carry to mark as asciiz
+        clc
+        bcc str_
+
+;----------------------------------------------------------------------
 ; puts a string, ends on `
-str_:
+strs_:
         lda ipt + 0
         sta tos + 0
         lda ipt + 1
         sta tos + 1
         ; use carry to mark as string
         sec
+
+;----------------------------------------------------------------------
+; puts a string
+str_:
+        ldy #0
         jsr putstr
         jmp (vNext)
 
 ;----------------------------------------------------------------------
-; puts a string, asciiz
-puts_:
-        jsr spull
-        ; use carry to mark as asciiz
-        clc
-        ; fall through
-
-;----------------------------------------------------------------------
 ; prints a asciiz, max. 255 chars
 putstr:
-        sty ypf
-        ldy #0
 @loop:
         lda (tos), y
         beq @ends   ; limit NUL
@@ -1170,9 +1171,7 @@ putstr:
         iny
         bne @loop   ; limit 256
 @ends:
-        ; return the offset in a
-        tya
-        ldy ypf
+        ; return the offset in y
         rts
 
 ;----------------------------------------------------------------------
@@ -1506,18 +1505,6 @@ opt_:
 jmptos:
         sta tos + 1
         jmp (tos)
-
-;----------------------------------------------------------------------
-; Execute next clt opcode, future ?
-.ifdef CTLCODES
-ctl_:
-        jsr seekps
-        tay
-        lda cltcodeslo, y
-        sta tos + 0
-        lda cltcodeshi, y
-        jmp jmptos
-.endif
 
 ;----------------------------------------------------------------------
 ; Execute next alt opcode
@@ -2006,7 +1993,7 @@ i_:
 
 ;----------------------------------------------------------------------
 index:
-; WTF ?
+; R@ ?
         pla
         sta tos + 0
         pla
@@ -2159,7 +2146,7 @@ optcodeslo:
    .byte  <(arrEnd_)  ;    ]
    .byte  <(xor_)     ;    ^
    .byte  <(neg_)     ;    _
-   .byte  <(str_)     ;    `
+   .byte  <(strs_)     ;    `
    .byte  <(var_)     ;    a
    .byte  <(var_)     ;    b
    .byte  <(var_)     ;    c
@@ -2289,7 +2276,7 @@ optcodeshi:
    .byte  >(arrEnd_)  ;    ]
    .byte  >(xor_)     ;    ^
    .byte  >(neg_)     ;    _
-   .byte  >(str_)     ;    `
+   .byte  >(strs_)     ;    `
    .byte  >(var_)     ;    a
    .byte  >(var_)     ;    b
    .byte  >(var_)     ;    c
