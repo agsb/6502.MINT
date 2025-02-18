@@ -960,8 +960,8 @@ interpret:
 
 ; used by tests
 ;interpret1:
-;        lda #0
-;        tay
+        lda #0
+        tay
 
 ; always used
 interpret2:
