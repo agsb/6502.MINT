@@ -14,7 +14,14 @@ Use to compile: make
 
 Use to run: make run 
 
+Still not working
+
 ## Notes
+
+_25/02/2025
+
+    Verifiy each funtion and interpret loop.
+    not working, just pulling in/out stack
 
 _12/02/2025
 

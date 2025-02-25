@@ -19,14 +19,14 @@
 ; *********************************************************************
 ; this MINT is to be called after boot.
 ;
-; ROM usable code, no relocable or self modify 
-; memory depends on system host memory maps
+; ROM usable code, no relocable or self modify; 
+; but depends on host system memory maps;
 ;
 ; stacks grows backwards, push decrements, pull increments
 ; using SP for return stack
-; usinf X for index on data stack
+; using X for index on data stack
 ;
-; reserve page two for terminal input buffer
+; reserved page two for terminal input buffer
 ;
 ;--------------------------------------------------------
 ;
@@ -74,11 +74,11 @@
         BKX = 92        ; ascii back slash
 
 
-        ; stack LIMIT words, backwards
-        STKENDS = 256 - 64
-
         ; size page
         PAGE = 256
+
+        ; stacksizes
+        STKSIZE = 64
 
         ; group size, 32 x 16-bit words
         GRPSIZE = 64
@@ -247,9 +247,6 @@ okey:
 ; prepare 
 
 initialize:
-
-        jsr printStr
-        .asciiz "initialize\r\n"
 
 ; default system values
 
@@ -1024,9 +1021,20 @@ gets_:
         ; $00 to $1F
         ; y is the position in tib
         ; a is the code
+        
+        pha
+        lda #'M'
+        jsr putch
+        pla
+
         jmp macro
 
 @ischar:
+        pha
+        lda #'C'
+        jsr putch
+        pla
+
         jsr @toTib
         ; nest ?
         jsr nesting
@@ -1034,6 +1042,11 @@ gets_:
         jmp @loop
 
 @iscrlf:
+        pha
+        lda #'E'
+        jsr putch
+        pla
+
         ; just for easy
         lda #CR
         jsr @toTib
@@ -1045,6 +1058,11 @@ gets_:
 
 ; mark end with etx,
 @endstr:
+        pha
+        lda #'F'
+        jsr putch
+        pla
+
         ; mark ETX
         lda #ETX
         sta (tos), y
@@ -1262,7 +1280,7 @@ nak:
 
 ;---------------------------------------------------------------------
 ishex:
-        ; to upper, clear bit-6
+        ; mask to upper, clear bit-6
         and #%11011111
         cmp 'A'
         bcc nak
@@ -1270,7 +1288,7 @@ ishex:
         bcs nak
         sec
         sbc #'A' - 10
-        bcc ack
+        bcc ack ; always
 
 ;----------------------------------------------------------------------
 ; push an user variable
@@ -1298,7 +1316,7 @@ a2z:
         sec
         pla
         sbc #'a'
-        asl
+        ; asl   // not needed for split arrays
         jsr add2tos
         ; fall through
 
@@ -1586,7 +1604,7 @@ call_:
         jsr lookupDefs
 
         ; update instruction pointer
-        ldy #NUL
+        ldy #0
         lda (tos), y
         sta ipt + 0
         iny
@@ -1605,7 +1623,7 @@ lookupDeft:
 lookupDefs:
         sec
         sbc #'A'
-        asl
+        ; asl   // not needed for splited array
         tay
         ; offset
         clc
@@ -2027,7 +2045,7 @@ ifte_:
 ; verify stack
 etx_:
         txa
-        cmp #STKENDS    ; bytes
+        cmp #(PAGE-STKSIZE)   ; bytes
         bmi @ends
         lda #$FF        ; stack top
         tax
