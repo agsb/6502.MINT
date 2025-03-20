@@ -152,7 +152,7 @@ vS0      =  vsys + $00     ;    \a  ; start of data stack
 vBase16  =  vsys + $02     ;    \b  ; base16 flag
 vTIBPtr  =  vsys + $04     ;    \c  ; TIBPtr variable
 vDefs    =  vsys + $08     ;    \d  ; reference for group user functions
-vEdited  =  vsys + $0a     ;    \e  ;
+vEdited  =  vsys + $0a     ;    \e  ; edit mode
 vR0      =  vsys + $0c     ;    \f  ; start of return stack
 vNext    =  vsys + $0e     ;    \g  ; next routine dispatcher
 vHeap    =  vsys + $10     ;    \h  ; heap ptr variable
@@ -261,6 +261,7 @@ initialize:
         sta nos + 1
 
         ldy #dysys
+
 @loop:
         dey
         lda (tos), y
@@ -934,7 +935,7 @@ add2ip:
 
 ;----------------------------------------------------------------------
 ; $00 to $1F, reserved for macros
-; macros could not call macros.
+; ATT: macros could not call macros.
 macro:
         sty ypf 
         tay
@@ -943,7 +944,7 @@ macro:
         lda ctlcodeshi, y
         sta tos + 1
         jsr spush
-        ;
+
         jsr enter
         .asciiz "\\G"
         ldy ypf
@@ -1007,7 +1008,11 @@ gets_:
         bcs @ischar
 
         ; is asciiz ?
-        cmp #0
+        cmp #NUL
+        beq @endstr
+        
+        ; is end of text ?
+        cmp #ETX
         beq @endstr
         
         ; windows CRLF, linux CR, Mac LF
@@ -1026,7 +1031,6 @@ gets_:
         lda #'M'
         jsr putch
         pla
-
         jmp macro
 
 @ischar:
@@ -1065,8 +1069,7 @@ gets_:
 
         ; mark ETX
         lda #ETX
-        sta (tos), y
-        iny
+        jsr @toTib
 
         ; update instruction pointer
         lda tos + 0
@@ -1594,11 +1597,13 @@ ret_:
 ; Execute code from a user function
 call_:
 
+        sty ypf
         tay
         lda ipt + 0
         pha
         lda ipt + 1
         pha
+        ldy ypf
         tya
 
         jsr lookupDefs
