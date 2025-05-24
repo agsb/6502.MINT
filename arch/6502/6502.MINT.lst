@@ -1,0 +1,2674 @@
+ca65 V2.19 - Git 065b0d7f9
+Main file   : 6502.MINT.s
+Current file: 6502.MINT.s
+
+000000r 1               ; vim: filetype=asm sw=8 ts=8 autoindent expandtab shiftwidth=8 et:
+000000r 1               
+000000r 1               ; *********************************************************************
+000000r 1               ;
+000000r 1               ;  MINT Minimal Interpreter
+000000r 1               ;
+000000r 1               ;  GNU GENERAL PUBLIC LICENSE              Version 3, 29 June 2007
+000000r 1               ;
+000000r 1               ;  see the LICENSE file in this repo for more information
+000000r 1               ;
+000000r 1               ;  original for the Z80, by Ken Boak, John Hardy and Craig Jones.
+000000r 1               ;
+000000r 1               ;  original for the 6502, by Alvaro G. S. Barcellos, 2023
+000000r 1               ;
+000000r 1               ;  agsb@ see the disclaimer file in this repo for more information.
+000000r 1               ;
+000000r 1               ;  agsb@ star(tm) date 10/10/2023
+000000r 1               ;
+000000r 1               ; *********************************************************************
+000000r 1               ; this MINT is to be called after boot.
+000000r 1               ;
+000000r 1               ; ROM usable code, no relocable or self modify;
+000000r 1               ; but depends on host system memory maps;
+000000r 1               ;
+000000r 1               ; stacks grows backwards, push decrements, pull increments
+000000r 1               ; using SP for return stack
+000000r 1               ; using X for index on data stack
+000000r 1               ;
+000000r 1               ; reserved page two for terminal input buffer
+000000r 1               ;
+000000r 1               ;--------------------------------------------------------
+000000r 1               ;
+000000r 1               ;  ca65 assembler specifics
+000000r 1               ;
+000000r 1               ;--------------------------------------------------------
+000000r 1               
+000000r 1               ; identifiers
+000000r 1               
+000000r 1               .case +
+000000r 1               
+000000r 1               ; enable features
+000000r 1               
+000000r 1               .feature c_comments
+000000r 1               
+000000r 1               .feature string_escapes
+000000r 1               
+000000r 1               .feature org_per_seg
+000000r 1               
+000000r 1               .feature dollar_is_pc
+000000r 1               
+000000r 1               .feature pc_assignment
+000000r 1               
+000000r 1               ; enable 6502 mode
+000000r 1               
+000000r 1               .p02
+000000r 1               
+000000r 1               ;--------------------------------------------------------
+000000r 1               ;
+000000r 1               ;   constants, as must be.
+000000r 1               ;
+000000r 1               ;--------------------------------------------------------
+000000r 1               
+000000r 1                       TRUE  = 1
+000000r 1                       FALSE = 0
+000000r 1               
+000000r 1               ; useful ascii
+000000r 1               
+000000r 1                       CAN = 24        ; ascii cancel
+000000r 1                       CR  = 13        ; ascii carriage return
+000000r 1                       LF  = 10        ; ascii line feed
+000000r 1                       BS  = 9         ; ascii backspace
+000000r 1                       ETX = 3         ; ascii end of text
+000000r 1                       NUL = 0         ; ascii null
+000000r 1                       BKX = 92        ; ascii back slash
+000000r 1               
+000000r 1               
+000000r 1                       ; size page
+000000r 1                       PAGE = 256
+000000r 1               
+000000r 1                       ; stacksizes
+000000r 1                       STKSIZE = 64
+000000r 1               
+000000r 1                       ; group size, 32 x 16-bit words
+000000r 1                       GRPSIZE = 64
+000000r 1               
+000000r 1                       ; groups for defs, could be more
+000000r 1                       ; one plus common MINT
+000000r 1                       NUMGRPS = 6
+000000r 1               
+000000r 1               ;----------------------------------------------------------------------
+000000r 1               
+000000r 1               ; for easy, Chuck does with 22 deep.
+000000r 1               
+000000r 1               ; bottom of data stack, reserve at least 26 words
+000000r 1                       S0 = $00FF
+000000r 1               
+000000r 1               ; bottom of return stack, reserves at least 26 words
+000000r 1                       R0 = $01FF
+000000r 1               
+000000r 1               ;----------------------------------------------------------------------
+000000r 1               
+000000r 1               ; define emulator mode for basic IO
+000000r 1               
+000000r 1                       EMULATOR = 1
+000000r 1               
+000000r 1               ;----------------------------------------------------------------------
+000000r 1               .segment "ZERO"
+000000r 1               
+000000r 1               ; $000 - $00AF free for system
+000000r 1               
+000000r 1               ; mint internals, depends on systems host
+000000r 1               
+000000r 1               ; reserved for variables
+000000r 1               * = $00B0
+0000B0  1               
+0000B0  1               ; instruction pointer
+0000B0  1  00 00        ipt:    .addr $0
+0000B2  1               
+0000B2  1               ; heap pointer
+0000B2  1  00 00        hpt:    .addr $0
+0000B4  1               
+0000B4  1               ; copycats
+0000B4  1  00           nest: 	.byte $0
+0000B5  1  00           mode:   .byte $0
+0000B6  1               
+0000B6  1               ; safes
+0000B6  1  00           xpf:    .byte $0
+0000B7  1  00           ypf:    .byte $0
+0000B8  1               
+0000B8  1               ; pseudo registers
+0000B8  1  00 00        tos:    .word $0
+0000BA  1  00 00        nos:    .word $0
+0000BC  1  00 00        wrk:    .word $0
+0000BE  1  00 00        tmp:    .word $0
+0000C0  1               
+0000C0  1               ; reserved for data stack
+0000C0  1               * = $00C0
+0000C0  1               
+0000C0  1               ; data stack, top at $00FF
+0000C0  1  00 00 00 00  stk:    .res 64, $0
+0000C4  1  00 00 00 00  
+0000C8  1  00 00 00 00  
+000100  1               
+000100  1               ;----------------------------------------------------------------------
+000100  1               .segment "CODE"
+000000r 1               
+000000r 1               ; terminal input buffer
+000000r 1               tib  = $0200
+000000r 1               
+000000r 1               ;----------------------------------------------------------------------
+000000r 1               ; aliases
+000000r 1               
+000000r 1               vS0      =  vsys + $00     ;    \a  ; start of data stack
+000000r 1               vBase16  =  vsys + $02     ;    \b  ; base16 flag
+000000r 1               vTIBPtr  =  vsys + $04     ;    \c  ; TIBPtr variable
+000000r 1               vDefs    =  vsys + $08     ;    \d  ; reference for group user functions
+000000r 1               vEdited  =  vsys + $0a     ;    \e  ; edit mode
+000000r 1               vR0      =  vsys + $0c     ;    \f  ; start of return stack
+000000r 1               vNext    =  vsys + $0e     ;    \g  ; next routine dispatcher
+000000r 1               vHeap    =  vsys + $10     ;    \h  ; heap ptr variable
+000000r 1               vIx      =  vsys + $12     ;    \i  ; inner loop counter
+000000r 1               vJx      =  vsys + $14     ;    \j  ; inner loop counter
+000000r 1               
+000000r 1               ;----------------------------------------------------------------------
+000000r 1               ; real code
+000000r 1               
+000000r 1               * = $300
+000300  1               
+000300  1               init:
+000300  1               
+000300  1               ;       wise
+000300  1  78                   sei
+000301  1  D8                   cld
+000302  1  A2 FF                ldx #$FF
+000304  1  9A                   txs
+000305  1  58                   cli
+000306  1               
+000306  1  4C 4B 03             jmp initialize
+000309  1               
+000309  1               ;----------------------------------------------------------------------
+000309  1               .ifdef EMULATOR
+000309  1               ;
+000309  1               ; 25/10/2023, using run6502, -M E000 -X 0000, use ctrl-D to ends
+000309  1               ;
+000309  1               
+000309  1               hitch:
+000309  1               
+000309  1               getch:
+000309  1  AD 00 E0             lda $E000
+00030C  1               
+00030C  1                       ; test EOF
+00030C  1  C9 FF                cmp #$FF
+00030E  1  F0 04                beq byes
+000310  1               
+000310  1               putch:
+000310  1  8D 00 E0             sta $E000
+000313  1  60                   rts
+000314  1               
+000314  1               byes:
+000314  1                       ; exit of emulator
+000314  1  4C 00 00             jmp $0000
+000317  1               
+000317  1               
+000317  1               ; ---------------------------------------------------------------------
+000317  1               ; keyq does not work with emulator, using default key_
+000317  1               ; high byte not changed
+000317  1               keyq_:
+000317  1               
+000317  1               key_:
+000317  1  20 09 03             jsr getch
+00031A  1  CA                   dex
+00031B  1  CA                   dex
+00031C  1  95 00                sta 0, x
+00031E  1  6C 71 0D             jmp (vNext)
+000321  1               
+000321  1               emit_:
+000321  1  B5 00                lda 0, x
+000323  1  E8                   inx
+000324  1  E8                   inx
+000325  1  20 10 03             jsr putch
+000328  1  6C 71 0D             jmp (vNext)
+00032B  1               
+00032B  1               .endif
+00032B  1               
+00032B  1               ;----------------------------------------------------------------------
+00032B  1               iSysVars:
+00032B  1  FF 00                .word  S0               ; a vS0
+00032D  1  00 00                .word  FALSE            ; b vBase16
+00032F  1  00 02                .word  tib              ; c vTIBPtr
+000331  1  E3 0D                .word  defs             ; d vDEFS
+000333  1  00 00                .word  FALSE            ; e vEdited
+000335  1  FF 01                .word  R0               ; f vR0
+000337  1  04 09                .word  next             ; g dispatcher
+000339  1  CF 0F                .word  heap             ; h vHeap
+00033B  1               fSysVars:
+00033B  1               
+00033B  1               dysys = fSysVars - iSysVars
+00033B  1               
+00033B  1               okey:
+00033B  1  A9 4F                lda #'O'
+00033D  1  20 10 03             jsr putch
+000340  1  A9 4B                lda #'K'
+000342  1  20 10 03             jsr putch
+000345  1  A9 20                lda #' '
+000347  1  20 10 03             jsr putch
+00034A  1  60                   rts
+00034B  1               
+00034B  1               ;----------------------------------------------------------------------
+00034B  1               ; prepare
+00034B  1               
+00034B  1               initialize:
+00034B  1               
+00034B  1               ; default system values
+00034B  1               
+00034B  1  A9 2B                lda #<iSysVars
+00034D  1  85 B8                sta tos + 0
+00034F  1  A9 03                lda #>iSysVars
+000351  1  85 B9                sta tos + 1
+000353  1               
+000353  1  A9 63                lda #<vsys
+000355  1  85 BA                sta nos + 0
+000357  1  A9 0D                lda #>vsys
+000359  1  85 BB                sta nos + 1
+00035B  1               
+00035B  1  A0 10                ldy #dysys
+00035D  1               
+00035D  1               @loop:
+00035D  1  88                   dey
+00035E  1  B1 B8                lda (tos), y
+000360  1  91 BA                sta (nos), y
+000362  1  D0 F9                bne @loop
+000364  1               
+000364  1               ; default function for defs and groups
+000364  1               
+000364  1  A9 E3                lda #<defs
+000366  1  85 B8                sta tos + 0
+000368  1  A9 0D                lda #>defs
+00036A  1  85 B9                sta tos + 1
+00036C  1               
+00036C  1  A2 06                ldx #NUMGRPS
+00036E  1               @loopx:
+00036E  1               
+00036E  1  A0 00                ldy #0
+000370  1               @loopy:
+000370  1  A9 63                lda #<empty_
+000372  1  91 B8                sta (tos), y
+000374  1  C8                   iny
+000375  1  A9 0F                lda #>empty_
+000377  1  91 B8                sta (tos), y
+000379  1  C8                   iny
+00037A  1               
+00037A  1  C0 40                cpy #GRPSIZE
+00037C  1  D0 F2                bne @loopy
+00037E  1               
+00037E  1  CA                   dex
+00037F  1  F0 0E                beq @ends
+000381  1               
+000381  1                       ; increment
+000381  1  18                   clc
+000382  1  A5 B8                lda tos + 0
+000384  1  69 40                adc #GRPSIZE
+000386  1  85 B8                sta tos + 0
+000388  1  90 02                bcc @nccs
+00038A  1  E6 B9                inc tos + 1
+00038C  1               @nccs:
+00038C  1  4C 6E 03             jmp @loopx
+00038F  1               
+00038F  1               @ends:
+00038F  1               
+00038F  1               ; safe next
+00038F  1  A9 04                lda #<next
+000391  1  8D 71 0D             sta vNext + 0
+000394  1  A9 09                lda #>next
+000396  1  8D 72 0D             sta vNext + 1
+000399  1               
+000399  1               ; stacks default
+000399  1  A2 FF                ldx #$FF
+00039B  1  9A                   txs
+00039C  1               
+00039C  1               mint_:
+00039C  1               
+00039C  1                       ; prompt
+00039C  1  20 3B 07             jsr printStr
+00039F  1  4D 49 4E 54          .asciiz "MINT 6502 V1.0\r\n"
+0003A3  1  20 36 35 30  
+0003A7  1  32 20 56 31  
+0003B0  1               
+0003B0  1                       ; auto reset
+0003B0  1  20 81 06             jsr interpret
+0003B3  1               
+0003B3  1                       ; loop me
+0003B3  1  4C 9C 03             jmp mint_
+0003B6  1               
+0003B6  1               ; ---------------------------------------------------------------------
+0003B6  1               ; Forth like functions
+0003B6  1               
+0003B6  1               ; ---------------------------------------------------------------------
+0003B6  1               ;   data stack stuff
+0003B6  1               
+0003B6  1               spush:
+0003B6  1               push_:
+0003B6  1  CA                   dex
+0003B7  1  CA                   dex
+0003B8  1  A5 B9                lda tos + 1
+0003BA  1  95 01                sta 1, x
+0003BC  1  A5 B8                lda tos + 0
+0003BE  1  95 00                sta 0, x
+0003C0  1  60                   rts
+0003C1  1               
+0003C1  1               spull:
+0003C1  1               pull_:
+0003C1  1  B5 00                lda 0, x
+0003C3  1  85 B8                sta tos + 0
+0003C5  1  B5 01                lda 1, x
+0003C7  1  85 B9                sta tos + 1
+0003C9  1  E8                   inx
+0003CA  1  E8                   inx
+0003CB  1  60                   rts
+0003CC  1               
+0003CC  1               spull2:
+0003CC  1               pull2_:
+0003CC  1  20 C1 03             jsr pull_
+0003CF  1  B5 00                lda 0, x
+0003D1  1  85 BA                sta nos + 0
+0003D3  1  B5 01                lda 1, x
+0003D5  1  85 BB                sta nos + 1
+0003D7  1  E8                   inx
+0003D8  1  E8                   inx
+0003D9  1  60                   rts
+0003DA  1               
+0003DA  1               ; ---------------------------------------------------------------------
+0003DA  1               ; DUP
+0003DA  1               dup_:
+0003DA  1  CA                   dex
+0003DB  1  CA                   dex
+0003DC  1  B5 02                lda 2, x
+0003DE  1  95 00                sta 0, x
+0003E0  1  B5 03                lda 3, x
+0003E2  1  95 01                sta 1, x
+0003E4  1  6C 71 0D             jmp (vNext)
+0003E7  1               
+0003E7  1               ; OVER
+0003E7  1               over_:
+0003E7  1  CA                   dex
+0003E8  1  CA                   dex
+0003E9  1  B5 04                lda 4, x
+0003EB  1  95 00                sta 0, x
+0003ED  1  B5 05                lda 5, x
+0003EF  1  95 01                sta 1, x
+0003F1  1  6C 71 0D             jmp (vNext)
+0003F4  1               
+0003F4  1               ; SWAP
+0003F4  1               swap_:
+0003F4  1  B5 02                lda 2, x
+0003F6  1  48                   pha
+0003F7  1  B5 03                lda 3, x
+0003F9  1  48                   pha
+0003FA  1               move_:
+0003FA  1  B5 00                lda 0, x
+0003FC  1  95 02                sta 2, x
+0003FE  1  B5 01                lda 1, x
+000400  1  95 03                sta 3, x
+000402  1  68                   pla
+000403  1  95 01                sta 1, x
+000405  1  68                   pla
+000406  1  95 00                sta 0, x
+000408  1  6C 71 0D             jmp (vNext)
+00040B  1               
+00040B  1               ; ROT
+00040B  1               rot_:
+00040B  1  B5 04                lda 4, x
+00040D  1  48                   pha
+00040E  1  B5 05                lda 5, x
+000410  1  48                   pha
+000411  1  B5 02                lda 2, x
+000413  1  95 04                sta 4, x
+000415  1  B5 03                lda 3, x
+000417  1  95 05                sta 5, x
+000419  1  4C FA 03             jmp move_
+00041C  1               
+00041C  1               ; AND
+00041C  1               and_:
+00041C  1  B5 00                lda  0, x
+00041E  1  35 02                and  2, x
+000420  1  95 02                sta  2, x
+000422  1  B5 01                lda  1, x
+000424  1  35 03                and  3, x
+000426  1  4C 5C 04             jmp nsta3_
+000429  1               
+000429  1               ; OR
+000429  1               or_:
+000429  1  B5 00                lda  0, x
+00042B  1  15 02                ora  2, x
+00042D  1  95 02                sta  2, x
+00042F  1  B5 01                lda  1, x
+000431  1  15 03                ora  3, x
+000433  1  4C 5C 04             jmp nsta3_
+000436  1               
+000436  1               ; XOR
+000436  1               xor_:
+000436  1  B5 00                lda  0, x
+000438  1  55 02                eor  2, x
+00043A  1  95 02                sta  2, x
+00043C  1  B5 01                lda  1, x
+00043E  1  55 03                eor  3, x
+000440  1  4C 5C 04             jmp nsta3_
+000443  1               
+000443  1               ; ADD
+000443  1               add_:
+000443  1  18                   clc
+000444  1  B5 02                lda  2, x
+000446  1  75 00                adc  0, x
+000448  1  95 02                sta  2, x
+00044A  1  B5 03                lda  3, x
+00044C  1  75 01                adc  1, x
+00044E  1  4C 5C 04             jmp nsta3_
+000451  1               
+000451  1               ; SUB
+000451  1               sub_:
+000451  1  38                   sec
+000452  1  B5 02                lda  2, x
+000454  1  F5 00                sbc  0, x
+000456  1  95 02                sta  2, x
+000458  1  B5 03                lda  3, x
+00045A  1  F5 01                sbc  1, x
+00045C  1               
+00045C  1               nsta3_:
+00045C  1  95 03                sta  3, x
+00045E  1                       ; fall through
+00045E  1               
+00045E  1               ; DROP
+00045E  1               drop_:
+00045E  1  E8                   inx
+00045F  1  E8                   inx
+000460  1  6C 71 0D             jmp (vNext)
+000463  1               
+000463  1               ; NEGATE
+000463  1               neg_:
+000463  1  A9 00                lda #$00
+000465  1  2C                   .byte $2c   ; mask next two bytes, nice trick !
+000466  1               
+000466  1               ; INVERT
+000466  1               inv_:
+000466  1  A9 FF                lda #$FF
+000468  1               cpt_:
+000468  1  38                   sec
+000469  1  48                   pha
+00046A  1  F5 00                sbc  0, x
+00046C  1  95 00                sta  0, x
+00046E  1  38                   sec
+00046F  1  68                   pla
+000470  1  F5 01                sbc  1, x
+000472  1  95 01                sta  1, x
+000474  1  6C 71 0D             jmp (vNext)
+000477  1               
+000477  1               ; COMPARES
+000477  1               cmp_:
+000477  1  38                   sec
+000478  1  B5 00                lda  0, x
+00047A  1  F5 02                sbc  2, x
+00047C  1  B5 01                lda  1, x
+00047E  1  F5 03                sbc  3, x
+000480  1  60                   rts
+000481  1               
+000481  1               ; EQ
+000481  1               eq_:
+000481  1  20 77 04             jsr cmp_
+000484  1  F0 11                beq true2_
+000486  1  D0 0C                bne false2_
+000488  1               
+000488  1               ; LESS THAN
+000488  1               lt_:
+000488  1  20 77 04             jsr cmp_
+00048B  1  30 0A                bmi true2_
+00048D  1  10 05                bpl false2_
+00048F  1               
+00048F  1               ; GREATER THAN
+00048F  1               gt_:
+00048F  1  20 77 04             jsr cmp_
+000492  1  10 03                bpl true2_
+000494  1               
+000494  1               ; FALSE
+000494  1               false2_:
+000494  1  A9 00                lda #FALSE
+000496  1  2C                   .byte $2c   ; mask next two bytes, nice trick !
+000497  1               
+000497  1               ; TRUE
+000497  1               true2_:
+000497  1  A9 01                lda #TRUE
+000499  1               
+000499  1               ; SAMES
+000499  1               same2_:
+000499  1  95 02                sta  2, x
+00049B  1  95 03                sta  3, x
+00049D  1  4C 5E 04             jmp drop_
+0004A0  1               
+0004A0  1               ; shift left
+0004A0  1               shl_:
+0004A0  1  16 00                asl  0, x
+0004A2  1  36 01                rol  1, x
+0004A4  1  6C 71 0D             jmp (vNext)
+0004A7  1               
+0004A7  1               ; shift right
+0004A7  1               shr_:
+0004A7  1  56 00                lsr  0, x
+0004A9  1  76 01                ror  1, x
+0004AB  1  6C 71 0D             jmp (vNext)
+0004AE  1               
+0004AE  1               ; store byte
+0004AE  1               cto_:
+0004AE  1  20 CC 03             jsr pull2_
+0004B1  1  A0 00                ldy #0
+0004B3  1  A5 BA                lda nos + 0
+0004B5  1  91 B8                sta (tos), y
+0004B7  1  60                   rts
+0004B8  1               
+0004B8  1               ; store word
+0004B8  1               to_:
+0004B8  1  20 AE 04             jsr cto_
+0004BB  1  C8                   iny
+0004BC  1  A5 BB                lda nos + 1
+0004BE  1  91 B8                sta (tos), y
+0004C0  1  60                   rts
+0004C1  1               
+0004C1  1               ; byte store
+0004C1  1               cstore_:
+0004C1  1  20 AE 04             jsr cto_
+0004C4  1                       ; rts
+0004C4  1  6C 71 0D             jmp (vNext)
+0004C7  1               
+0004C7  1               ; word store
+0004C7  1               store_:
+0004C7  1  20 B8 04             jsr to_
+0004CA  1                       ; rts
+0004CA  1  6C 71 0D             jmp (vNext)
+0004CD  1               
+0004CD  1               ; fetch byte
+0004CD  1               cat_:
+0004CD  1  B5 00                lda  0, x
+0004CF  1  85 B8                sta tos + 0
+0004D1  1  B5 01                lda  1, x
+0004D3  1  85 B9                sta tos + 1
+0004D5  1  A0 00                ldy #0
+0004D7  1  B1 B8                lda (tos), y
+0004D9  1  95 00                sta  0, x
+0004DB  1  60                   rts
+0004DC  1               
+0004DC  1               ; fetch word
+0004DC  1               at_:
+0004DC  1  20 CD 04             jsr cat_
+0004DF  1  C8                   iny
+0004E0  1  B1 B8                lda (tos), y
+0004E2  1  95 01                sta  1, x
+0004E4  1  60                   rts
+0004E5  1               
+0004E5  1               ; fetch byte
+0004E5  1               cfetch_:
+0004E5  1  20 CD 04             jsr cat_
+0004E8  1  6C 71 0D             jmp (vNext)
+0004EB  1               
+0004EB  1               ; fetch word
+0004EB  1               fetch_:
+0004EB  1  20 DC 04             jsr at_
+0004EE  1  6C 71 0D             jmp (vNext)
+0004F1  1               
+0004F1  1               ; increase a word at stack
+0004F1  1               incr_:
+0004F1  1  F6 00                inc  0, x
+0004F3  1  D0 02                bne @ends
+0004F5  1  F6 01                inc  1, x
+0004F7  1               @ends:
+0004F7  1  6C 71 0D             jmp (vNext)
+0004FA  1               
+0004FA  1               ; decrease a word at stack
+0004FA  1               decr_:
+0004FA  1  B5 00                lda  0, x
+0004FC  1  D0 02                bne @ends
+0004FE  1  D6 01                dec  1, x
+000500  1               @ends:
+000500  1  D6 00                dec  0, x
+000502  1  6C 71 0D             jmp (vNext)
+000505  1               
+000505  1               ; absolute jump to code
+000505  1               ; on 6502 use rti, do not forget php
+000505  1               ; rts needs increase the return address
+000505  1               ; jmp (tos) needs more bytes and cycles
+000505  1               goto_:
+000505  1  B5 00                lda  0, x
+000507  1  48                   pha             ; or sta tos + 0
+000508  1  B5 01                lda  1, x
+00050A  1  48                   pha             ; or sta tos + 1
+00050B  1  08                   php
+00050C  1  E8                   inx
+00050D  1  E8                   inx
+00050E  1  40                   rti             ; or jmp (tos)
+00050F  1               
+00050F  1               ; +! add to
+00050F  1               addto_:
+00050F  1  20 CC 03             jsr pull2_
+000512  1  A0 00                ldy #0
+000514  1  18                   clc
+000515  1  B1 B8                lda (tos), y
+000517  1  65 BA                adc nos + 0
+000519  1  91 B8                sta (tos), y
+00051B  1  C8                   iny
+00051C  1  B1 B8                lda (tos), y
+00051E  1  65 BB                adc nos + 1
+000520  1  91 B8                sta (tos), y
+000522  1  6C 71 0D     	jmp (vNext)
+000525  1               
+000525  1               ; -! sub to (why not?)
+000525  1               subto_:
+000525  1  20 CC 03             jsr pull2_
+000528  1  A0 00                ldy #0
+00052A  1  38                   sec
+00052B  1  B1 B8                lda (tos), y
+00052D  1  E5 BA                sbc nos + 0
+00052F  1  91 B8                sta (tos), y
+000531  1  C8                   iny
+000532  1  B1 B8                lda (tos), y
+000534  1  E5 BB                sbc nos + 1
+000536  1  91 B8                sta (tos), y
+000538  1  6C 71 0D     	jmp (vNext)
+00053B  1               
+00053B  1               ;----------------------------------------------------------------------
+00053B  1               ;       return stack stuff
+00053B  1               
+00053B  1               ; >R
+00053B  1               s2r_:
+00053B  1               rpush_:
+00053B  1  B5 00                lda 0, x
+00053D  1  48                   pha
+00053E  1  B5 01                lda 1, x
+000540  1  48                   pha
+000541  1  E8                   inx
+000542  1  E8                   inx
+000543  1  6C 71 0D             jmp (vNext)
+000546  1               
+000546  1               ; R>
+000546  1               r2s_:
+000546  1               rpull_:
+000546  1  CA                   dex
+000547  1  CA                   dex
+000548  1               putw_:
+000548  1  68                   pla
+000549  1  95 01                sta 1, x
+00054B  1  68                   pla
+00054C  1  95 00                sta 0, x
+00054E  1  6C 71 0D             jmp (vNext)
+000551  1               
+000551  1               ; R@
+000551  1               rshow_:
+000551  1  CA                   dex
+000552  1  CA                   dex
+000553  1  68                   pla
+000554  1  95 01                sta 1, x
+000556  1  68                   pla
+000557  1  95 00                sta 0, x
+000559  1  48                   pha
+00055A  1  B5 01                lda 1, x
+00055C  1  48                   pha
+00055D  1  6C 71 0D             jmp (vNext)
+000560  1               
+000560  1               ; SP@
+000560  1               dat2t_:
+000560  1  8A                   txa
+000561  1  48                   pha
+000562  1  A9 00                lda #0
+000564  1  48                   pha
+000565  1  F0 DF                beq rpull_
+000567  1               ; RP@
+000567  1               ret2t_:
+000567  1  86 B6                stx xpf
+000569  1  BA                   tsx
+00056A  1  8A                   txa
+00056B  1  A6 B6                ldx xpf
+00056D  1  48                   pha
+00056E  1  A9 01                lda #1
+000570  1  48                   pha
+000571  1  D0 D3                bne rpull_
+000573  1               
+000573  1               ; SP!
+000573  1               t2dat_:
+000573  1  A2 FF                ldx #$FF
+000575  1  6C 71 0D             jmp (vNext)
+000578  1               
+000578  1               ; RP!
+000578  1               t2ret_:
+000578  1  86 B6                stx xpf
+00057A  1  A2 FF                ldx #$FF
+00057C  1  BA                   tsx
+00057D  1  A6 B6                ldx xpf
+00057F  1  6C 71 0D             jmp (vNext)
+000582  1               
+000582  1               ;----------------------------------------------------------------------
+000582  1               ; need review
+000582  1               ;----------------------------------------------------------------------
+000582  1               ; prepare for mult or divd
+000582  1               opin:
+000582  1                       ; pseudo tos
+000582  1  B5 00                lda  0, x
+000584  1  85 BC                sta wrk + 0
+000586  1  B5 01                lda  1, x
+000588  1  85 BD                sta wrk + 1
+00058A  1                       ; pseudo nos
+00058A  1  B5 02                lda  2, x
+00058C  1  85 BE                sta tmp + 0
+00058E  1  B5 03                lda  3, x
+000590  1  85 BF                sta tmp + 1
+000592  1                       ; clear results
+000592  1  A9 00                lda #0
+000594  1  85 B8                sta tos + 0
+000596  1  85 B9                sta tos + 1
+000598  1  85 BA                sta nos + 0
+00059A  1  85 BB                sta nos + 1
+00059C  1                       ; countdown
+00059C  1  A0 10                ldy #16
+00059E  1  60                   rts
+00059F  1               
+00059F  1               ;----------------------------------------------------------------------
+00059F  1               ; resume from mult or divd
+00059F  1               opout:
+00059F  1                       ; copy results
+00059F  1  A5 BA                lda nos + 0
+0005A1  1  95 00                sta  0, x
+0005A3  1  A5 BB                lda nos + 1
+0005A5  1  95 01                sta  1, x
+0005A7  1  A5 B8                lda tos + 0
+0005A9  1  95 02                sta  2, x
+0005AB  1  A5 B9                lda tos + 1
+0005AD  1  95 03                sta  3, x
+0005AF  1                       ; rts
+0005AF  1  6C 71 0D             jmp (vNext)
+0005B2  1               
+0005B2  1               ;----------------------------------------------------------------------
+0005B2  1               ; Divide the top 2 cell of the stack
+0005B2  1               ; http://codebase64.org/doku.php?id=base:16bit_division_16-bit_result
+0005B2  1               ; dividend divisor -- result remainder
+0005B2  1               ; ( tmp wrk -- nos tos )
+0005B2  1               div_:
+0005B2  1  20 82 05             jsr opin
+0005B5  1               @loop:
+0005B5  1  06 BE                asl tmp + 0
+0005B7  1  26 BF                rol tmp + 1
+0005B9  1  26 B8                rol tos + 0
+0005BB  1  26 B9                rol tos + 1
+0005BD  1  38                   sec
+0005BE  1  A5 B8                lda tos + 0
+0005C0  1  E5 BC                sbc wrk + 0
+0005C2  1  AA                   tax
+0005C3  1  A5 B9                lda tos + 1
+0005C5  1  E5 BD                sbc wrk + 1
+0005C7  1  90 06                bcc @skip
+0005C9  1  85 B9                sta tos + 1
+0005CB  1  86 B8                stx tos + 0
+0005CD  1  E6 BE                inc tmp + 0
+0005CF  1               @skip:
+0005CF  1                       ; countdown
+0005CF  1  88                   dey
+0005D0  1  D0 E3                bne @loop
+0005D2  1                       ; results
+0005D2  1  A5 BE                lda tmp + 0
+0005D4  1  85 BA                sta nos + 0
+0005D6  1  A5 BF                lda tmp + 1
+0005D8  1  85 BB                sta nos + 1
+0005DA  1                       ; ends
+0005DA  1  4C 9F 05             jmp opout
+0005DD  1               
+0005DD  1               ;----------------------------------------------------------------------
+0005DD  1               ; 16-bit multiply 16x16, 32 result
+0005DD  1               ; http://codebase64.org/doku.php?id=base:16bit_multiplication_32-bit_product
+0005DD  1               ; ( multiplicand multiplier -- resultMSW resultLSW )
+0005DD  1               ; ( tmp wrk -- nos tos )
+0005DD  1               mul_:
+0005DD  1  20 82 05             jsr opin
+0005E0  1               @shift_r:
+0005E0  1                       ; divide by 2
+0005E0  1  46 BD                lsr wrk + 1
+0005E2  1  66 BC                ror wrk + 0
+0005E4  1  90 0B                bcc @rotate_r
+0005E6  1                       ; add multiplicand to upper half product
+0005E6  1  AA                   tax
+0005E7  1  18                   clc
+0005E8  1  A5 BE                lda tmp + 0
+0005EA  1  65 B8                adc tos + 0
+0005EC  1  85 B8                sta tos + 0
+0005EE  1  8A                   txa
+0005EF  1  65 BF                adc tmp + 1
+0005F1  1               @rotate_r:
+0005F1  1                       ; rotate partial product upper to low
+0005F1  1  6A                   ror
+0005F2  1  66 B9                ror tos + 1
+0005F4  1  66 BB                ror nos + 1
+0005F6  1  66 BA                ror nos + 0
+0005F8  1                       ; countdown
+0005F8  1  88                   dey
+0005F9  1  D0 E5                bne @shift_r
+0005FB  1  85 B8                sta tos + 0
+0005FD  1                       ; ends
+0005FD  1  4C 9F 05             jmp opout
+000600  1               
+000600  1               ;----------------------------------------------------------------------
+000600  1               ;   MINT
+000600  1               ;----------------------------------------------------------------------
+000600  1               ; NOOP
+000600  1               aNop_:
+000600  1               nop_:
+000600  1                       ; next
+000600  1  4C 04 09             jmp next
+000603  1               
+000603  1               ;----------------------------------------------------------------------
+000603  1               add2hp:
+000603  1  18                   clc
+000604  1  6D 73 0D             adc vHeap + 0
+000607  1  8D 73 0D             sta vHeap + 0
+00060A  1  90 03                bcc @ends
+00060C  1  EE 74 0D             inc vHeap + 1
+00060F  1               @ends:
+00060F  1  60                   rts
+000610  1               
+000610  1               ;----------------------------------------------------------------------
+000610  1               seekps:
+000610  1  A0 00                ldy #0
+000612  1  B1 B0                lda (ipt), y
+000614  1  E6 B0                inc ipt + 0
+000616  1  D0 02                bne @ends
+000618  1  E6 B1                inc ipt + 1
+00061A  1               @ends:
+00061A  1  60                   rts
+00061B  1               
+00061B  1               ;----------------------------------------------------------------------
+00061B  1               heap2nos:
+00061B  1  AD 73 0D             lda vHeap + 0
+00061E  1  85 BA                sta nos + 0
+000620  1  AD 74 0D             lda vHeap + 1
+000623  1  85 BB                sta nos + 1
+000625  1  60                   rts
+000626  1               
+000626  1               ;----------------------------------------------------------------------
+000626  1               tib2tos:
+000626  1  A9 00                lda #<tib
+000628  1  85 B8                sta tos + 0
+00062A  1  A9 02                lda #>tib
+00062C  1  85 B9                sta tos + 1
+00062E  1  60                   rts
+00062F  1               
+00062F  1               ;----------------------------------------------------------------------
+00062F  1               add2tos:
+00062F  1  18                   clc
+000630  1  65 B8                adc tos + 0
+000632  1  85 B8                sta tos + 0
+000634  1  90 02                bcc @ends
+000636  1  E6 B9                inc tos + 1
+000638  1               @ends:
+000638  1  60                   rts
+000639  1               
+000639  1               ;----------------------------------------------------------------------
+000639  1               ; sub
+000639  1               subn2t:
+000639  1  38                   sec
+00063A  1  A5 B8                lda tos + 0
+00063C  1  E5 BA                sbc nos + 0
+00063E  1  85 B8                sta tos + 0
+000640  1  A5 B9                lda tos + 1
+000642  1  E5 BB                sbc nos + 1
+000644  1  85 B9                sta tos + 1
+000646  1  60                   rts
+000647  1               
+000647  1               ;----------------------------------------------------------------------
+000647  1               ; add
+000647  1               addn2t:
+000647  1  18                   clc
+000648  1  A5 B8                lda tos + 0
+00064A  1  65 BA                adc nos + 0
+00064C  1  85 B8                sta tos + 0
+00064E  1  A5 B9                lda tos + 1
+000650  1  65 BB                adc nos + 1
+000652  1  85 B9                sta tos + 1
+000654  1  60                   rts
+000655  1               
+000655  1               ;----------------------------------------------------------------------
+000655  1               ; add 2x
+000655  1               addt2t:
+000655  1  06 B8                asl tos + 0
+000657  1  26 B9                rol tos + 1
+000659  1  60                   rts
+00065A  1               
+00065A  1               ;----------------------------------------------------------------------
+00065A  1               add2ip:
+00065A  1               ; update ip
+00065A  1  18                   clc
+00065B  1  65 B0                adc ipt + 0
+00065D  1  85 B0                sta ipt + 0
+00065F  1  90 02                bcc @ends
+000661  1  E6 B1                inc ipt + 1
+000663  1               @ends:
+000663  1                       ; next
+000663  1  6C 71 0D             jmp (vNext)
+000666  1               
+000666  1               ;----------------------------------------------------------------------
+000666  1               ; $00 to $1F, reserved for macros
+000666  1               ; ATT: macros could not call macros.
+000666  1               macro:
+000666  1  84 B7                sty ypf
+000668  1  A8                   tay
+000669  1  B9 63 0C             lda ctlcodeslo, y
+00066C  1  85 B8                sta tos + 0
+00066E  1  B9 E3 0C             lda ctlcodeshi, y
+000671  1  85 B9                sta tos + 1
+000673  1  20 B6 03             jsr spush
+000676  1               
+000676  1  20 24 09             jsr enter
+000679  1  5C 47 00             .asciiz "\\G"
+00067C  1  A4 B7                ldy ypf
+00067E  1  4C 8E 06             jmp interpret2
+000681  1               
+000681  1               ;----------------------------------------------------------------------
+000681  1               interpret:
+000681  1  20 24 09             jsr enter
+000684  1  5C 4E 60 3E          .asciiz "\\N`> `"
+000688  1  20 60 00     
+00068B  1                       ; fall through
+00068B  1               
+00068B  1               ; used by tests
+00068B  1               ;interpret1:
+00068B  1  A9 00                lda #0
+00068D  1  A8                   tay
+00068E  1               
+00068E  1               ; always used
+00068E  1               interpret2:
+00068E  1  8C 67 0D             sty vTIBPtr
+000691  1  A9 00                lda #0
+000693  1  A8                   tay
+000694  1  85 B4                sta nest
+000696  1  F0 09                beq @isnest
+000698  1               
+000698  1               ; calc nesting (a macro might have changed it)
+000698  1               @loop:
+000698  1  B9 00 02             lda tib, y
+00069B  1  F0 09                beq waitchar
+00069D  1  20 0D 07             jsr nesting            ; update nesting value
+0006A0  1  C8                   iny
+0006A1  1               
+0006A1  1               @isnest:
+0006A1  1  CC 67 0D             cpy vTIBPtr
+0006A4  1  D0 F2                bne @loop
+0006A6  1                       ; or fall through
+0006A6  1               
+0006A6  1               ;----------------------------------------------------------------------
+0006A6  1               ; loop around waiting for character
+0006A6  1               ; get a line into tib
+0006A6  1               waitchar:
+0006A6  1  20 26 06             jsr tib2tos
+0006A9  1  20 B6 03             jsr spush
+0006AC  1                       ; fall through
+0006AC  1               
+0006AC  1               ;----------------------------------------------------------------------
+0006AC  1               ; get a line into buffer pointer by TOS
+0006AC  1               gets_:
+0006AC  1                       ; already
+0006AC  1  A0 00                ldy #0
+0006AE  1  20 C1 03             jsr spull
+0006B1  1               
+0006B1  1               @loop:
+0006B1  1                       ; limit 255
+0006B1  1  C0 FF                cpy #$FF
+0006B3  1  F0 3D                beq @endstr
+0006B5  1               
+0006B5  1  20 09 03             jsr getch
+0006B8  1               
+0006B8  1                       ; ge space ?
+0006B8  1  C9 20                cmp #32
+0006BA  1  B0 16                bcs @ischar
+0006BC  1               
+0006BC  1                       ; is asciiz ?
+0006BC  1  C9 00                cmp #NUL
+0006BE  1  F0 32                beq @endstr
+0006C0  1               
+0006C0  1                       ; is end of text ?
+0006C0  1  C9 03                cmp #ETX
+0006C2  1  F0 2E                beq @endstr
+0006C4  1               
+0006C4  1                       ; windows CRLF, linux CR, Mac LF
+0006C4  1  C9 0D                cmp #CR                 ; carriage return ?
+0006C6  1  F0 1A                beq @iscrlf
+0006C8  1                       ;cmp #LF                 ; line feed ?
+0006C8  1                       ;beq @iscrlf
+0006C8  1               
+0006C8  1               @ismacro:
+0006C8  1                       ; ctrl codes
+0006C8  1                       ; $00 to $1F
+0006C8  1                       ; y is the position in tib
+0006C8  1                       ; a is the code
+0006C8  1               
+0006C8  1  48                   pha
+0006C9  1  A9 4D                lda #'M'
+0006CB  1  20 10 03             jsr putch
+0006CE  1  68                   pla
+0006CF  1  4C 66 06             jmp macro
+0006D2  1               
+0006D2  1               @ischar:
+0006D2  1  48                   pha
+0006D3  1  A9 43                lda #'C'
+0006D5  1  20 10 03             jsr putch
+0006D8  1  68                   pla
+0006D9  1               
+0006D9  1  20 09 07             jsr @toTib
+0006DC  1                       ; nest ?
+0006DC  1  20 0D 07             jsr nesting
+0006DF  1                       ; wait for next character
+0006DF  1  4C B1 06             jmp @loop
+0006E2  1               
+0006E2  1               @iscrlf:
+0006E2  1  48                   pha
+0006E3  1  A9 45                lda #'E'
+0006E5  1  20 10 03             jsr putch
+0006E8  1  68                   pla
+0006E9  1               
+0006E9  1                       ; just for easy
+0006E9  1  A9 0D                lda #CR
+0006EB  1  20 09 07             jsr @toTib
+0006EE  1                       ;lda #LF
+0006EE  1                       ;jsr @toTib
+0006EE  1                       ; pending nest ?
+0006EE  1  A5 B4                lda nest
+0006F0  1  D0 BF                bne @loop
+0006F2  1               
+0006F2  1               ; mark end with etx,
+0006F2  1               @endstr:
+0006F2  1  48                   pha
+0006F3  1  A9 46                lda #'F'
+0006F5  1  20 10 03             jsr putch
+0006F8  1  68                   pla
+0006F9  1               
+0006F9  1                       ; mark ETX
+0006F9  1  A9 03                lda #ETX
+0006FB  1  20 09 07             jsr @toTib
+0006FE  1               
+0006FE  1                       ; update instruction pointer
+0006FE  1  A5 B8                lda tos + 0
+000700  1  85 B0                sta ipt + 0
+000702  1  A5 B9                lda tos + 1
+000704  1  85 B1                sta ipt + 1
+000706  1               
+000706  1                       ; next
+000706  1  4C 04 09             jmp next
+000709  1               
+000709  1               ; maximum 255 chars
+000709  1               @toTib:
+000709  1                       ; store
+000709  1  91 B8                sta (tos), y
+00070B  1  C8                   iny
+00070C  1                       ; echo or
+00070C  1                       ;jmp putch
+00070C  1  60                   rts
+00070D  1               
+00070D  1               ;----------------------------------------------------------------------
+00070D  1               ; nesting deep
+00070D  1               nesting:
+00070D  1  C9 60                cmp #'`'
+00070F  1  D0 07                bne @nests
+000711  1               
+000711  1                       ; toggle bit 7, for strings
+000711  1  A9 80                lda #$80
+000713  1  05 B4                ora nest
+000715  1  85 B4                sta nest
+000717  1  60                   rts
+000718  1               
+000718  1               @nests:
+000718  1                       ; allow 127 deep nests
+000718  1  24 B4                bit nest
+00071A  1  30 18                bmi @nonest
+00071C  1               
+00071C  1                       ; open
+00071C  1  C9 3A                cmp #':'
+00071E  1  F0 15                beq @nestinc
+000720  1  C9 5B                cmp #'['
+000722  1  F0 11                beq @nestinc
+000724  1  C9 28                cmp #'('
+000726  1  F0 0D                beq @nestinc
+000728  1                       ; close
+000728  1  C9 3B                cmp #';'
+00072A  1  F0 0C                beq @nestdec
+00072C  1  C9 5D                cmp #']'
+00072E  1  F0 08                beq @nestdec
+000730  1  C9 29                cmp #')'
+000732  1  F0 04                beq @nestdec
+000734  1               @nonest:
+000734  1  60                   rts
+000735  1               @nestinc:
+000735  1  E6 B4                inc nest
+000737  1  60                   rts
+000738  1               @nestdec:
+000738  1  C6 B4                dec nest
+00073A  1  60                   rts
+00073B  1               
+00073B  1               ;----------------------------------------------------------------------
+00073B  1               ; prints a asciiz, refered by hardware stack
+00073B  1               printStr:
+00073B  1                       ; reference
+00073B  1  68                   pla
+00073C  1  85 B8                sta tos + 0
+00073E  1  68                   pla
+00073F  1  85 B9                sta tos + 1
+000741  1               
+000741  1                       ; use carry to mark as asciiz
+000741  1  18                   clc
+000742  1  A0 01                ldy #1  ; offset jsr/rts
+000744  1  20 69 07             jsr putstr
+000747  1               
+000747  1                       ; adjust offset
+000747  1  98                   tya
+000748  1  20 2F 06             jsr add2tos
+00074B  1               
+00074B  1  A5 B9                lda tos + 1
+00074D  1  48                   pha
+00074E  1  A5 B8                lda tos + 0
+000750  1  48                   pha
+000751  1  60                   rts
+000752  1               
+000752  1               ;----------------------------------------------------------------------
+000752  1               ; puts a string, asciiz
+000752  1               strz_:
+000752  1  20 C1 03             jsr spull
+000755  1                       ; use carry to mark as asciiz
+000755  1  18                   clc
+000756  1  90 09                bcc str_
+000758  1               
+000758  1               ;----------------------------------------------------------------------
+000758  1               ; puts a string, ends on `
+000758  1               strs_:
+000758  1  A5 B0                lda ipt + 0
+00075A  1  85 B8                sta tos + 0
+00075C  1  A5 B1                lda ipt + 1
+00075E  1  85 B9                sta tos + 1
+000760  1                       ; use carry to mark as string
+000760  1  38                   sec
+000761  1               
+000761  1               ;----------------------------------------------------------------------
+000761  1               ; puts a string
+000761  1               str_:
+000761  1  A0 00                ldy #0
+000763  1  20 69 07             jsr putstr
+000766  1  6C 71 0D             jmp (vNext)
+000769  1               
+000769  1               ;----------------------------------------------------------------------
+000769  1               ; prints a asciiz, max. 255 chars
+000769  1               putstr:
+000769  1               @loop:
+000769  1  B1 B8                lda (tos), y
+00076B  1  F0 0C                beq @ends   ; limit NUL
+00076D  1                       ; skip `strings`
+00076D  1  90 04                bcc @cont
+00076F  1  C9 60                cmp #'`'    ; ` is the string terminator
+000771  1  F0 06                beq @ends
+000773  1               @cont:
+000773  1  20 10 03             jsr putch
+000776  1  C8                   iny
+000777  1  D0 F0                bne @loop   ; limit 256
+000779  1               @ends:
+000779  1                       ; return the offset in y
+000779  1  60                   rts
+00077A  1               
+00077A  1               ;----------------------------------------------------------------------
+00077A  1               ; prints number in tos to decimal ASCII
+00077A  1               ; ps. putchar ends with rts
+00077A  1               printdec:
+00077A  1  A9 10                lda #<10000
+00077C  1  85 BA                sta nos + 0
+00077E  1  A9 27                lda #>10000
+000780  1  85 BB                sta nos + 1
+000782  1  20 A3 07             jsr @nums
+000785  1  A9 E8                lda #<1000
+000787  1  85 BA                sta nos + 0
+000789  1  A9 03                lda #>1000
+00078B  1  85 BB                sta nos + 1
+00078D  1  20 A3 07             jsr @nums
+000790  1  A9 64                lda #<100
+000792  1  85 BA                sta nos + 0
+000794  1  A9 00                lda #>100
+000796  1  85 BB                sta nos + 1
+000798  1  20 A3 07             jsr @nums
+00079B  1  A9 0A                lda #<10
+00079D  1  85 BA                sta nos + 0
+00079F  1  A9 00                lda #>10
+0007A1  1  85 BB                sta nos + 1
+0007A3  1               @nums:
+0007A3  1  A0 2F                ldy #'0' - 1
+0007A5  1               @loop:
+0007A5  1                       ; subtract
+0007A5  1  C8                   iny
+0007A6  1  20 39 06             jsr subn2t
+0007A9  1  B0 FA                bcs @loop
+0007AB  1                       ; restore
+0007AB  1  20 47 06             jsr addn2t
+0007AE  1  98                   tya
+0007AF  1  4C 10 03             jmp putch
+0007B2  1               
+0007B2  1               ;----------------------------------------------------------------------
+0007B2  1               ; prints number in tos to hexadecimal ASCII
+0007B2  1               printhex:
+0007B2  1  A5 B9                lda tos + 1
+0007B4  1  20 BD 07             jsr printhex8
+0007B7  1  A5 B8                lda tos + 0
+0007B9  1  20 BD 07             jsr printhex8
+0007BC  1  60                   rts
+0007BD  1               ;----------------------------------------------------------------------
+0007BD  1               ; print a 8-bit HEX
+0007BD  1               printhex8:
+0007BD  1  AA                   tax
+0007BE  1  4A                   lsr
+0007BF  1  6A                   ror
+0007C0  1  6A                   ror
+0007C1  1  6A                   ror
+0007C2  1  20 C6 07             jsr @conv
+0007C5  1  8A                   txa
+0007C6  1               @conv:
+0007C6  1  29 0F                and #$0F
+0007C8  1  18                   clc
+0007C9  1  09 30                ora #$30
+0007CB  1  C9 3A                cmp #$3A
+0007CD  1  90 02                bcc @ends
+0007CF  1  69 06                adc #$06
+0007D1  1               @ends:
+0007D1  1  4C 10 03             jmp putch
+0007D4  1               
+0007D4  1               ;----------------------------------------------------------------------
+0007D4  1               nul2tos:
+0007D4  1  A9 00                lda #0
+0007D6  1  85 B8                sta tos + 0
+0007D8  1  85 B9                sta tos + 1
+0007DA  1  60                   rts
+0007DB  1               
+0007DB  1               ;---------------------------------------------------------------------
+0007DB  1               isdec:
+0007DB  1  C9 30                cmp #'0' + 0
+0007DD  1  90 09                bcc nak
+0007DF  1  C9 3A                cmp #'9' + 1
+0007E1  1  B0 05                bcs nak
+0007E3  1  38                   sec
+0007E4  1  E9 30                sbc #'0'
+0007E6  1               ack:
+0007E6  1  18                   clc
+0007E7  1  60                   rts
+0007E8  1               nak:
+0007E8  1  38                   sec
+0007E9  1  60                   rts
+0007EA  1               
+0007EA  1               ;---------------------------------------------------------------------
+0007EA  1               ishex:
+0007EA  1                       ; mask to upper, clear bit-6
+0007EA  1  29 DF                and #%11011111
+0007EC  1  C5 41                cmp 'A'
+0007EE  1  90 F8                bcc nak
+0007F0  1  C5 47                cmp 'F' + 1
+0007F2  1  B0 F4                bcs nak
+0007F4  1  38                   sec
+0007F5  1  E9 37                sbc #'A' - 10
+0007F7  1  90 ED                bcc ack ; always
+0007F9  1               
+0007F9  1               ;----------------------------------------------------------------------
+0007F9  1               ; push an user variable
+0007F9  1               var_:
+0007F9  1  48                   pha
+0007FA  1  A9 A3                lda #<vars
+0007FC  1  85 B8                sta tos + 0
+0007FE  1  A9 0D                lda #>vars
+000800  1  85 B9                sta tos + 1
+000802  1  4C 0E 08             jmp a2z
+000805  1               
+000805  1               ;----------------------------------------------------------------------
+000805  1               ; push a mint variable
+000805  1               sysVar_:
+000805  1  48                   pha
+000806  1  A9 63                lda #<vsys
+000808  1  85 B8                sta tos + 0
+00080A  1  A9 0D                lda #>vsys
+00080C  1  85 B9                sta tos + 1
+00080E  1                       ; fall through
+00080E  1               
+00080E  1               ;----------------------------------------------------------------------
+00080E  1               ; push a reference into stack
+00080E  1               a2z:
+00080E  1  38                   sec
+00080F  1  68                   pla
+000810  1  E9 61                sbc #'a'
+000812  1                       ; asl   // not needed for split arrays
+000812  1  20 2F 06             jsr add2tos
+000815  1                       ; fall through
+000815  1               
+000815  1               ;----------------------------------------------------------------------
+000815  1               pends:
+000815  1  20 B6 03             jsr spush
+000818  1  6C 71 0D             jmp (vNext)
+00081B  1               
+00081B  1               ;----------------------------------------------------------------------
+00081B  1               ; ascii code
+00081B  1               charCode_:
+00081B  1  20 10 06             jsr seekps
+00081E  1                       ; fall through
+00081E  1               
+00081E  1               bytos:  ; ????
+00081E  1  85 B8                sta tos + 0
+000820  1  A9 00                lda #0
+000822  1  85 B9                sta tos + 1
+000824  1  F0 EF                beq pends
+000826  1               
+000826  1               ;----------------------------------------------------------------------
+000826  1               ; convert a decimal value to binary
+000826  1               dec_:
+000826  1  20 D4 07             jsr nul2tos
+000829  1               @loop:
+000829  1  20 10 06             jsr seekps
+00082C  1  20 DB 07             jsr isdec
+00082F  1  B0 E4                bcs pends
+000831  1               @uval:
+000831  1  20 2F 06             jsr add2tos
+000834  1  20 5B 08             jsr mul10
+000837  1  4C 29 08             jmp @loop
+00083A  1               
+00083A  1               ;----------------------------------------------------------------------
+00083A  1               ; convert a hexadecimal value to binary
+00083A  1               hex_:
+00083A  1  20 D4 07             jsr nul2tos
+00083D  1               @loop:
+00083D  1  20 10 06             jsr seekps
+000840  1  20 DB 07             jsr isdec
+000843  1  90 07                bcc @uval
+000845  1  20 EA 07             jsr ishex
+000848  1  90 02                bcc @uval
+00084A  1  B0 C9                bcs pends
+00084C  1               @uval:
+00084C  1  20 2F 06             jsr add2tos
+00084F  1  20 70 08             jsr mul16
+000852  1  4C 3D 08             jmp @loop
+000855  1               
+000855  1               ;----------------------------------------------------------------------
+000855  1               depth_:
+000855  1                       ; stacks moves backwards
+000855  1  38                   sec
+000856  1  8A                   txa
+000857  1  4A                   lsr ; words
+000858  1  4C 1E 08             jmp bytos
+00085B  1               
+00085B  1               ;----------------------------------------------------------------------
+00085B  1               ; multiply by ten
+00085B  1               ; 2x + 8x
+00085B  1               mul10:
+00085B  1                       ; 2x
+00085B  1  20 55 06             jsr addt2t
+00085E  1  A5 B8                lda tos + 0
+000860  1  85 BA                sta nos + 0
+000862  1  A5 B9                lda tos + 1
+000864  1  85 BB                sta nos + 1
+000866  1                       ; 2x
+000866  1  20 55 06             jsr addt2t
+000869  1                       ; 2x
+000869  1  20 55 06             jsr addt2t
+00086C  1                       ; 2x + 8x
+00086C  1  20 47 06             jsr addn2t
+00086F  1  60                   rts
+000870  1               
+000870  1               ;----------------------------------------------------------------------
+000870  1               ; multiply by sixteen
+000870  1               mul16:
+000870  1  A0 04                ldy #4
+000872  1               @loop:
+000872  1  06 B8                asl tos + 0
+000874  1  85 B8                sta tos + 0
+000876  1  26 B9                rol tos + 1
+000878  1  85 B9                sta tos + 1
+00087A  1  88                   dey
+00087B  1  D0 F5                bne @loop
+00087D  1  60                   rts
+00087E  1               
+00087E  1               ;----------------------------------------------------------------------
+00087E  1               ; skip to eol, crlf
+00087E  1               comment_:
+00087E  1  A0 00                ldy #0
+000880  1               @loop:
+000880  1  C8                   iny
+000881  1  F0 0E                beq @ends   ; limit 256
+000883  1  B1 B0                lda (ipt), y
+000885  1  F0 0A                beq @ends
+000887  1  C9 0D                cmp #CR
+000889  1  F0 06                beq @ends
+00088B  1  C9 0A                cmp #LF
+00088D  1  F0 02                beq @ends
+00088F  1  D0 EF                bne @loop
+000891  1               @ends:
+000891  1  98                   tya
+000892  1  4C 5A 06             jmp add2ip
+000895  1               
+000895  1               ;----------------------------------------------------------------------
+000895  1               ; print decimal
+000895  1               dot_:
+000895  1  20 C1 03             jsr spull
+000898  1  20 7A 07             jsr printdec
+00089B  1  4C A4 08             jmp dotsp
+00089E  1               
+00089E  1               ;----------------------------------------------------------------------
+00089E  1               ; print hexadecimal
+00089E  1               hdot_:
+00089E  1  20 C1 03             jsr spull
+0008A1  1  20 B2 07             jsr printhex
+0008A4  1                       ; fall through
+0008A4  1               
+0008A4  1               ;----------------------------------------------------------------------
+0008A4  1               ; print space
+0008A4  1               dotsp:
+0008A4  1  A9 20                lda #' '
+0008A6  1  20 10 03             jsr putch
+0008A9  1                       ; next
+0008A9  1  6C 71 0D             jmp (vNext)
+0008AC  1               
+0008AC  1               ;----------------------------------------------------------------------
+0008AC  1               newln_:
+0008AC  1  20 B2 08             jsr crlf
+0008AF  1                       ; next
+0008AF  1  6C 71 0D             jmp (vNext)
+0008B2  1               
+0008B2  1               ;----------------------------------------------------------------------
+0008B2  1               crlf:
+0008B2  1  20 3B 07             jsr printStr
+0008B5  1  0D 0A 00             .asciiz "\r\n"
+0008B8  1  60                   rts
+0008B9  1               
+0008B9  1               ;----------------------------------------------------------------------
+0008B9  1               prompt:
+0008B9  1  20 3B 07             jsr printStr
+0008BC  1  0D 0A 3E 20          .asciiz "\r\n> "
+0008C0  1  00           
+0008C1  1  60                   rts
+0008C2  1               
+0008C2  1               ;----------------------------------------------------------------------
+0008C2  1               ; how many ? 14
+0008C2  1               printStk_:
+0008C2  1  20 24 09             jsr enter
+0008C5  1                       ;.asciiz  "\\a@2-\\D1-(",$22,"@\\b@\\(,)(.)2-)'"
+0008C5  1  5C 61 40 32          .asciiz  "\\a@2-\\D1-(14@\\b@\\(,)(.)2-)'"
+0008C9  1  2D 5C 44 31  
+0008CD  1  2D 28 31 34  
+0008E1  1                       ; next
+0008E1  1  6C 71 0D             jmp (vNext)
+0008E4  1               
+0008E4  1               ;----------------------------------------------------------------------
+0008E4  1               ; 6502 is memory mapped IO, just read
+0008E4  1               inPort_:
+0008E4  1  4C E5 04             jmp cfetch_
+0008E7  1               
+0008E7  1               ;----------------------------------------------------------------------
+0008E7  1               ; 6502 is memory mapped IO, just write
+0008E7  1               outPort_:
+0008E7  1  4C C1 04             jmp cstore_
+0008EA  1               
+0008EA  1               ;----------------------------------------------------------------------
+0008EA  1               ; copy and update
+0008EA  1               compNext:
+0008EA  1               
+0008EA  1                       ; pull heap
+0008EA  1  20 1B 06             jsr heap2nos
+0008ED  1               
+0008ED  1                       ; pull value
+0008ED  1  20 C1 03             jsr spull
+0008F0  1               
+0008F0  1                       ; byte
+0008F0  1  A0 00                ldy #0
+0008F2  1  A5 B8                lda tos + 0
+0008F4  1  91 BA                sta (nos), y
+0008F6  1  C8                   iny
+0008F7  1               
+0008F7  1  A5 B5                lda mode + 0
+0008F9  1  D0 05                bne @isbm
+0008FB  1               
+0008FB  1                       ; word
+0008FB  1  A5 B9                lda tos + 1
+0008FD  1  91 BA                sta (nos), y
+0008FF  1  C8                   iny
+000900  1               
+000900  1               @isbm:
+000900  1               
+000900  1  98                   tya
+000901  1  20 03 06             jsr add2hp
+000904  1                       ; fall through
+000904  1               
+000904  1               ;----------------------------------------------------------------------
+000904  1               ; Execute next opcode, default
+000904  1               next:
+000904  1               opt_:
+000904  1  20 10 06             jsr seekps
+000907  1  A8                   tay
+000908  1  B9 63 0B             lda optcodeslo, y
+00090B  1  85 B8                sta tos + 0
+00090D  1  B9 E3 0B             lda optcodeshi, y
+000910  1               jmptos:
+000910  1  85 B9                sta tos + 1
+000912  1  6C B8 00             jmp (tos)
+000915  1               
+000915  1               ;----------------------------------------------------------------------
+000915  1               ; Execute next alt opcode
+000915  1               alt_:
+000915  1  20 10 06             jsr seekps
+000918  1  A8                   tay
+000919  1  B9 63 0C             lda altcodeslo, y
+00091C  1  85 B8                sta tos + 0
+00091E  1  B9 E3 0C             lda altcodeshi, y
+000921  1  4C 10 09             jmp jmptos
+000924  1               
+000924  1               ;----------------------------------------------------------------------
+000924  1               ; Parse inline asciiz mint
+000924  1               enter:
+000924  1               ; pull from system stack
+000924  1  68                   pla
+000925  1  85 B0                sta ipt + 0
+000927  1  68                   pla
+000928  1  85 B1                sta ipt + 1
+00092A  1               
+00092A  1               ; jsr/rst uses return address less one, must add one :)
+00092A  1  E6 B0                inc ipt + 0
+00092C  1  90 02                bcc @nock
+00092E  1  E6 B1                inc ipt + 1
+000930  1               @nock:
+000930  1                       ; next
+000930  1  6C 71 0D             jmp (vNext)
+000933  1               
+000933  1               ;----------------------------------------------------------------------
+000933  1               ; char 0, Continue from enter, past inline mint
+000933  1               exit_:
+000933  1  6C B0 00             jmp (ipt)
+000936  1               
+000936  1               ;----------------------------------------------------------------------
+000936  1               ; Execute code from data stack
+000936  1               ;
+000936  1               exec_:
+000936  1  20 C1 03             jsr spull
+000939  1  6C B8 00             jmp (tos)
+00093C  1               
+00093C  1               ;----------------------------------------------------------------------
+00093C  1               ; Interpret code from data stack
+00093C  1               go_:
+00093C  1  A5 B0                lda ipt + 0
+00093E  1  48                   pha
+00093F  1  A5 B1                lda ipt + 1
+000941  1  48                   pha
+000942  1                       ; pull ps from data stack
+000942  1  B5 00                lda  0, x
+000944  1  85 B0                sta ipt + 0
+000946  1  B5 01                lda  1, x
+000948  1  85 B1                sta ipt + 1
+00094A  1  E8                   inx
+00094B  1  E8                   inx
+00094C  1                       ; next
+00094C  1  6C 71 0D             jmp (vNext)
+00094F  1               
+00094F  1               ;----------------------------------------------------------------------
+00094F  1               ret_:
+00094F  1  68                   pla
+000950  1  85 B1                sta ipt + 1
+000952  1  68                   pla
+000953  1  85 B0                sta ipt + 0
+000955  1                       ; next
+000955  1  6C 71 0D             jmp (vNext)
+000958  1               
+000958  1               ;----------------------------------------------------------------------
+000958  1               ; Execute code from a user function
+000958  1               call_:
+000958  1               
+000958  1  84 B7                sty ypf
+00095A  1  A8                   tay
+00095B  1  A5 B0                lda ipt + 0
+00095D  1  48                   pha
+00095E  1  A5 B1                lda ipt + 1
+000960  1  48                   pha
+000961  1  A4 B7                ldy ypf
+000963  1  98                   tya
+000964  1               
+000964  1  20 78 09             jsr lookupDefs
+000967  1               
+000967  1                       ; update instruction pointer
+000967  1  A0 00                ldy #0
+000969  1  B1 B8                lda (tos), y
+00096B  1  85 B0                sta ipt + 0
+00096D  1  C8                   iny
+00096E  1  B1 B8                lda (tos), y
+000970  1  85 B1                sta ipt + 1
+000972  1               
+000972  1                       ; next
+000972  1  6C 71 0D             jmp (vNext)
+000975  1               
+000975  1               ;----------------------------------------------------------------------
+000975  1               lookupDeft:
+000975  1  8D 6D 0D             sta vEdited
+000978  1                       ; fall through
+000978  1               
+000978  1               ;----------------------------------------------------------------------
+000978  1               lookupDefs:
+000978  1  38                   sec
+000979  1  E9 41                sbc #'A'
+00097B  1                       ; asl   // not needed for splited array
+00097B  1  A8                   tay
+00097C  1                       ; offset
+00097C  1  18                   clc
+00097D  1  6D 6B 0D             adc vDefs + 0
+000980  1  85 B8                sta tos + 0
+000982  1  A9 00                lda #0
+000984  1  6D 6C 0D             adc vDefs + 1
+000987  1  85 B9                sta tos + 1
+000989  1  60                   rts
+00098A  1               
+00098A  1               ;----------------------------------------------------------------------
+00098A  1               ; Copy a user macro to tib
+00098A  1               ; lookup up def based on a number at data stack
+00098A  1               ;
+00098A  1               editDef_:
+00098A  1                       ; which one
+00098A  1  20 C1 03             jsr spull
+00098D  1               
+00098D  1                       ; toChar
+00098D  1  18                   clc
+00098E  1  A9 41                lda #'A'
+000990  1  65 B8                adc tos + 0
+000992  1  48                   pha
+000993  1  20 75 09             jsr lookupDeft
+000996  1               
+000996  1                       ; origin
+000996  1  B1 B8                lda (tos), y
+000998  1  85 BA                sta nos + 0
+00099A  1  C8                   iny
+00099B  1  B1 B8                lda (tos), y
+00099D  1  85 BB                sta nos + 1
+00099F  1               
+00099F  1  A0 00                ldy #0
+0009A1  1                       ; empty ?
+0009A1  1  B1 BA                lda (nos), y
+0009A3  1  F0 29                beq @editDef3    ; is NUL ?
+0009A5  1  C9 3B                cmp #';'         ; is end ?
+0009A7  1  F0 25                beq @editDef3
+0009A9  1               
+0009A9  1                       ; copy
+0009A9  1               
+0009A9  1  20 26 06             jsr tib2tos
+0009AC  1               
+0009AC  1  A9 3A                lda #':'
+0009AE  1  20 DB 09             jsr writeChar
+0009B1  1  A9 01                lda #1
+0009B3  1  20 2F 06             jsr add2tos
+0009B6  1               
+0009B6  1  68                   pla
+0009B7  1  20 DB 09             jsr writeChar
+0009BA  1  A9 01                lda #1
+0009BC  1  20 2F 06             jsr add2tos
+0009BF  1               
+0009BF  1  18                   clc
+0009C0  1  90 03                bcc @editDef2
+0009C2  1               
+0009C2  1               @editDef1:
+0009C2  1  C8                   iny
+0009C3  1  F0 09                beq @editDef3
+0009C5  1               
+0009C5  1               @editDef2:
+0009C5  1  B1 BA                lda (nos), y
+0009C7  1  20 DB 09             jsr writeChar
+0009CA  1  C9 3B                cmp #';'
+0009CC  1  D0 F4                bne @editDef1
+0009CE  1               
+0009CE  1               @editDef3:
+0009CE  1  A9 00                lda #<tib
+0009D0  1  8D 67 0D             sta vTIBPtr + 0
+0009D3  1  A9 02                lda #>tib
+0009D5  1  8D 68 0D             sta vTIBPtr + 1
+0009D8  1                       ; next
+0009D8  1  6C 71 0D             jmp (vNext)
+0009DB  1               
+0009DB  1               ;----------------------------------------------------------------------
+0009DB  1               writeChar:
+0009DB  1  91 B8                sta (tos), y
+0009DD  1  4C 10 03             jmp putch
+0009E0  1               
+0009E0  1               ;----------------------------------------------------------------------
+0009E0  1               ; skip spaces
+0009E0  1               nosp:
+0009E0  1  20 10 06             jsr seekps
+0009E3  1  C9 20                cmp #' '
+0009E5  1  F0 F9                beq nosp
+0009E7  1  60                   rts
+0009E8  1               
+0009E8  1               ;----------------------------------------------------------------------
+0009E8  1               group_:
+0009E8  1               
+0009E8  1  20 C1 03             jsr spull
+0009EB  1                       ;-----------------------
+0009EB  1                       ; multiply by GROUP of 64
+0009EB  1                       ; swap byte
+0009EB  1  A5 B8                lda tos + 0
+0009ED  1  85 BB                sta nos + 1
+0009EF  1  A9 00                lda #NUL
+0009F1  1  85 BA                sta nos + 0
+0009F3  1                       ; group is 64 bytes
+0009F3  1  46 BB                lsr nos + 1
+0009F5  1  66 BA                ror nos + 0
+0009F7  1  46 BB                lsr nos + 1
+0009F9  1  66 BA                ror nos + 0
+0009FB  1                       ;-----------------------
+0009FB  1                       ; save last group
+0009FB  1  AD 6B 0D             lda vDefs + 0
+0009FE  1  48                   pha
+0009FF  1  AD 6C 0D             lda vDefs + 1
+000A02  1  48                   pha
+000A03  1                       ;-----------------------
+000A03  1                       ; update group
+000A03  1  18                   clc
+000A04  1  AD E3 0D             lda defs + 0
+000A07  1  65 BA                adc nos + 0
+000A09  1  8D 6B 0D             sta vDefs + 0
+000A0C  1  AD E4 0D             lda defs + 1
+000A0F  1  65 BB                adc nos + 1
+000A11  1  8D 6C 0D             sta vDefs + 1
+000A14  1               
+000A14  1                       ; next
+000A14  1  6C 71 0D             jmp (vNext)
+000A17  1               
+000A17  1               ;----------------------------------------------------------------------
+000A17  1               endGroup_:
+000A17  1                       ; load last group
+000A17  1  68                   pla
+000A18  1  8D 6B 0D             sta vDefs + 0
+000A1B  1  68                   pla
+000A1C  1  8D 6C 0D             sta vDefs + 1
+000A1F  1                       ; next
+000A1F  1  6C 71 0D             jmp (vNext)
+000A22  1               
+000A22  1               ;----------------------------------------------------------------------
+000A22  1               getRef_:
+000A22  1  20 10 06             jsr seekps
+000A25  1  20 78 09             jsr lookupDefs
+000A28  1  4C EB 04             jmp fetch_
+000A2B  1               
+000A2B  1               ;----------------------------------------------------------------------
+000A2B  1               arrDef_:
+000A2B  1  A9 00                lda #FALSE
+000A2D  1  2C                   .byte $2c   ; mask next two bytes, nice trick !
+000A2E  1               
+000A2E  1               ;----------------------------------------------------------------------
+000A2E  1               cArrDef_:
+000A2E  1  A9 01                lda #TRUE
+000A30  1                       ; fall through
+000A30  1               
+000A30  1               ;----------------------------------------------------------------------
+000A30  1               arrDefs:
+000A30  1                       ; save array mode
+000A30  1  85 B5                sta mode
+000A32  1               
+000A32  1                       ; save array start
+000A32  1  AD 73 0D             lda vHeap + 0
+000A35  1  48                   pha
+000A36  1  AD 74 0D             lda vHeap + 1
+000A39  1  48                   pha
+000A3A  1               
+000A3A  1                       ; array next
+000A3A  1  A9 EA                lda #<compNext
+000A3C  1  8D 71 0D             sta vNext + 0
+000A3F  1  A9 08                lda #>compNext
+000A41  1  8D 72 0D             sta vNext + 1
+000A44  1               
+000A44  1                       ; next
+000A44  1  4C 04 09             jmp next
+000A47  1               
+000A47  1               ;----------------------------------------------------------------------
+000A47  1               arrEnd_:
+000A47  1               
+000A47  1                       ; start of array
+000A47  1  CA                   dex
+000A48  1  CA                   dex
+000A49  1  68                   pla
+000A4A  1  95 00                sta 0, x
+000A4C  1  68                   pla
+000A4D  1  95 01                sta 1, x
+000A4F  1               
+000A4F  1                       ; bytes
+000A4F  1  38                   sec
+000A50  1  AD 73 0D             lda vHeap + 0
+000A53  1  E5 B8                sbc tos + 0
+000A55  1  85 B8                sta tos + 0
+000A57  1  AD 74 0D             lda vHeap + 1
+000A5A  1  E5 B9                sbc tos + 1
+000A5C  1  85 B9                sta tos + 1
+000A5E  1               
+000A5E  1  A5 B5                lda mode
+000A60  1  D0 04                bne @isne
+000A62  1                       ; words
+000A62  1  46 B8                lsr tos + 0
+000A64  1  66 B9                ror tos + 1
+000A66  1               @isne:
+000A66  1                       ; save size
+000A66  1  20 B6 03             jsr spush
+000A69  1               
+000A69  1                       ; common next
+000A69  1  A9 04                lda #<next
+000A6B  1  8D 71 0D             sta vNext + 0
+000A6E  1  A9 09                lda #>next
+000A70  1  8D 72 0D             sta vNext + 1
+000A73  1               
+000A73  1                       ; next
+000A73  1  4C 04 09             jmp next
+000A76  1               
+000A76  1               ;----------------------------------------------------------------------
+000A76  1               def_:
+000A76  1                       ; must be a A-Z, can't be space
+000A76  1  20 10 06             jsr seekps
+000A79  1  20 78 09             jsr lookupDefs
+000A7C  1               
+000A7C  1                       ; get heap
+000A7C  1  20 1B 06             jsr heap2nos
+000A7F  1               
+000A7F  1                       ; put heap at list
+000A7F  1  A5 BA                lda nos + 0
+000A81  1  91 B8                sta (tos), y
+000A83  1  C8                   iny
+000A84  1  A5 BB                lda nos + 1
+000A86  1  91 B8                sta (tos), y
+000A88  1               
+000A88  1                       ; copy to heap
+000A88  1  A0 00                ldy #0
+000A8A  1               @loop:
+000A8A  1  B1 B0                lda (ipt), y
+000A8C  1  91 BA                sta (nos), y
+000A8E  1  F0 07                beq @ends
+000A90  1  C8                   iny
+000A91  1  F0 04                beq @ends
+000A93  1  C9 3B                cmp #';'
+000A95  1  D0 F3                bne @loop
+000A97  1               @ends:
+000A97  1                       ; update heap pointer
+000A97  1  98                   tya
+000A98  1  20 03 06             jsr add2hp
+000A9B  1                       ; update instruction pointer
+000A9B  1  98                   tya
+000A9C  1  4C 5A 06             jmp add2ip
+000A9F  1               
+000A9F  1               ;----------------------------------------------------------------------
+000A9F  1               
+000A9F  1               ;----------------------------------------------------------------------
+000A9F  1               break_:
+000A9F  1  20 C1 03             jsr spull
+000AA2  1  A5 B8                lda tos + 0
+000AA4  1  F0 14                beq iseq
+000AA6  1               skframe:
+000AA6  1                       ; skip a frame 3 words
+000AA6  1  68                   pla
+000AA7  1  68                   pla
+000AA8  1  68                   pla
+000AA9  1  68                   pla
+000AAA  1  68                   pla
+000AAB  1  68                   pla
+000AAC  1                       ; skip while nest
+000AAC  1               skipnest:
+000AAC  1  A9 01                lda #$01
+000AAE  1  85 B4                sta nest
+000AB0  1               @loop:
+000AB0  1  20 10 06             jsr seekps
+000AB3  1  20 0D 07             jsr nesting
+000AB6  1  A5 B4                lda nest
+000AB8  1  D0 F6                bne @loop
+000ABA  1               iseq:
+000ABA  1                       ; parse frame
+000ABA  1                       ; next
+000ABA  1  6C 71 0D             jmp (vNext)
+000ABD  1               
+000ABD  1               ;----------------------------------------------------------------------
+000ABD  1               ; Left parentesis ( begins a loop
+000ABD  1               begin_:
+000ABD  1               
+000ABD  1                       ; tos is zero ?
+000ABD  1  20 C1 03             jsr spull
+000AC0  1  A5 B8                lda tos + 0
+000AC2  1  F0 E8                beq skipnest
+000AC4  1               
+000AC4  1                       ; do a frame
+000AC4  1                       ; counter
+000AC4  1  A9 00                lda #NUL
+000AC6  1  48                   pha
+000AC7  1  48                   pha
+000AC8  1                       ; limit
+000AC8  1  A5 B8                lda tos + 0
+000ACA  1  48                   pha
+000ACB  1  A5 B9                lda tos + 1
+000ACD  1  48                   pha
+000ACE  1                       ; pointer
+000ACE  1  A5 B0                lda ipt + 0
+000AD0  1  48                   pha
+000AD1  1  A5 B1                lda ipt + 1
+000AD3  1  48                   pha
+000AD4  1               
+000AD4  1                       ; next
+000AD4  1  6C 71 0D             jmp (vNext)
+000AD7  1               
+000AD7  1               ;----------------------------------------------------------------------
+000AD7  1               ; Right parentesis ) again a loop
+000AD7  1               again_:
+000AD7  1                       ; check if IFTEMode $FFFF
+000AD7  1  86 B6                stx xpf
+000AD9  1  BA                   tsx
+000ADA  1  B5 00                lda 0, x
+000ADC  1  35 01                and 1, x
+000ADE  1  C9 FF                cmp #$FF
+000AE0  1  D0 0F                bne @again1
+000AE2  1               
+000AE2  1                       ; push FALSE
+000AE2  1  A6 B6                ldx xpf
+000AE4  1  A9 00                lda #0
+000AE6  1  CA                   dex
+000AE7  1  CA                   dex
+000AE8  1  95 00                sta 0, x
+000AEA  1  95 01                sta 1, x
+000AEC  1               
+000AEC  1                       ; drop IFTEMmode
+000AEC  1  68                   pla
+000AED  1  68                   pla
+000AEE  1               
+000AEE  1                       ; next
+000AEE  1  6C 71 0D             jmp (vNext)
+000AF1  1               
+000AF1  1               @again1:
+000AF1  1                       ; test end
+000AF1  1  B5 02                lda 2, x
+000AF3  1  D5 00                cmp 0, x
+000AF5  1  D0 11                bne @noend
+000AF7  1  B5 03                lda 3, x
+000AF9  1  D5 01                cmp 1, x
+000AFB  1  D0 0B                bne @noend
+000AFD  1               
+000AFD  1                       ; end of loop
+000AFD  1  A6 B6                ldx xpf
+000AFF  1  68                   pla
+000B00  1  68                   pla
+000B01  1  68                   pla
+000B02  1  68                   pla
+000B03  1  68                   pla
+000B04  1  68                   pla
+000B05  1                       ; next
+000B05  1  6C 71 0D             jmp (vNext)
+000B08  1               
+000B08  1               @noend:
+000B08  1                       ; increase counter
+000B08  1  F6 00                inc 0, x
+000B0A  1  D0 02                bne @novr
+000B0C  1  F6 01                inc 1, x
+000B0E  1               @novr:
+000B0E  1               
+000B0E  1                       ; return at begin
+000B0E  1  B5 04                lda 4, x
+000B10  1  85 B0                sta ipt + 0
+000B12  1  B5 05                lda 5, x
+000B14  1  85 B1                sta ipt + 1
+000B16  1               
+000B16  1                       ; next
+000B16  1  A6 B6                ldx xpf
+000B18  1                       ; next
+000B18  1  6C 71 0D             jmp (vNext)
+000B1B  1               
+000B1B  1               ; ZZZZZ
+000B1B  1               ;----------------------------------------------------------------------
+000B1B  1               ; do not update indx
+000B1B  1               j_:
+000B1B  1  86 B6                stx xpf
+000B1D  1  BA                   tsx
+000B1E  1  CA                   dex
+000B1F  1  CA                   dex
+000B20  1  CA                   dex
+000B21  1  CA                   dex
+000B22  1  CA                   dex
+000B23  1  CA                   dex
+000B24  1  8A                   txa
+000B25  1  A6 B6                ldx xpf
+000B27  1  4C 30 0B             jmp index
+000B2A  1               
+000B2A  1               ;----------------------------------------------------------------------
+000B2A  1               ; do not update indx
+000B2A  1               i_:
+000B2A  1  86 B6                stx xpf
+000B2C  1  BA                   tsx
+000B2D  1  8A                   txa
+000B2E  1  A6 B6                ldx xpf
+000B30  1                       ; fall through
+000B30  1               
+000B30  1               ;----------------------------------------------------------------------
+000B30  1               index:
+000B30  1               ; R@ ?
+000B30  1  68                   pla
+000B31  1  85 B8                sta tos + 0
+000B33  1  68                   pla
+000B34  1  85 B9                sta tos + 1
+000B36  1               
+000B36  1  A5 B8                lda tos + 0
+000B38  1  48                   pha
+000B39  1  A5 B9                lda tos + 1
+000B3B  1  48                   pha
+000B3C  1               
+000B3C  1  4C 15 08             jmp pends
+000B3F  1               
+000B3F  1               ;----------------------------------------------------------------------
+000B3F  1               ifte_:
+000B3F  1  20 C1 03             jsr spull
+000B42  1  A5 B8                lda tos + 0
+000B44  1  05 B9                ora tos + 1
+000B46  1  D0 08                bne @istrue
+000B48  1  E6 B8                inc tos + 0
+000B4A  1  20 B6 03             jsr spush
+000B4D  1  4C AC 0A             jmp skipnest
+000B50  1               @istrue:
+000B50  1  A9 FF                lda #$FF
+000B52  1  48                   pha
+000B53  1  48                   pha
+000B54  1                       ; next
+000B54  1  6C 71 0D             jmp (vNext)
+000B57  1               
+000B57  1               ;----------------------------------------------------------------------
+000B57  1               ; verify stack
+000B57  1               etx_:
+000B57  1  8A                   txa
+000B58  1  C9 C0                cmp #(PAGE-STKSIZE)   ; bytes
+000B5A  1  30 04                bmi @ends
+000B5C  1  A9 FF                lda #$FF        ; stack top
+000B5E  1  AA                   tax
+000B5F  1  9A                   txs
+000B60  1               @ends:
+000B60  1  4C 81 06             jmp interpret
+000B63  1               
+000B63  1               ;----------------------------------------------------------------------
+000B63  1               ;optcodes: parsed by opt_ (next)
+000B63  1               ;altcodes: parsed by alt_
+000B63  1               ;ctlcodes: maybe in a future...
+000B63  1               
+000B63  1               ; *********************************************************************
+000B63  1               ; Jump Tables, optmized for single index
+000B63  1               ; points the LSB and MSB of functions
+000B63  1               ; each uses 127 bytes
+000B63  1               ; *********************************************************************
+000B63  1               
+000B63  1               ; .align $100
+000B63  1               
+000B63  1               ; using pla, pla, rts, references must be one less
+000B63  1               ;----------------------------------------------------------------------
+000B63  1               optcodeslo:
+000B63  1  33              .byte  <(exit_)    ;   NUL
+000B64  1  00              .byte  <(nop_)     ;   SOH
+000B65  1  00              .byte  <(nop_)     ;   STX
+000B66  1  57              .byte  <(etx_)     ;   ETX
+000B67  1  00              .byte  <(nop_)     ;   EOT
+000B68  1  00              .byte  <(nop_)     ;   ENQ
+000B69  1  00              .byte  <(nop_)     ;   ACK
+000B6A  1  00              .byte  <(nop_)     ;   BEL
+000B6B  1  00              .byte  <(nop_)     ;   BS
+000B6C  1  00              .byte  <(nop_)     ;   TAB
+000B6D  1  00              .byte  <(nop_)     ;   LF
+000B6E  1  00              .byte  <(nop_)     ;   VT
+000B6F  1  00              .byte  <(nop_)     ;   FF
+000B70  1  00              .byte  <(nop_)     ;   CR
+000B71  1  00              .byte  <(nop_)     ;   SO
+000B72  1  00              .byte  <(nop_)     ;   SI
+000B73  1  00              .byte  <(nop_)     ;   DLE
+000B74  1  00              .byte  <(nop_)     ;   DC1
+000B75  1  00              .byte  <(nop_)     ;   DC2
+000B76  1  00              .byte  <(nop_)     ;   DC3
+000B77  1  00              .byte  <(nop_)     ;   DC4
+000B78  1  00              .byte  <(nop_)     ;   NAK
+000B79  1  00              .byte  <(nop_)     ;   SYN
+000B7A  1  00              .byte  <(nop_)     ;   ETB
+000B7B  1  00              .byte  <(nop_)     ;   CAN
+000B7C  1  00              .byte  <(nop_)     ;   EM
+000B7D  1  00              .byte  <(nop_)     ;   SUB
+000B7E  1  00              .byte  <(nop_)     ;   ESC
+000B7F  1  00              .byte  <(nop_)     ;   FS
+000B80  1  00              .byte  <(nop_)     ;   GS
+000B81  1  00              .byte  <(nop_)     ;   RS
+000B82  1  00              .byte  <(nop_)     ;   US
+000B83  1  00              .byte  <(nop_)     ;   SP
+000B84  1  C7              .byte  <(store_)   ;   !
+000B85  1  DA              .byte  <(dup_)     ;   "
+000B86  1  3A              .byte  <(hex_)     ;    #
+000B87  1  F4              .byte  <(swap_)    ;    $
+000B88  1  E7              .byte  <(over_)    ;    %
+000B89  1  1C              .byte  <(and_)     ;    &
+000B8A  1  5E              .byte  <(drop_)    ;    '
+000B8B  1  BD              .byte  <(begin_)   ;    (
+000B8C  1  D7              .byte  <(again_)   ;    )
+000B8D  1  DD              .byte  <(mul_)     ;    * multiply 16x16
+000B8E  1  43              .byte  <(add_)     ;    +
+000B8F  1  9E              .byte  <(hdot_)    ;    ,
+000B90  1  51              .byte  <(sub_)     ;    -
+000B91  1  95              .byte  <(dot_)     ;    .
+000B92  1  B2              .byte  <(div_)     ;    / divide 16x16
+000B93  1  26              .byte  <(dec_)     ;    0
+000B94  1  26              .byte  <(dec_)     ;    1
+000B95  1  26              .byte  <(dec_)     ;    2
+000B96  1  26              .byte  <(dec_)     ;    3
+000B97  1  26              .byte  <(dec_)     ;    4
+000B98  1  26              .byte  <(dec_)     ;    5
+000B99  1  26              .byte  <(dec_)     ;    6
+000B9A  1  26              .byte  <(dec_)     ;    7
+000B9B  1  26              .byte  <(dec_)     ;    8
+000B9C  1  26              .byte  <(dec_)     ;    9
+000B9D  1  76              .byte  <(def_)     ;    :
+000B9E  1  4F              .byte  <(ret_)     ;    ;
+000B9F  1  88              .byte  <(lt_)      ;    <
+000BA0  1  81              .byte  <(eq_)      ;    =
+000BA1  1  8F              .byte  <(gt_)      ;    >
+000BA2  1  22              .byte  <(getRef_)  ;    ?
+000BA3  1  EB              .byte  <(fetch_)   ;    @
+000BA4  1  58              .byte  <(call_)    ;    A
+000BA5  1  58              .byte  <(call_)    ;    B
+000BA6  1  58              .byte  <(call_)    ;    C
+000BA7  1  58              .byte  <(call_)    ;    D
+000BA8  1  58              .byte  <(call_)    ;    E
+000BA9  1  58              .byte  <(call_)    ;    F
+000BAA  1  58              .byte  <(call_)    ;    G
+000BAB  1  58              .byte  <(call_)    ;    H
+000BAC  1  58              .byte  <(call_)    ;    I
+000BAD  1  58              .byte  <(call_)    ;    J
+000BAE  1  58              .byte  <(call_)    ;    K
+000BAF  1  58              .byte  <(call_)    ;    L
+000BB0  1  58              .byte  <(call_)    ;    M
+000BB1  1  58              .byte  <(call_)    ;    N
+000BB2  1  58              .byte  <(call_)    ;    O
+000BB3  1  58              .byte  <(call_)    ;    P
+000BB4  1  58              .byte  <(call_)    ;    Q
+000BB5  1  58              .byte  <(call_)    ;    R
+000BB6  1  58              .byte  <(call_)    ;    S
+000BB7  1  58              .byte  <(call_)    ;    T
+000BB8  1  58              .byte  <(call_)    ;    U
+000BB9  1  58              .byte  <(call_)    ;    V
+000BBA  1  58              .byte  <(call_)    ;    W
+000BBB  1  58              .byte  <(call_)    ;    X
+000BBC  1  58              .byte  <(call_)    ;    Y
+000BBD  1  58              .byte  <(call_)    ;    Z
+000BBE  1  2B              .byte  <(arrDef_)  ;    [
+000BBF  1  15              .byte  <(alt_)     ;    \
+000BC0  1  47              .byte  <(arrEnd_)  ;    ]
+000BC1  1  36              .byte  <(xor_)     ;    ^
+000BC2  1  63              .byte  <(neg_)     ;    _
+000BC3  1  58              .byte  <(strs_)     ;    `
+000BC4  1  F9              .byte  <(var_)     ;    a
+000BC5  1  F9              .byte  <(var_)     ;    b
+000BC6  1  F9              .byte  <(var_)     ;    c
+000BC7  1  F9              .byte  <(var_)     ;    d
+000BC8  1  F9              .byte  <(var_)     ;    e
+000BC9  1  F9              .byte  <(var_)     ;    f
+000BCA  1  F9              .byte  <(var_)     ;    g
+000BCB  1  F9              .byte  <(var_)     ;    h
+000BCC  1  F9              .byte  <(var_)     ;    i
+000BCD  1  F9              .byte  <(var_)     ;    j
+000BCE  1  F9              .byte  <(var_)     ;    k
+000BCF  1  F9              .byte  <(var_)     ;    l
+000BD0  1  F9              .byte  <(var_)     ;    m
+000BD1  1  F9              .byte  <(var_)     ;    n
+000BD2  1  F9              .byte  <(var_)     ;    o
+000BD3  1  F9              .byte  <(var_)     ;    p
+000BD4  1  F9              .byte  <(var_)     ;    q
+000BD5  1  F9              .byte  <(var_)     ;    r
+000BD6  1  F9              .byte  <(var_)     ;    s
+000BD7  1  F9              .byte  <(var_)     ;    t
+000BD8  1  F9              .byte  <(var_)     ;    u
+000BD9  1  F9              .byte  <(var_)     ;    v
+000BDA  1  F9              .byte  <(var_)     ;    w
+000BDB  1  F9              .byte  <(var_)     ;    x
+000BDC  1  F9              .byte  <(var_)     ;    y
+000BDD  1  F9              .byte  <(var_)     ;    z
+000BDE  1  A0              .byte  <(shl_)     ;    {
+000BDF  1  29              .byte  <(or_)      ;    |
+000BE0  1  A7              .byte  <(shr_)     ;    }
+000BE1  1  66              .byte  <(inv_)     ;    ~
+000BE2  1  00              .byte  <(nop_)     ;    backspace
+000BE3  1               
+000BE3  1               optcodeshi:
+000BE3  1  09              .byte  >(exit_)    ;   NUL
+000BE4  1  06              .byte  >(nop_)     ;   SOH
+000BE5  1  06              .byte  >(nop_)     ;   STX
+000BE6  1  0B              .byte  >(etx_)     ;   ETX
+000BE7  1  06              .byte  >(nop_)     ;   EOT
+000BE8  1  06              .byte  >(nop_)     ;   ENQ
+000BE9  1  06              .byte  >(nop_)     ;   ACK
+000BEA  1  06              .byte  >(nop_)     ;   BEL
+000BEB  1  06              .byte  >(nop_)     ;   BS
+000BEC  1  06              .byte  >(nop_)     ;   TAB
+000BED  1  06              .byte  >(nop_)     ;   LF
+000BEE  1  06              .byte  >(nop_)     ;   VT
+000BEF  1  06              .byte  >(nop_)     ;   FF
+000BF0  1  06              .byte  >(nop_)     ;   CR
+000BF1  1  06              .byte  >(nop_)     ;   SO
+000BF2  1  06              .byte  >(nop_)     ;   SI
+000BF3  1  06              .byte  >(nop_)     ;   DLE
+000BF4  1  06              .byte  >(nop_)     ;   DC1
+000BF5  1  06              .byte  >(nop_)     ;   DC2
+000BF6  1  06              .byte  >(nop_)     ;   DC3
+000BF7  1  06              .byte  >(nop_)     ;   DC4
+000BF8  1  06              .byte  >(nop_)     ;   NAK
+000BF9  1  06              .byte  >(nop_)     ;   SYN
+000BFA  1  06              .byte  >(nop_)     ;   ETB
+000BFB  1  06              .byte  >(nop_)     ;   CAN
+000BFC  1  06              .byte  >(nop_)     ;   EM
+000BFD  1  06              .byte  >(nop_)     ;   SUB
+000BFE  1  06              .byte  >(nop_)     ;   ESC
+000BFF  1  06              .byte  >(nop_)     ;   FS
+000C00  1  06              .byte  >(nop_)     ;   GS
+000C01  1  06              .byte  >(nop_)     ;   RS
+000C02  1  06              .byte  >(nop_)     ;   US
+000C03  1  06              .byte  >(nop_)     ;   SP
+000C04  1  04              .byte  >(store_)   ;   !
+000C05  1  03              .byte  >(dup_)     ;   "
+000C06  1  08              .byte  >(hex_)     ;    #
+000C07  1  03              .byte  >(swap_)    ;    $
+000C08  1  03              .byte  >(over_)    ;    %
+000C09  1  04              .byte  >(and_)     ;    &
+000C0A  1  04              .byte  >(drop_)    ;    '
+000C0B  1  0A              .byte  >(begin_)   ;    (
+000C0C  1  0A              .byte  >(again_)   ;    )
+000C0D  1  05              .byte  >(mul_)     ;    *  multiply 16x16, (multpd multpr -- LSW MSW)
+000C0E  1  04              .byte  >(add_)     ;    +
+000C0F  1  08              .byte  >(hdot_)    ;    ,
+000C10  1  04              .byte  >(sub_)     ;    -
+000C11  1  08              .byte  >(dot_)     ;    .
+000C12  1  05              .byte  >(div_)     ;    /  divide 16x16, (divd divs -- quo rem)
+000C13  1  08              .byte  >(dec_)     ;    0
+000C14  1  08              .byte  >(dec_)     ;    1
+000C15  1  08              .byte  >(dec_)     ;    2
+000C16  1  08              .byte  >(dec_)     ;    3
+000C17  1  08              .byte  >(dec_)     ;    4
+000C18  1  08              .byte  >(dec_)     ;    5
+000C19  1  08              .byte  >(dec_)     ;    6
+000C1A  1  08              .byte  >(dec_)     ;    7
+000C1B  1  08              .byte  >(dec_)     ;    8
+000C1C  1  08              .byte  >(dec_)     ;    9
+000C1D  1  0A              .byte  >(def_)     ;    :
+000C1E  1  09              .byte  >(ret_)     ;    ;
+000C1F  1  04              .byte  >(lt_)      ;    <( - 1)
+000C20  1  04              .byte  >(eq_)      ;    =
+000C21  1  04              .byte  >(gt_)      ;    >
+000C22  1  0A              .byte  >(getRef_)  ;    ?
+000C23  1  04              .byte  >(fetch_)   ;    @
+000C24  1  09              .byte  >(call_)    ;    A
+000C25  1  09              .byte  >(call_)    ;    B
+000C26  1  09              .byte  >(call_)    ;    C
+000C27  1  09              .byte  >(call_)    ;    D
+000C28  1  09              .byte  >(call_)    ;    E
+000C29  1  09              .byte  >(call_)    ;    F
+000C2A  1  09              .byte  >(call_)    ;    G
+000C2B  1  09              .byte  >(call_)    ;    H
+000C2C  1  09              .byte  >(call_)    ;    I
+000C2D  1  09              .byte  >(call_)    ;    J
+000C2E  1  09              .byte  >(call_)    ;    K
+000C2F  1  09              .byte  >(call_)    ;    L
+000C30  1  09              .byte  >(call_)    ;    M
+000C31  1  09              .byte  >(call_)    ;    N
+000C32  1  09              .byte  >(call_)    ;    O
+000C33  1  09              .byte  >(call_)    ;    P
+000C34  1  09              .byte  >(call_)    ;    Q
+000C35  1  09              .byte  >(call_)    ;    R
+000C36  1  09              .byte  >(call_)    ;    S
+000C37  1  09              .byte  >(call_)    ;    T
+000C38  1  09              .byte  >(call_)    ;    U
+000C39  1  09              .byte  >(call_)    ;    V
+000C3A  1  09              .byte  >(call_)    ;    W
+000C3B  1  09              .byte  >(call_)    ;    X
+000C3C  1  09              .byte  >(call_)    ;    Y
+000C3D  1  09              .byte  >(call_)    ;    Z
+000C3E  1  0A              .byte  >(arrDef_)  ;    [
+000C3F  1  09              .byte  >(alt_)     ;    \
+000C40  1  0A              .byte  >(arrEnd_)  ;    ]
+000C41  1  04              .byte  >(xor_)     ;    ^
+000C42  1  04              .byte  >(neg_)     ;    _
+000C43  1  07              .byte  >(strs_)     ;    `
+000C44  1  07              .byte  >(var_)     ;    a
+000C45  1  07              .byte  >(var_)     ;    b
+000C46  1  07              .byte  >(var_)     ;    c
+000C47  1  07              .byte  >(var_)     ;    d
+000C48  1  07              .byte  >(var_)     ;    e
+000C49  1  07              .byte  >(var_)     ;    f
+000C4A  1  07              .byte  >(var_)     ;    g
+000C4B  1  07              .byte  >(var_)     ;    h
+000C4C  1  07              .byte  >(var_)     ;    i
+000C4D  1  07              .byte  >(var_)     ;    j
+000C4E  1  07              .byte  >(var_)     ;    k
+000C4F  1  07              .byte  >(var_)     ;    l
+000C50  1  07              .byte  >(var_)     ;    m
+000C51  1  07              .byte  >(var_)     ;    n
+000C52  1  07              .byte  >(var_)     ;    o
+000C53  1  07              .byte  >(var_)     ;    p
+000C54  1  07              .byte  >(var_)     ;    q
+000C55  1  07              .byte  >(var_)     ;    r
+000C56  1  07              .byte  >(var_)     ;    s
+000C57  1  07              .byte  >(var_)     ;    t
+000C58  1  07              .byte  >(var_)     ;    u
+000C59  1  07              .byte  >(var_)     ;    v
+000C5A  1  07              .byte  >(var_)     ;    w
+000C5B  1  07              .byte  >(var_)     ;    x
+000C5C  1  07              .byte  >(var_)     ;    y
+000C5D  1  07              .byte  >(var_)     ;    z
+000C5E  1  04              .byte  >(shl_)     ;    {
+000C5F  1  04              .byte  >(or_)      ;    |
+000C60  1  04              .byte  >(shr_)     ;    }
+000C61  1  04              .byte  >(inv_)     ;    ~
+000C62  1  06              .byte  >(nop_)     ;    backspace
+000C63  1               
+000C63  1               ;----------------------------------------------------------------------
+000C63  1               ; alternate function codes
+000C63  1               ctlcodeslo:
+000C63  1               altcodeslo:
+000C63  1  63              .byte  <(empty_)      ; NUL ^@
+000C64  1  63              .byte  <(empty_)      ; SOH ^A
+000C65  1  C5              .byte  <(toggleBase_) ; STX ^B
+000C66  1  63              .byte  <(empty_)      ; ETX ^C
+000C67  1  63              .byte  <(empty_)      ; EOT ^D
+000C68  1  85              .byte  <(edit_)       ; ENQ ^E
+000C69  1  63              .byte  <(empty_)      ; ACK ^F
+000C6A  1  63              .byte  <(empty_)      ; BEL ^G
+000C6B  1  65              .byte  <(backsp_)     ; BS  ^H
+000C6C  1  63              .byte  <(empty_)      ; TAB ^I
+000C6D  1  7D              .byte  <(reedit_)     ; LF  ^J
+000C6E  1  63              .byte  <(empty_)      ; VT  ^K
+000C6F  1  98              .byte  <(list_)       ; FF  ^L
+000C70  1  63              .byte  <(empty_)      ; CR  ^M
+000C71  1  63              .byte  <(empty_)      ; SO  ^N
+000C72  1  63              .byte  <(empty_)      ; SI  ^O
+000C73  1  B4              .byte  <(printStack_) ; DLE ^P
+000C74  1  63              .byte  <(empty_)      ; DC1 ^Q
+000C75  1  63              .byte  <(empty_)      ; DC2 ^R
+000C76  1  63              .byte  <(empty_)      ; DC3 ^S
+000C77  1  63              .byte  <(empty_)      ; DC4 ^T
+000C78  1  63              .byte  <(empty_)      ; NAK ^U
+000C79  1  63              .byte  <(empty_)      ; SYN ^V
+000C7A  1  63              .byte  <(empty_)      ; ETB ^W
+000C7B  1  63              .byte  <(empty_)      ; CAN ^X
+000C7C  1  63              .byte  <(empty_)      ; EM  ^Y
+000C7D  1  63              .byte  <(empty_)      ; SUB ^Z
+000C7E  1  63              .byte  <(empty_)      ; ESC ^[
+000C7F  1  63              .byte  <(empty_)      ; FS  ^\
+000C80  1  63              .byte  <(empty_)      ; GS  ^]
+000C81  1  63              .byte  <(empty_)      ; RS  ^^
+000C82  1  63              .byte  <(empty_)      ; US  ^_)
+000C83  1  00              .byte  <(aNop_)       ; SP  ^`
+000C84  1  C1              .byte  <(cstore_)     ;    !
+000C85  1  00              .byte  <(aNop_)       ;    "
+000C86  1  00              .byte  <(aNop_)       ;    #
+000C87  1  00              .byte  <(aNop_)       ;    $  ( -- adr ) text input ptr
+000C88  1  00              .byte  <(aNop_)       ;    %
+000C89  1  00              .byte  <(aNop_)       ;    &
+000C8A  1  00              .byte  <(aNop_)       ;    '
+000C8B  1  3F              .byte  <(ifte_)       ;    (  ( b -- )
+000C8C  1  00              .byte  <(aNop_)       ;    )
+000C8D  1  00              .byte  <(aNop_)       ;    *
+000C8E  1  F1              .byte  <(incr_)       ;    +  ( adr -- ) increments variable at address
+000C8F  1  00              .byte  <(aNop_)       ;    ,
+000C90  1  FA              .byte  <(decr_)       ;    -  ( adr -- ) decrements variable at address
+000C91  1  00              .byte  <(aNop_)       ;    .
+000C92  1  00              .byte  <(aNop_)       ;    /
+000C93  1  00              .byte  <(aNop_)       ;    0
+000C94  1  00              .byte  <(aNop_)       ;    1
+000C95  1  00              .byte  <(aNop_)       ;    2
+000C96  1  00              .byte  <(aNop_)       ;    3
+000C97  1  00              .byte  <(aNop_)       ;    4
+000C98  1  00              .byte  <(aNop_)       ;    5
+000C99  1  00              .byte  <(aNop_)       ;    6
+000C9A  1  00              .byte  <(aNop_)       ;    7
+000C9B  1  00              .byte  <(aNop_)       ;    8
+000C9C  1  00              .byte  <(aNop_)       ;    9
+000C9D  1  00              .byte  <(aNop_)       ;    :  start defining a macro
+000C9E  1  00              .byte  <(aNop_)       ;    ;
+000C9F  1  00              .byte  <(aNop_)       ;    <
+000CA0  1  00              .byte  <(aNop_)       ;    =
+000CA1  1  00              .byte  <(aNop_)       ;    >( - 1)
+000CA2  1  00              .byte  <(aNop_)       ;    ?
+000CA3  1  E5              .byte  <(cfetch_)     ;    @
+000CA4  1  00              .byte  <(aNop_)       ;    A
+000CA5  1  9F              .byte  <(break_)      ;    B
+000CA6  1  00              .byte  <(nop_)        ;    C
+000CA7  1  55              .byte  <(depth_)      ;    D  ( -- val ) depth of data stack
+000CA8  1  21              .byte  <(emit_)       ;    E  ( val -- ) emits a char to output
+000CA9  1  00              .byte  <(aNop_)       ;    F
+000CAA  1  3C              .byte  <(go_)         ;    G  ( -- ? ) execute mint definition
+000CAB  1  17              .byte  <(keyq_)       ;    H  ( verify if key hit )
+000CAC  1  E4              .byte  <(inPort_)     ;    I  ( port -- val )
+000CAD  1  00              .byte  <(aNop_)       ;    J
+000CAE  1  17              .byte  <(key_)        ;    K  ( -- val )  read a char from input
+000CAF  1  00              .byte  <(aNop_)       ;    L
+000CB0  1  00              .byte  <(aNop_)       ;    M
+000CB1  1  AC              .byte  <(newln_)      ;    N  ; prints a newline to output
+000CB2  1  E7              .byte  <(outPort_)    ;    O  ( val port -- )
+000CB3  1  C2              .byte  <(printStk_)   ;    P  ( -- ) non-destructively prints stack
+000CB4  1  00              .byte  <(aNop_)       ;    Q  quits from Mint REPL
+000CB5  1  0B              .byte  <(rot_)        ;    R  ( a b c -- b c a )
+000CB6  1  00              .byte  <(aNop_)       ;    S
+000CB7  1  00              .byte  <(aNop_)       ;    T
+000CB8  1  46              .byte  <(r2s_)        ;    U  S( -- w ) R( w -- )
+000CB9  1  3B              .byte  <(s2r_)        ;    V  S( w -- ) R( -- w )
+000CBA  1  00              .byte  <(aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop
+000CBB  1  36              .byte  <(exec_)       ;    X
+000CBC  1  00              .byte  <(aNop_)       ;    Y
+000CBD  1  8A              .byte  <(editDef_)    ;    Z
+000CBE  1  2E              .byte  <(cArrDef_)    ;    [
+000CBF  1  7E              .byte  <(comment_)    ;    \  comment text, skip reading until end of line
+000CC0  1  00              .byte  <(aNop_)       ;    ]
+000CC1  1  1B              .byte  <(charCode_)   ;    ^
+000CC2  1  00              .byte  <(aNop_)       ;    _
+000CC3  1  00              .byte  <(aNop_)       ;    `
+000CC4  1  05              .byte  <(sysVar_)     ;    a  ; start of data stack *fixed
+000CC5  1  05              .byte  <(sysVar_)     ;    b  ; base16 flag
+000CC6  1  05              .byte  <(sysVar_)     ;    c  ; TIBPtr variable
+000CC7  1  05              .byte  <(sysVar_)     ;    d  ; vDefs variable
+000CC8  1  05              .byte  <(sysVar_)     ;    e  ;
+000CC9  1  05              .byte  <(sysVar_)     ;    f  ; start of return stack *fixed
+000CCA  1  05              .byte  <(sysVar_)     ;    g  ; next dispatcher
+000CCB  1  05              .byte  <(sysVar_)     ;    h  ; heap ptr variable
+000CCC  1  2A              .byte  <(i_)          ;    i  ; returns index of current loop
+000CCD  1  1B              .byte  <(j_)          ;    j  ; returns index of outer loop
+000CCE  1  05              .byte  <(sysVar_)     ;    k
+000CCF  1  05              .byte  <(sysVar_)     ;    l
+000CD0  1  05              .byte  <(sysVar_)     ;    m  ( a b -- c ) return the minimum value
+000CD1  1  05              .byte  <(sysVar_)     ;    n
+000CD2  1  05              .byte  <(sysVar_)     ;    o
+000CD3  1  05              .byte  <(sysVar_)     ;    p
+000CD4  1  05              .byte  <(sysVar_)     ;    q
+000CD5  1  05              .byte  <(sysVar_)     ;    r  ; return stack pointer
+000CD6  1  05              .byte  <(sysVar_)     ;    s  ; data stack pointer
+000CD7  1  05              .byte  <(sysVar_)     ;    t
+000CD8  1  05              .byte  <(sysVar_)     ;    u
+000CD9  1  05              .byte  <(sysVar_)     ;    v
+000CDA  1  05              .byte  <(sysVar_)     ;    w
+000CDB  1  05              .byte  <(sysVar_)     ;    x
+000CDC  1  05              .byte  <(sysVar_)     ;    y
+000CDD  1  05              .byte  <(sysVar_)     ;    z
+000CDE  1  E8              .byte  <(group_)      ;    {
+000CDF  1  00              .byte  <(aNop_)       ;    |
+000CE0  1  17              .byte  <(endGroup_)   ;    }
+000CE1  1  00              .byte  <(aNop_)       ;    ~
+000CE2  1  00              .byte  <(aNop_)       ;    BS
+000CE3  1               
+000CE3  1               ctlcodeshi:
+000CE3  1               altcodeshi:
+000CE3  1  0F              .byte  >(empty_)      ; NUL ^@
+000CE4  1  0F              .byte  >(empty_)      ; SOH ^A
+000CE5  1  0F              .byte  >(toggleBase_) ; STX ^B
+000CE6  1  0F              .byte  >(empty_)      ; ETX ^C
+000CE7  1  0F              .byte  >(empty_)      ; EOT ^D
+000CE8  1  0F              .byte  >(edit_)       ; ENQ ^E
+000CE9  1  0F              .byte  >(empty_)      ; ACK ^F
+000CEA  1  0F              .byte  >(empty_)      ; BEL ^G
+000CEB  1  0F              .byte  >(backsp_)     ; BS  ^H
+000CEC  1  0F              .byte  >(empty_)      ; TAB ^I
+000CED  1  0F              .byte  >(reedit_)     ; LF  ^J
+000CEE  1  0F              .byte  >(empty_)      ; VT  ^K
+000CEF  1  0F              .byte  >(list_)       ; FF  ^L
+000CF0  1  0F              .byte  >(empty_)      ; CR  ^M
+000CF1  1  0F              .byte  >(empty_)      ; SO  ^N
+000CF2  1  0F              .byte  >(empty_)      ; SI  ^O
+000CF3  1  0F              .byte  >(printStack_) ; DLE ^P
+000CF4  1  0F              .byte  >(empty_)      ; DC1 ^Q
+000CF5  1  0F              .byte  >(empty_)      ; DC2 ^R
+000CF6  1  0F              .byte  >(empty_)      ; DC3 ^S
+000CF7  1  0F              .byte  >(empty_)      ; DC4 ^T
+000CF8  1  0F              .byte  >(empty_)      ; NAK ^U
+000CF9  1  0F              .byte  >(empty_)      ; SYN ^V
+000CFA  1  0F              .byte  >(empty_)      ; ETB ^W
+000CFB  1  0F              .byte  >(empty_)      ; CAN ^X
+000CFC  1  0F              .byte  >(empty_)      ; EM  ^Y
+000CFD  1  0F              .byte  >(empty_)      ; SUB ^Z
+000CFE  1  0F              .byte  >(empty_)      ; ESC ^[
+000CFF  1  0F              .byte  >(empty_)      ; FS  ^\
+000D00  1  0F              .byte  >(empty_)      ; GS  ^]
+000D01  1  0F              .byte  >(empty_)      ; RS  ^^
+000D02  1  0F              .byte  >(empty_)      ; US  ^_)
+000D03  1  06              .byte  >(aNop_)       ; SP  ^`
+000D04  1  04              .byte  >(cstore_)     ;    !
+000D05  1  06              .byte  >(aNop_)       ;    "
+000D06  1  06              .byte  >(aNop_)       ;    #
+000D07  1  06              .byte  >(aNop_)       ;    $  ( -- adr ) text input ptr
+000D08  1  06              .byte  >(aNop_)       ;    %
+000D09  1  06              .byte  >(aNop_)       ;    &
+000D0A  1  06              .byte  >(aNop_)       ;    '
+000D0B  1  0B              .byte  >(ifte_)       ;    (  ( b -- )
+000D0C  1  06              .byte  >(aNop_)       ;    )
+000D0D  1  06              .byte  >(aNop_)       ;    *
+000D0E  1  04              .byte  >(incr_)       ;    +  ( adr -- ) increments variable at address
+000D0F  1  06              .byte  >(aNop_)       ;    ,
+000D10  1  04              .byte  >(decr_)       ;    -  ( adr -- ) decrements veriable at address
+000D11  1  06              .byte  >(aNop_)       ;    .
+000D12  1  06              .byte  >(aNop_)       ;    /
+000D13  1  06              .byte  >(aNop_)       ;    0
+000D14  1  06              .byte  >(aNop_)       ;    1
+000D15  1  06              .byte  >(aNop_)       ;    2
+000D16  1  06              .byte  >(aNop_)       ;    3
+000D17  1  06              .byte  >(aNop_)       ;    4
+000D18  1  06              .byte  >(aNop_)       ;    5
+000D19  1  06              .byte  >(aNop_)       ;    6
+000D1A  1  06              .byte  >(aNop_)       ;    7
+000D1B  1  06              .byte  >(aNop_)       ;    8
+000D1C  1  06              .byte  >(aNop_)       ;    9
+000D1D  1  06              .byte  >(aNop_)       ;    :  start defining a macro
+000D1E  1  06              .byte  >(aNop_)       ;    ;
+000D1F  1  06              .byte  >(aNop_)       ;    <( - 1)
+000D20  1  06              .byte  >(aNop_)       ;    =
+000D21  1  06              .byte  >(aNop_)       ;    >
+000D22  1  06              .byte  >(aNop_)       ;    ?
+000D23  1  04              .byte  >(cfetch_)     ;    @
+000D24  1  06              .byte  >(aNop_)       ;    A
+000D25  1  0A              .byte  >(break_)      ;    B
+000D26  1  06              .byte  >(nop_)        ;    C
+000D27  1  08              .byte  >(depth_)      ;    D  ( -- val ) depth of data stack
+000D28  1  03              .byte  >(emit_)       ;    E  ( val -- ) emits a char to output
+000D29  1  06              .byte  >(aNop_)       ;    F
+000D2A  1  09              .byte  >(go_)         ;    G  ( -- ? ) execute mint definition
+000D2B  1  03              .byte  >(keyq_)       ;    H  ( verify if key hit )
+000D2C  1  08              .byte  >(inPort_)     ;    I  ( port -- val )
+000D2D  1  06              .byte  >(aNop_)       ;    J
+000D2E  1  03              .byte  >(key_)        ;    K  ( -- val )  read a char from input
+000D2F  1  06              .byte  >(aNop_)       ;    L
+000D30  1  06              .byte  >(aNop_)       ;    M
+000D31  1  08              .byte  >(newln_)      ;    N  ; prints a newline to output
+000D32  1  08              .byte  >(outPort_)    ;    O  ( val port -- )
+000D33  1  08              .byte  >(printStk_)   ;    P  ( -- ) non-destructively prints stack
+000D34  1  06              .byte  >(aNop_)       ;    Q  quits from Mint REPL
+000D35  1  04              .byte  >(rot_)        ;    R  ( a b c -- b c a )
+000D36  1  06              .byte  >(aNop_)       ;    S
+000D37  1  06              .byte  >(aNop_)       ;    T
+000D38  1  05              .byte  >(r2s_)        ;    U  S( -- w ) R( w -- )
+000D39  1  05              .byte  >(s2r_)        ;    V  S( w -- ) R( -- w )
+000D3A  1  06              .byte  >(aNop_)       ;    W   ; ( b -- ) if false, skip to end of loop
+000D3B  1  09              .byte  >(exec_)       ;    X
+000D3C  1  06              .byte  >(aNop_)       ;    Y
+000D3D  1  09              .byte  >(editDef_)    ;    Z
+000D3E  1  0A              .byte  >(cArrDef_)    ;    [
+000D3F  1  08              .byte  >(comment_)    ;    \  comment text, skip reading until end of line
+000D40  1  06              .byte  >(aNop_)       ;    ]
+000D41  1  08              .byte  >(charCode_)   ;    ^
+000D42  1  06              .byte  >(aNop_)       ;    _
+000D43  1  06              .byte  >(aNop_)       ;    `
+000D44  1  08              .byte  >(sysVar_)     ;    a  ; start of data stack *fixed
+000D45  1  08              .byte  >(sysVar_)     ;    b  ; base16 flag
+000D46  1  08              .byte  >(sysVar_)     ;    c  ; TIBPtr variable
+000D47  1  08              .byte  >(sysVar_)     ;    d  ; vDefs variable
+000D48  1  08              .byte  >(sysVar_)     ;    e  ;
+000D49  1  08              .byte  >(sysVar_)     ;    f  ; start of return stack *fixed
+000D4A  1  08              .byte  >(sysVar_)     ;    g  ; next dispatcher
+000D4B  1  08              .byte  >(sysVar_)     ;    h  ; heap ptr variable
+000D4C  1  0B              .byte  >(i_)          ;    i  ; returns index of current loop
+000D4D  1  0B              .byte  >(j_)          ;    j  ; returns index of outer loop
+000D4E  1  08              .byte  >(sysVar_)     ;    k
+000D4F  1  08              .byte  >(sysVar_)     ;    l
+000D50  1  08              .byte  >(sysVar_)     ;    m  ( a b -- c ) return the minimum value
+000D51  1  08              .byte  >(sysVar_)     ;    n
+000D52  1  08              .byte  >(sysVar_)     ;    o
+000D53  1  08              .byte  >(sysVar_)     ;    p
+000D54  1  08              .byte  >(sysVar_)     ;    q
+000D55  1  08              .byte  >(sysVar_)     ;    r  ; return stack pointer
+000D56  1  08              .byte  >(sysVar_)     ;    s  ; data stack pointer
+000D57  1  08              .byte  >(sysVar_)     ;    t
+000D58  1  08              .byte  >(sysVar_)     ;    u
+000D59  1  08              .byte  >(sysVar_)     ;    v
+000D5A  1  08              .byte  >(sysVar_)     ;    w
+000D5B  1  08              .byte  >(sysVar_)     ;    x
+000D5C  1  08              .byte  >(sysVar_)     ;    y
+000D5D  1  08              .byte  >(sysVar_)     ;    z
+000D5E  1  09              .byte  >(group_)      ;    {
+000D5F  1  06              .byte  >(aNop_)       ;    |
+000D60  1  0A              .byte  >(endGroup_)   ;    }
+000D61  1  06              .byte  >(aNop_)       ;    ~
+000D62  1  06              .byte  >(aNop_)       ;    BS
+000D63  1               
+000D63  1               
+000D63  1               ; *********************************************************************
+000D63  1               ; mint variables, 26 plus 6 from z
+000D63  1               vsys:
+000D63  1  00 00 00 00          .res GRPSIZE, $0
+000D67  1  00 00 00 00  
+000D6B  1  00 00 00 00  
+000DA3  1               
+000DA3  1               ; user variable, 26 plus 6 from z
+000DA3  1               vars:
+000DA3  1  00 00 00 00          .res GRPSIZE, $0
+000DA7  1  00 00 00 00  
+000DAB  1  00 00 00 00  
+000DE3  1               
+000DE3  1               ; user function groups, each with 26 plus 6 from Z
+000DE3  1               defs:
+000DE3  1  00 00 00 00          .res NUMGRPS * GRPSIZE, $0
+000DE7  1  00 00 00 00  
+000DEB  1  00 00 00 00  
+000F63  1               
+000F63  1               ; *********************************************************************
+000F63  1               ; Macros must be written in Mint and end with ;
+000F63  1               ; this code must not span pages
+000F63  1               ; *********************************************************************
+000F63  1               macros:
+000F63  1               
+000F63  1               empty_:
+000F63  1  3B 00                .asciiz ";"
+000F65  1               
+000F65  1               backsp_:
+000F65  1  5C 63 40 30          .asciiz "\\c@0=0=(1_\\c\\+`\\b \\b`);"
+000F69  1  3D 30 3D 28  
+000F6D  1  31 5F 5C 63  
+000F7D  1               
+000F7D  1               reedit_:
+000F7D  1  5C 65 5C 40          .asciiz "\\e\\@\\Z;"
+000F81  1  5C 5A 3B 00  
+000F85  1               
+000F85  1               edit_:
+000F85  1  60 3F 60 5C          .asciiz "`?`\\K\\N`> `\\^A-\\Z;"
+000F89  1  4B 5C 4E 60  
+000F8D  1  3E 20 60 5C  
+000F98  1               
+000F98  1               list_:
+000F98  1  5C 4E 32 36          .asciiz "\\N26(\\i@\\Z\\c@0>(\\N))\\N`> `;"
+000F9C  1  28 5C 69 40  
+000FA0  1  5C 5A 5C 63  
+000FB4  1               
+000FB4  1               printStack_:
+000FB4  1  60 3D 3E 20          .asciiz "`=> `\\P\\N\\N`> `;"
+000FB8  1  60 5C 50 5C  
+000FBC  1  4E 5C 4E 60  
+000FC5  1               
+000FC5  1               toggleBase_:
+000FC5  1  5C 62 40 30          .asciiz "\\b@0=\\b!;"
+000FC9  1  3D 5C 62 21  
+000FCD  1  3B 00        
+000FCF  1               
+000FCF  1               ; heap must be here, where the user macros are copied !
+000FCF  1               heap:
+000FCF  1  00 00                .addr $0
+000FD1  1               
+000FD1  1               

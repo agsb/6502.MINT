@@ -1,0 +1,31 @@
+Modules list:
+-------------
+6502.MINT.o:
+    CODE              Offs=000000  Size=000CD1  Align=00001  Fill=0000
+    ZERO              Offs=000000  Size=000050  Align=00001  Fill=0000
+
+
+Segment list:
+-------------
+Name                   Start     End    Size  Align
+----------------------------------------------------
+ZERO                  000000  00004F  000050  00001
+CODE                  000200  000ED0  000CD1  00001
+
+
+Exports list by name:
+---------------------
+__ROM__                   00F000 REA    
+
+
+Exports list by value:
+----------------------
+__ROM__                   00F000 REA    
+
+
+Imports list:
+-------------
+__ROM__ ([linker generated]):
+    [linker generated]        6502.MINT.cfg:17
+    [linker generated]        6502.MINT.cfg:14
+
